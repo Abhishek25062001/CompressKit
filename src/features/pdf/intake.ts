@@ -4,6 +4,7 @@ import { useUiStore } from '../../store/uiStore';
 import type { PdfPage, PdfSource } from '../../types/pdf';
 import { createId } from '../../utils/id';
 import { PdfOpenError, openPdf } from './documents';
+import { askPassword } from './passwordPrompt';
 import { renderThumbnail } from './render';
 
 const PDF_FORMAT: FormatDef = { kind: 'image', label: 'PDF', mimes: ['application/pdf'], extensions: ['pdf'] };
@@ -38,6 +39,17 @@ function pumpThumbnails(): void {
   }
 }
 
+/** Redraws a page's thumbnail, for example after its scan cleanup changed. */
+export function refreshThumbnail(pageId: string): void {
+  const store = usePdfStore.getState();
+  const page = store.pages.find((p) => p.id === pageId);
+  if (!page) return;
+  if (page.thumbUrl) URL.revokeObjectURL(page.thumbUrl);
+  store.updatePage(pageId, { thumbUrl: null });
+  thumbQueue.push(usePdfStore.getState().pages.find((p) => p.id === pageId)!);
+  pumpThumbnails();
+}
+
 function isPdf(file: File): boolean {
   return file.type === 'application/pdf' || getExtension(file.name) === 'pdf';
 }
@@ -48,6 +60,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
   const skipped: string[] = [];
   const locked: string[] = [];
   const broken: string[] = [];
+  const unlocked: string[] = [];
 
   for (const file of files) {
     const pdf = isPdf(file);
@@ -58,16 +71,35 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
     const sourceId = createId();
     let pageCount = 1;
     if (pdf) {
-      usePdfStore.getState().setBusy(`Reading ${file.name}`);
-      try {
-        pageCount = (await openPdf(sourceId, file)).view.numPages;
-      } catch (e) {
-        (e instanceof PdfOpenError && e.reason === 'encrypted' ? locked : broken).push(file.name);
-        console.warn('[CompressKit] could not open PDF:', e);
-        continue;
-      } finally {
-        usePdfStore.getState().setBusy(null);
+      let password: string | undefined;
+      let opened = false;
+      // Locked PDFs ask for their password until it is right or the file is skipped.
+      for (;;) {
+        usePdfStore.getState().setBusy(`Reading ${file.name}`);
+        try {
+          pageCount = (await openPdf(sourceId, file, password)).view.numPages;
+          opened = true;
+          if (password) unlocked.push(file.name);
+          break;
+        } catch (e) {
+          usePdfStore.getState().setBusy(null);
+          if (e instanceof PdfOpenError && e.reason !== 'invalid') {
+            const answer = await askPassword(file.name, e.reason === 'wrong-password');
+            if (answer === null) {
+              locked.push(file.name);
+              break;
+            }
+            password = answer;
+            continue;
+          }
+          broken.push(file.name);
+          console.warn('[CompressKit] could not open PDF:', e);
+          break;
+        } finally {
+          usePdfStore.getState().setBusy(null);
+        }
       }
+      if (!opened) continue;
     }
     const source: PdfSource = { id: sourceId, name: file.name, kind: pdf ? 'pdf' : 'image', file, pageCount };
     const pages: PdfPage[] = Array.from({ length: pageCount }, (_, index) => ({
@@ -77,6 +109,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
       rotation: 0,
       selected: false,
       thumbUrl: null,
+      signatures: [],
     }));
     usePdfStore.getState().addSource(source, pages);
     thumbQueue.push(...pages);
@@ -89,8 +122,15 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
   if (locked.length) {
     notice({
       tone: 'warning',
-      title: 'Password-protected PDFs are not supported',
-      message: `Remove the protection first, then add it again: ${locked.slice(0, 3).join(', ')}`,
+      title: `${locked.length === 1 ? 'A locked PDF was' : 'Locked PDFs were'} skipped`,
+      message: `No password was given for: ${locked.slice(0, 3).join(', ')}`,
+    });
+  }
+  if (unlocked.length) {
+    notice({
+      tone: 'info',
+      title: 'PDF unlocked',
+      message: `${unlocked.slice(0, 3).join(', ')}: files you save from it have no password. Add one under Protect if you need it.`,
     });
   }
   if (broken.length) {

@@ -1,7 +1,8 @@
 import { canvasToBlob, createCanvas, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
 import { decodeImage } from '../image/decode';
-import type { PdfPage, PdfSource } from '../../types/pdf';
+import type { PdfPage, PdfSource, ScanSettings } from '../../types/pdf';
 import { getOpenPdf } from './documents';
+import { applyScan } from './scan';
 
 /** Canvases above this many pixels fail in some browsers; renders are scaled down to stay under it. */
 const MAX_RENDER_PIXELS = 40_000_000;
@@ -25,6 +26,7 @@ function drawRotated(image: ImageBitmap | AnyCanvas, rotation: number, width: nu
 /**
  * Renders a page to a canvas. `scale` is pixels per PDF point (1 = 72 DPI); photos use `scale` as a
  * fraction of their own pixels. `extraRotation` is applied on top of the page's own rotation.
+ * Photo pages get their scan cleanup (straightening and look) before rotation.
  */
 export async function renderPage(
   page: Pick<PdfPage, 'sourceId' | 'index'>,
@@ -32,11 +34,19 @@ export async function renderPage(
   scale: number,
   extraRotation: number,
   background: string | null,
+  scan?: ScanSettings,
 ): Promise<AnyCanvas> {
   if (source.kind === 'image') {
     const bitmap = await decodeImage(source.file);
     try {
       const s = Math.min(1, capScale(bitmap.width, bitmap.height, scale));
+      if (scan && (scan.corners || scan.filter !== 'none')) {
+        const cleaned = applyScan(bitmap, scan, Math.max(bitmap.width, bitmap.height) * s);
+        const canvas = drawRotated(cleaned, extraRotation, cleaned.width, cleaned.height);
+        releaseCanvas(cleaned);
+        if (background) fillBehind(canvas, background);
+        return canvas;
+      }
       const width = Math.max(1, Math.round(bitmap.width * s));
       const height = Math.max(1, Math.round(bitmap.height * s));
       const canvas = drawRotated(bitmap, extraRotation, width, height);
@@ -75,6 +85,11 @@ export async function renderThumbnail(page: PdfPage, source: PdfSource): Promise
   if (source.kind === 'image') {
     const bitmap = await decodeImage(source.file);
     scale = THUMB_SIDE / Math.max(bitmap.width, bitmap.height);
+    if (page.scan && (page.scan.corners || page.scan.filter !== 'none')) {
+      const cleaned = applyScan(bitmap, page.scan, THUMB_SIDE);
+      bitmap.close();
+      return toUrl(cleaned);
+    }
     const canvas = drawRotated(bitmap, 0, Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
     bitmap.close();
     return toUrl(canvas);

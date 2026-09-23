@@ -1,4 +1,4 @@
-import type { PDFDocument } from 'pdf-lib';
+import type { PDFDocument } from '@cantoo/pdf-lib';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { setPdfReleaseListener } from '../../store/pdfStore';
 
@@ -28,7 +28,7 @@ export function loadPdfjs(): Promise<typeof import('pdfjs-dist')> {
 
 export class PdfOpenError extends Error {
   constructor(
-    readonly reason: 'encrypted' | 'invalid',
+    readonly reason: 'encrypted' | 'wrong-password' | 'invalid',
     detail: string,
   ) {
     super(detail);
@@ -36,24 +36,29 @@ export class PdfOpenError extends Error {
   }
 }
 
-export async function openPdf(sourceId: string, file: File): Promise<OpenPdf> {
+/**
+ * Opens a PDF for viewing and editing. A password-protected PDF needs its password; once open,
+ * its pages are decrypted, so copies made from it are not protected unless a password is added.
+ */
+export async function openPdf(sourceId: string, file: File, password?: string): Promise<OpenPdf> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const [{ PDFDocument }, pdfjs] = await Promise.all([import('pdf-lib'), loadPdfjs()]);
+  const [{ PDFDocument }, pdfjs] = await Promise.all([import('@cantoo/pdf-lib'), loadPdfjs()]);
   let edit: PDFDocument;
   try {
-    edit = await PDFDocument.load(bytes, { updateMetadata: false });
+    edit = await PDFDocument.load(bytes, { updateMetadata: false, password });
   } catch (e) {
-    // pdf-lib's error classes fail `instanceof` in its published build, so match the message.
-    const encrypted = /is encrypted/i.test(String(e));
-    throw new PdfOpenError(encrypted ? 'encrypted' : 'invalid', String(e));
+    // The library's error classes are not reliable with `instanceof` across builds, so match the message.
+    const text = String(e);
+    const reason = /password incorrect/i.test(text) ? 'wrong-password' : /is encrypted/i.test(text) ? 'encrypted' : 'invalid';
+    throw new PdfOpenError(reason, text);
   }
   let view: PDFDocumentProxy;
   try {
     // pdf.js takes ownership of the buffer it is given, so hand it a copy.
-    view = await pdfjs.getDocument({ data: bytes.slice() }).promise;
+    view = await pdfjs.getDocument({ data: bytes.slice(), password }).promise;
   } catch (e) {
     const name = (e as { name?: string }).name;
-    throw new PdfOpenError(name === 'PasswordException' ? 'encrypted' : 'invalid', String(e));
+    throw new PdfOpenError(name === 'PasswordException' ? (password ? 'wrong-password' : 'encrypted') : 'invalid', String(e));
   }
   const doc = { view, edit };
   open.set(sourceId, doc);

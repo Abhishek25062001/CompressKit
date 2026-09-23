@@ -125,12 +125,20 @@ The **PDF** tab works on pages instead of files. Open it with the **PDF** tab ab
 | **Save PDF** | One PDF of all pages, or only the selected ones, in board order. This covers photos to PDF, merging, extracting pages, and saving a reordered copy. |
 | **Split** | Separate PDFs of N pages each (1 by default), downloaded as a ZIP. |
 | **To images** | Each page as JPG or PNG at 72, 150, or 300 DPI, as a ZIP when there are several. |
+| **Compress** | A smaller PDF: photos and scans inside are recompressed (Light, Medium, or Strong), with an optional size target. |
+| **Sign** | Draw, type, or upload a signature, then place it on any page. |
 
 **Pages from PDFs** are copied unchanged, so text stays sharp and selectable. Rotation is stored as page rotation, not by redrawing the page.
 
 **Pages from photos** are placed on A4, US Letter, or a page that fits the photo, with automatic or fixed orientation and no, small, or large margins. The photo's own orientation (EXIF) is applied, so phone photos are not sideways. **Standard** quality scales large photos to about 200 DPI on an A4 page, which is sharp for reading and printing and keeps files small. **Original** keeps full resolution. Transparent images are embedded as PNG, and the rest as JPEG.
 
-**Limits.** Password-protected PDFs are refused with a message: remove the protection first. pdf-lib and pdf.js (about 1.5 MB) load only when the PDF tab is first used. The work runs on the main thread, so very large PDFs (hundreds of pages, or tens of MB) can make the page pause while they are built. Compressing PDFs, page numbers, watermarks, and signing are not built yet.
+**Page numbers and watermark.** Under **Save**, **Add to every page** turns on page numbers and a watermark. They are also added when splitting and compressing. Page numbers come in six positions and four styles ("Page 1 of 5", "Page 1", "1 / 5", "1"), with a start number and an option to skip a cover page. Numbering counts the pages of each file you download. The watermark is faint text across the middle of each page, diagonal or straight, in three sizes and adjustable strength. It is drawn by the browser, so any language works. Both follow each page's rotation, so they appear upright where a reader expects them.
+
+**Compress.** Only JPEG photos in grayscale or RGB are rewritten: smaller (2400, 1600, or 1100 px on the long side) and at lower quality. A photo is kept as it was when re-encoding would not save at least 10%. Text, fonts, and drawings are not touched, so text stays sharp and selectable. With a target (for example 200 KB), CompressKit starts at the chosen strength and steps up until the file fits. If it still does not fit, **Flatten pages if needed** (off by default) turns each page into a single image at 150, 110, then 80 DPI. That makes text unselectable and unsearchable, so the result message always says when it happened, and when the target could not be reached. PDFs of mostly text are usually small already and are reported as such. Pages from one PDF are copied together, so shared fonts and images are stored once.
+
+**Sign.** Draw a signature with a mouse, finger, or pen, type your name in a handwriting-style font, or upload a photo of a signature. Uploads can have the white paper removed, so only the ink shows. Press the pen button under a page to place it: drag to move it, drag the corner to resize it (its shape is kept), and add it more than once. Signed pages show a **Signed** badge. The signature is kept in memory for this tab only and is never saved or uploaded. It is a picture of a signature, not a certified digital signature.
+
+**Limits.** Password-protected PDFs are refused with a message: remove the protection first. pdf-lib and pdf.js (about 1.5 MB) load only when the PDF tab is first used. The work runs on the main thread, so very large PDFs (hundreds of pages, or tens of MB) can make the page pause while they are built. Compression skips CMYK photos, PNG-style (lossless) images, and masked images inside PDFs.
 
 ### Working with a batch
 

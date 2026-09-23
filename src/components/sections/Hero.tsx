@@ -64,7 +64,7 @@ export function Hero() {
           animate="show"
           className="mt-8 flex flex-col items-center gap-3"
         >
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center">
             <Button variant="primary" size="lg" onClick={() => start('compress')} icon={<ArrowDown className="h-4 w-4" />}>
               Start Compressing
             </Button>

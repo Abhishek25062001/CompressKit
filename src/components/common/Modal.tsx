@@ -10,11 +10,13 @@ interface ModalProps {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** 'wide' fits side-by-side editors, such as a photo and its preview. */
+  size?: 'normal' | 'wide';
 }
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, title, description, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, description, children, footer, size = 'normal' }: ModalProps) {
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export function Modal({ open, onClose, title, description, children, footer }: M
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={description ? descId : undefined}
-            className="card relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-b-none sm:rounded-2xl"
+            className={`card relative flex max-h-[92dvh] w-full flex-col rounded-b-none sm:rounded-2xl ${size === 'wide' ? 'max-w-4xl' : 'max-w-lg'}`}
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}

@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, FileText, Loader2, RotateCw, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, FileText, Loader2, PenLine, RotateCw, ScanLine, Trash2 } from 'lucide-react';
 import { memo, useState, type DragEvent } from 'react';
 import { usePdfStore } from '../../store/pdfStore';
 import { cn } from '../../utils/cn';
@@ -18,7 +18,7 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
   const page = usePdfStore((s) => s.pages.find((p) => p.id === id));
   const source = usePdfStore((s) => (page ? s.sources[page.sourceId] : undefined));
   const busy = usePdfStore((s) => s.busy !== null);
-  const { toggleSelected, rotatePage, removePage, movePage } = usePdfStore.getState();
+  const { toggleSelected, rotatePage, removePage, movePage, setSigningPage, setScanningPage } = usePdfStore.getState();
   if (!page || !source) return null;
 
   const label = `Page ${position + 1}`;
@@ -86,17 +86,36 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
           <Check className="h-3.5 w-3.5" />
         </span>
       </button>
+      {source.kind === 'image' && (
+        <button
+          type="button"
+          onClick={() => setScanningPage(id)}
+          disabled={busy}
+          aria-label={`Scan cleanup for ${label}: straighten and clean up the photo`}
+          className={cn(
+            'absolute top-2 right-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-colors disabled:opacity-40',
+            page.scan ? 'border-accent/50 bg-accent-soft text-accent-text' : 'border-border bg-surface/90 text-fg hover:border-accent',
+          )}
+        >
+          <ScanLine className="h-3 w-3" aria-hidden />
+          {page.scan ? 'Edited' : 'Scan'}
+        </button>
+      )}
       <div className="flex items-center gap-2 border-t border-border px-2.5 pt-2">
         <span className="tabular font-mono text-sm font-semibold text-fg">{position + 1}</span>
         <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted" title={origin}>
           <FileText className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate">{origin}</span>
         </span>
+        {page.signatures.length > 0 && (
+          <span className="ml-auto shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text">Signed</span>
+        )}
       </div>
       <div className="flex items-center justify-between px-1 pt-1 pb-1.5">
         {[
           { icon: ChevronLeft, text: `Move ${label} earlier`, onClick: () => movePage(id, position - 1), disabled: position === 0 },
           { icon: RotateCw, text: `Rotate ${label}`, onClick: () => rotatePage(id, 90), disabled: false },
+          { icon: PenLine, text: `Sign ${label}`, onClick: () => setSigningPage(id), disabled: false },
           { icon: Trash2, text: `Remove ${label}`, onClick: () => removePage(id), disabled: false },
           { icon: ChevronRight, text: `Move ${label} later`, onClick: () => movePage(id, position + 1), disabled: position === total - 1 },
         ].map(({ icon: Icon, text, onClick, disabled }) => (

@@ -11,6 +11,7 @@ import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
 import { PageGrid } from './PageGrid';
 import { PdfPanel } from './PdfPanel';
+import { SignDialog } from './SignDialog';
 
 const ACCEPT = acceptAttribute(PDF_INPUT_FORMATS);
 
@@ -92,40 +93,43 @@ export function PdfWorkspace() {
   );
 
   return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      {!hasPages ? (
-        <motion.div
-          key="pdf-empty"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="mx-auto max-w-3xl space-y-3"
-        >
-          {dropZone(false)}
-          {busy && (
-            <p className="flex items-center justify-center gap-2 text-sm text-muted" aria-live="polite">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {busy}…
-            </p>
-          )}
-        </motion.div>
-      ) : (
-        <motion.div
-          key="pdf-workspace"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
-        >
-          <div className="min-w-0 space-y-4">
-            <PdfBar />
-            <PageGrid />
-            {dropZone(true)}
-          </div>
-          <div className="lg:sticky lg:top-20">
-            <PdfPanel />
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <>
+      <SignDialog />
+      <AnimatePresence mode="popLayout" initial={false}>
+        {!hasPages ? (
+          <motion.div
+            key="pdf-empty"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="mx-auto max-w-3xl space-y-3"
+          >
+            {dropZone(false)}
+            {busy && (
+              <p className="flex items-center justify-center gap-2 text-sm text-muted" aria-live="polite">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {busy}…
+              </p>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="pdf-workspace"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+          >
+            <div className="min-w-0 space-y-4">
+              <PdfBar />
+              <PageGrid />
+              {dropZone(true)}
+            </div>
+            <div className="lg:sticky lg:top-20">
+              <PdfPanel />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

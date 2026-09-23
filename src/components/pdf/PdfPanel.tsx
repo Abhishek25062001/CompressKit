@@ -1,15 +1,19 @@
-import { Download, FileDown, Images, Scissors } from 'lucide-react';
+import { Download, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { exportImages, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
+import { compressPdf, exportImages, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
 import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
 import type { PdfPage } from '../../types/pdf';
 import { Button } from '../common/Button';
 import { NumberField } from '../common/NumberField';
 import { SegmentedControl } from '../common/SegmentedControl';
 import { Select } from '../common/Select';
+import { Switch } from '../common/Switch';
+import { TargetSizeField } from '../settings/TargetSizeField';
+import { SignatureMaker } from './SignatureMaker';
+import { StampSettings } from './StampSettings';
 
-type Tab = 'save' | 'split' | 'images';
+type Tab = 'save' | 'split' | 'images' | 'compress' | 'sign';
 type Scope = 'all' | 'selected';
 
 function Label({ children }: { children: string }) {
@@ -82,6 +86,74 @@ function RangeSelect() {
   );
 }
 
+/** Where a signature goes when it is applied to pages that have none yet: bottom right, like a form. */
+const DEFAULT_PLACEMENT = { id: 'default', x: 0.6, y: 0.8, width: 0.3 };
+
+/** Create or change the signature, put it on many pages at once, and download the signed PDF. */
+function SignTab({ target, count, busy }: { target: PdfPage[]; count: string; busy: boolean }) {
+  const signature = usePdfStore((s) => s.signature);
+  const template = usePdfStore((s) => s.pages.find((p) => p.signatures.length)?.signatures);
+  const { applySignatures } = usePdfStore.getState();
+  const targetIds = target.map((p) => p.id);
+  const signed = usePdfStore(
+    useShallow((s) => s.pages.map((p, i) => (p.signatures.length ? `${i + 1}:${p.signatures.length}` : '')).filter(Boolean)),
+  );
+  const { setSignature } = usePdfStore.getState();
+  if (!signature) {
+    return (
+      <>
+        <SignatureMaker />
+        <p className="text-xs text-muted">Your signature stays in this browser tab only. It is never uploaded or saved.</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="checkerboard flex h-28 items-center justify-center rounded-xl border border-border p-3">
+        <img src={signature.url} alt="Your signature" className="max-h-full max-w-full object-contain" />
+      </div>
+      <p className="flex gap-2 text-xs text-muted">
+        <PenLine className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+        Press the pen button under a page to place your signature exactly. Or put it on every page at once: it goes where you placed it
+        on a page, or at the bottom right.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button onClick={() => applySignatures(targetIds, template ?? [DEFAULT_PLACEMENT])} disabled={busy || !target.length}>
+          Apply to {count}
+        </Button>
+        <Button variant="ghost" onClick={() => applySignatures(targetIds, [])} disabled={busy || !signed.length}>
+          Remove from {count}
+        </Button>
+      </div>
+      {signed.length > 0 && (
+        <p className="text-xs text-fg">
+          Signed pages:{' '}
+          {signed.map((entry) => {
+            const [page, n] = entry.split(':');
+            return `${page}${n !== '1' ? ` (×${n})` : ''}`;
+          }).join(', ')}
+        </p>
+      )}
+      <Button
+        variant="primary"
+        className="w-full"
+        disabled={busy || !signed.length}
+        onClick={() => void savePdf(target)}
+        icon={<Download className="h-4 w-4" aria-hidden />}
+      >
+        Download signed PDF ({count})
+      </Button>
+      {!signed.length && <p className="text-xs text-muted">Put your signature on at least one page to download.</p>}
+      <Button variant="ghost" onClick={() => setSignature(null)} icon={<Trash2 className="h-4 w-4" aria-hidden />}>
+        Use a different signature
+      </Button>
+      <p className="text-xs text-muted">
+        This is a picture of your signature, not a certified digital signature. Page numbers and the watermark from Save are added too.
+      </p>
+    </>
+  );
+}
+
 export function PdfPanel() {
   const [tab, setTab] = useState<Tab>('save');
   const [scope, setScope] = useState<Scope>('all');
@@ -109,9 +181,11 @@ export function PdfPanel() {
         value={tab}
         onChange={setTab}
         segments={[
-          { value: 'save', label: <><FileDown className="h-3.5 w-3.5" aria-hidden /> Save PDF</> },
-          { value: 'split', label: <><Scissors className="h-3.5 w-3.5" aria-hidden /> Split</> },
-          { value: 'images', label: <><Images className="h-3.5 w-3.5" aria-hidden /> To images</> },
+          { value: 'save', label: 'Save' },
+          { value: 'split', label: 'Split' },
+          { value: 'images', label: 'Images' },
+          { value: 'compress', label: 'Compress' },
+          { value: 'sign', label: 'Sign' },
         ]}
       />
       <div className="my-5 h-px bg-border" />
@@ -185,6 +259,7 @@ export function PdfPanel() {
                 </p>
               </div>
             )}
+            <StampSettings />
             <Button
               variant="primary"
               className="w-full"
@@ -209,14 +284,15 @@ export function PdfPanel() {
             <p className="text-xs text-muted">
               {chunks === 1
                 ? 'All of these pages fit in one file. Lower the number to split them.'
-                : `Makes ${chunks} PDFs, downloaded together as a ZIP. To pull out some pages as one PDF, select them and use Save PDF.`}
+                : `Makes ${chunks} PDFs, downloaded together as a ZIP. To pull out some pages as one PDF, select them and use Save.`}
+              {' '}Page numbers, watermark and signatures from the Save and Sign tabs are added too.
             </p>
             <Button
               variant="primary"
               className="w-full"
               disabled={busy || !target.length}
               onClick={() => void splitPdf(target, settings.splitEvery)}
-              icon={<Scissors className="h-4 w-4" aria-hidden />}
+              icon={<Download className="h-4 w-4" aria-hidden />}
             >
               {chunks === 1 ? `Download PDF (${count})` : `Split into ${chunks} PDFs`}
             </Button>
@@ -258,12 +334,58 @@ export function PdfPanel() {
               className="w-full"
               disabled={busy || !target.length}
               onClick={() => void exportImages(target)}
-              icon={<Images className="h-4 w-4" aria-hidden />}
+              icon={<Download className="h-4 w-4" aria-hidden />}
             >
               Save {count} as {settings.imageFormat === 'png' ? 'PNG' : 'JPG'}
             </Button>
           </>
         )}
+
+        {tab === 'compress' && (
+          <>
+            <Row label="Strength">
+              <SegmentedControl
+                label="Compression strength"
+                size="sm"
+                value={settings.compressLevel}
+                onChange={(compressLevel) => settings.update({ compressLevel })}
+                segments={[
+                  { value: 'light', label: 'Light' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'strong', label: 'Strong' },
+                ]}
+              />
+            </Row>
+            <p className="text-xs text-muted">
+              Photos and scans inside the PDF are made smaller. Text, fonts and drawings stay as they are, so text remains sharp and
+              selectable. A PDF of plain text is usually small already.
+            </p>
+            <TargetSizeField
+              value={settings.compressTargetKB}
+              onChange={(compressTargetKB) => settings.update({ compressTargetKB })}
+              hint="Starts at the chosen strength and steps up until the file fits."
+            />
+            {settings.compressTargetKB ? (
+              <Switch
+                label="Flatten pages if needed"
+                description="Last resort: turns each page into a picture. Text will no longer be selectable or searchable."
+                checked={settings.allowFlatten}
+                onChange={(allowFlatten) => settings.update({ allowFlatten })}
+              />
+            ) : null}
+            <Button
+              variant="primary"
+              className="w-full"
+              disabled={busy || !target.length}
+              onClick={() => void compressPdf(target)}
+              icon={<Minimize2 className="h-4 w-4" aria-hidden />}
+            >
+              Compress PDF ({count})
+            </Button>
+          </>
+        )}
+
+        {tab === 'sign' && <SignTab target={target} count={count} busy={busy} />}
       </div>
     </section>
   );

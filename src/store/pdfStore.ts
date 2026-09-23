@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { PageRotation, PdfPage, PdfSettings, PdfSource } from '../types/pdf';
+import type { FieldValue } from '../features/pdf/forms';
+import type { PageRotation, PdfPage, PdfSettings, PdfSource, SignatureAsset, SignaturePlacement } from '../types/pdf';
+import { createId } from '../utils/id';
 
 interface PdfState {
   sources: Record<string, PdfSource>;
@@ -9,6 +11,30 @@ interface PdfState {
   busy: string | null;
   /** 0..1 while an action can measure its progress. */
   progress: number | null;
+  /** Kept in memory only: a signature is never written to storage. */
+  signature: SignatureAsset | null;
+  /** Logo for the watermark, also in memory only. */
+  watermarkLogo: SignatureAsset | null;
+  setWatermarkLogo: (logo: SignatureAsset | null) => void;
+  /** Page whose signature placement dialog is open. */
+  signingPageId: string | null;
+  /** Photo page whose scan cleanup dialog is open. */
+  scanningPageId: string | null;
+  setScanningPage: (id: string | null) => void;
+  /** Answers typed into PDF forms, per source and field name. Kept in memory only. */
+  formValues: Record<string, Record<string, FieldValue>>;
+  setFormValue: (sourceId: string, field: string, value: FieldValue) => void;
+  clearFormValues: (sourceId: string) => void;
+  /** Title and author written into saved PDFs; empty leaves them out. */
+  docInfo: { title: string; author: string };
+  setDocInfo: (info: Partial<{ title: string; author: string }>) => void;
+  /** A locked PDF waiting for its password; see features/pdf/passwordPrompt. */
+  passwordPrompt: { fileName: string; wrong: boolean } | null;
+  setPasswordPrompt: (prompt: { fileName: string; wrong: boolean } | null) => void;
+  setSignature: (signature: SignatureAsset | null) => void;
+  setSigningPage: (id: string | null) => void;
+  /** Puts copies of `placements` on each page in `pageIds`, replacing what those pages had. */
+  applySignatures: (pageIds: string[], placements: SignaturePlacement[]) => void;
   addSource: (source: PdfSource, pages: PdfPage[]) => void;
   updatePage: (id: string, patch: Partial<PdfPage>) => void;
   movePage: (id: string, toIndex: number) => void;
@@ -32,6 +58,42 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   pages: [],
   busy: null,
   progress: null,
+  signature: null,
+  signingPageId: null,
+  scanningPageId: null,
+  setScanningPage: (scanningPageId) => set({ scanningPageId }),
+  passwordPrompt: null,
+  formValues: {},
+  setFormValue: (sourceId, field, value) =>
+    set((s) => ({ formValues: { ...s.formValues, [sourceId]: { ...s.formValues[sourceId], [field]: value } } })),
+  clearFormValues: (sourceId) =>
+    set((s) => {
+      const formValues = { ...s.formValues };
+      delete formValues[sourceId];
+      return { formValues };
+    }),
+  docInfo: { title: '', author: '' },
+  setDocInfo: (info) => set((s) => ({ docInfo: { ...s.docInfo, ...info } })),
+  watermarkLogo: null,
+  setWatermarkLogo: (watermarkLogo) => {
+    const previous = get().watermarkLogo;
+    if (previous && previous !== watermarkLogo) URL.revokeObjectURL(previous.url);
+    set({ watermarkLogo });
+  },
+  setPasswordPrompt: (passwordPrompt) => set({ passwordPrompt }),
+  setSignature: (signature) => {
+    const previous = get().signature;
+    if (previous && previous !== signature) URL.revokeObjectURL(previous.url);
+    // Placements are sized for the old signature's shape, so a new signature starts with none.
+    set((s) => ({ signature, pages: s.pages.map((p) => (p.signatures.length ? { ...p, signatures: [] } : p)) }));
+  },
+  setSigningPage: (signingPageId) => set({ signingPageId }),
+  applySignatures: (pageIds, placements) => {
+    const ids = new Set(pageIds);
+    set((s) => ({
+      pages: s.pages.map((p) => (ids.has(p.id) ? { ...p, signatures: placements.map((pl) => ({ ...pl, id: createId() })) } : p)),
+    }));
+  },
   addSource: (source, pages) =>
     set((s) => ({ sources: { ...s.sources, [source.id]: source }, pages: [...s.pages, ...pages] })),
   updatePage: (id, patch) => set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
@@ -64,7 +126,7 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   clear: () => {
     const { pages, sources } = get();
     pages.forEach((p) => p.thumbUrl && URL.revokeObjectURL(p.thumbUrl));
-    set({ pages: [], sources: {}, busy: null, progress: null });
+    set({ pages: [], sources: {}, busy: null, progress: null, formValues: {}, docInfo: { title: '', author: '' } });
     onRelease(Object.keys(sources));
   },
   setBusy: (busy, progress = null) => set({ busy, progress }),
@@ -78,6 +140,12 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   splitEvery: 1,
   imageFormat: 'jpeg',
   imageDpi: 150,
+  pageNumbers: { enabled: false, position: 'bottom-center', format: 'page-n-of-total', start: 1, skipFirst: false },
+  watermark: { enabled: false, text: 'CONFIDENTIAL', size: 'large', diagonal: true, opacity: 0.15 },
+  compressLevel: 'medium',
+  compressTargetKB: null,
+  allowFlatten: false,
+  removeComments: false,
 };
 
 interface PdfSettingsState extends PdfSettings {
@@ -99,6 +167,12 @@ export const usePdfSettingsStore = create<PdfSettingsState>()(
         splitEvery: s.splitEvery,
         imageFormat: s.imageFormat,
         imageDpi: s.imageDpi,
+        pageNumbers: s.pageNumbers,
+        watermark: s.watermark,
+        compressLevel: s.compressLevel,
+        compressTargetKB: s.compressTargetKB,
+        allowFlatten: s.allowFlatten,
+        removeComments: s.removeComments,
       }),
     },
   ),
