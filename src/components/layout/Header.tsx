@@ -1,11 +1,23 @@
+import type { MouseEvent } from 'react';
+import { useUiStore } from '../../store/uiStore';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
+  { href: '#convert', label: 'Convert' },
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How it works' },
   { href: '#privacy', label: 'Privacy' },
 ];
+
+/** "#convert" is not a real anchor: it switches the workspace to the converter, then scrolls to it. */
+function onNavClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
+  if (href !== '#convert') return;
+  e.preventDefault();
+  useUiStore.getState().setActiveTool('convert');
+  history.replaceState(null, '', '#convert');
+  document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 export function Header() {
   return (
@@ -20,6 +32,7 @@ export function Header() {
               <li key={item.href}>
                 <a
                   href={item.href}
+                  onClick={(e) => onNavClick(e, item.href)}
                   className="rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
                 >
                   {item.label}
@@ -35,7 +48,7 @@ export function Header() {
         <ul className="mx-auto flex max-w-6xl justify-center gap-1 px-4 py-1.5">
           {NAV.map((item) => (
             <li key={item.href}>
-              <a href={item.href} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted hover:text-fg">
+              <a href={item.href} onClick={(e) => onNavClick(e, item.href)} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted hover:text-fg">
                 {item.label}
               </a>
             </li>

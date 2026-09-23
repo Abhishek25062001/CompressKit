@@ -16,6 +16,7 @@ workerScope.addEventListener('message', (event: MessageEvent<ImageJobRequest>) =
       const out = await encodeImage({
         file: job.file,
         settings: job.settings,
+        mode: job.mode,
         support: job.support,
         onStage: (stage) => post({ type: 'progress', jobId: job.jobId, progress: null, stage }),
       });

@@ -1,4 +1,4 @@
-import { compressWithFFmpeg, type EngineOutput } from '../features/video/ffmpegEngine';
+import { compressWithFFmpeg, convertToAudio, convertToGif, type EngineOutput } from '../features/video/ffmpegEngine';
 import { WebCodecsUnavailable, compressWithWebCodecs } from '../features/video/webcodecsEngine';
 import { CODEC_LABEL } from '../features/video/videoParams';
 import { FFMPEG_CODECS, FFMPEG_FALLBACK_CODEC } from '../utils/mediaCapabilities';
@@ -20,6 +20,25 @@ async function run(job: VideoJobRequest): Promise<void> {
     lastPost = now;
     post({ type: 'progress', jobId: job.jobId, progress, stage });
   };
+
+  // GIF and audio outputs have no WebCodecs path; FFmpeg writes them directly.
+  if (job.output.type !== 'video') {
+    const convertJob = { file: job.file, source: job.source, urls: job.ffmpeg };
+    const converted =
+      job.output.type === 'gif'
+        ? await convertToGif(convertJob, job.output, onProgress)
+        : await convertToAudio(convertJob, job.output.format, onProgress);
+    post({
+      type: 'done',
+      jobId: job.jobId,
+      blob: converted.blob,
+      mime: converted.mime,
+      notes: converted.notes,
+      engine: 'ffmpeg',
+      keptOriginal: false,
+    });
+    return;
+  }
 
   const notes: string[] = [];
   let out: (EngineOutput & { width?: number; height?: number }) | null = null;
@@ -60,6 +79,10 @@ async function run(job: VideoJobRequest): Promise<void> {
   }
 
   notes.push(...out.notes);
+  if (job.mode === 'convert') {
+    post({ type: 'done', jobId: job.jobId, blob: out.blob, mime: out.mime, width: out.width, height: out.height, notes, engine, keptOriginal: false });
+    return;
+  }
   const sameContainer = out.mime === job.file.type;
   if (out.blob.size >= job.file.size && sameContainer && settings.resolution === 'original') {
     post({

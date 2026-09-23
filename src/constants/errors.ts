@@ -14,7 +14,7 @@ const MESSAGES: Record<ErrorCode, { title: string; message: string }> = {
     message: 'Pick a different output format in the settings, such as WebP or JPEG.',
   },
   CODEC_UNSUPPORTED: {
-    title: "We couldn't compress this file",
+    title: "We couldn't process this file",
     message: 'Your browser may not support this video format. Try MP4 or WebM.',
   },
   ENGINE_LOAD_FAILED: {
@@ -33,16 +33,20 @@ const MESSAGES: Record<ErrorCode, { title: string; message: string }> = {
     title: 'No video found in this file',
     message: 'This file does not seem to contain a video stream.',
   },
+  NO_AUDIO_TRACK: {
+    title: 'No audio found in this file',
+    message: 'This video has no sound track, so there is no audio to extract. Pick a video format instead.',
+  },
   FILE_TOO_LARGE: {
     title: 'This file is too large',
     message: 'Browsers cannot reliably process files of this size. Try a smaller file.',
   },
   CANCELLED: {
-    title: 'Compression cancelled',
-    message: 'You stopped this file. Press retry to compress it again.',
+    title: 'Cancelled',
+    message: 'You stopped this file. Press retry to start it again.',
   },
   UNKNOWN: {
-    title: "We couldn't compress this file",
+    title: "We couldn't process this file",
     message: 'Something went wrong while processing. Try again, or try different settings.',
   },
 };

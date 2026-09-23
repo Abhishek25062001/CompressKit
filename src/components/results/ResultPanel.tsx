@@ -1,6 +1,8 @@
 import type { QueueItem } from '../../types/media';
 import { engineLabel } from '../../features/compression/CompressionManager';
+import { useTool } from '../../features/tools';
 import { formatBytes, formatDimensions, formatDuration, formatElapsed, formatPercent, savedRatio } from '../../utils/format';
+import { ConvertedPreview } from '../preview/ConvertedPreview';
 import { ImageCompare } from '../preview/ImageCompare';
 import { VideoCompare } from '../preview/VideoCompare';
 
@@ -16,25 +18,43 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
 }
 
 export function ResultPanel({ item }: { item: QueueItem }) {
+  const { mode } = useTool();
   const result = item.result;
   if (!result) return null;
   const ratio = savedRatio(item.size, result.size);
   const saved = item.size - result.size;
+  const outputKind = result.mime.startsWith('image/') ? 'image' : result.mime.startsWith('video/') ? 'video' : 'other';
 
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="Original" value={formatBytes(item.size)} />
-        <Stat label="Compressed" value={formatBytes(result.size)} />
-        <Stat label="Saved" value={saved > 0 ? formatBytes(saved) : '0 B'} />
-        <Stat label="Smaller by" value={ratio > 0 ? formatPercent(ratio) : '0%'} strong />
-        <Stat label="Original size" value={formatDimensions(item.meta.width, item.meta.height)} />
-        <Stat label="Output size" value={formatDimensions(result.width, result.height)} />
-        <Stat label="Format" value={result.formatLabel} />
-        <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
-        {item.kind === 'video' && <Stat label="Duration" value={formatDuration(result.duration ?? item.meta.duration)} />}
-        <Stat label="Engine" value={engineLabel(result.engine)} />
-      </dl>
+      {mode === 'convert' ? (
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="From" value={item.typeLabel} />
+          <Stat label="To" value={result.formatLabel} strong />
+          <Stat label="Original" value={formatBytes(item.size)} />
+          <Stat label="Converted" value={formatBytes(result.size)} />
+          {outputKind !== 'other' && <Stat label="Original size" value={formatDimensions(item.meta.width, item.meta.height)} />}
+          {outputKind !== 'other' && <Stat label="Output size" value={formatDimensions(result.width, result.height)} />}
+          {item.kind === 'video' && outputKind !== 'image' && (
+            <Stat label="Duration" value={formatDuration(result.duration ?? item.meta.duration)} />
+          )}
+          <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
+          <Stat label="Engine" value={engineLabel(result.engine)} />
+        </dl>
+      ) : (
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Original" value={formatBytes(item.size)} />
+          <Stat label="Compressed" value={formatBytes(result.size)} />
+          <Stat label="Saved" value={saved > 0 ? formatBytes(saved) : '0 B'} />
+          <Stat label="Smaller by" value={ratio > 0 ? formatPercent(ratio) : '0%'} strong />
+          <Stat label="Original size" value={formatDimensions(item.meta.width, item.meta.height)} />
+          <Stat label="Output size" value={formatDimensions(result.width, result.height)} />
+          <Stat label="Format" value={result.formatLabel} />
+          <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
+          {item.kind === 'video' && <Stat label="Duration" value={formatDuration(result.duration ?? item.meta.duration)} />}
+          <Stat label="Engine" value={engineLabel(result.engine)} />
+        </dl>
+      )}
       {result.notes.length > 0 && (
         <ul className="space-y-1 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-xs text-muted">
           {result.notes.map((n) => (
@@ -42,7 +62,9 @@ export function ResultPanel({ item }: { item: QueueItem }) {
           ))}
         </ul>
       )}
-      {item.kind === 'image' ? (
+      {item.kind !== outputKind ? (
+        <ConvertedPreview result={result} />
+      ) : item.kind === 'image' ? (
         <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} />
       ) : (
         <VideoCompare

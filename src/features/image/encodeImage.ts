@@ -1,5 +1,6 @@
 import UPNG from 'upng-js';
 import { IMAGE_MIME, MIME_LABEL } from '../../constants/formats';
+import type { ToolMode } from '../../types/media';
 import type { ImageSettings } from '../../types/settings';
 import { CompressionError } from '../../utils/errors';
 import { canvasToBlob, getContext, releaseCanvas, type AnyCanvas } from './canvas';
@@ -10,6 +11,7 @@ type EncodableFormat = keyof typeof IMAGE_MIME;
 export interface ImageEncodeInput {
   file: Blob;
   settings: ImageSettings;
+  mode: ToolMode;
   support: { webp: boolean; avif: boolean };
   onStage: (stage: string) => void;
 }
@@ -65,7 +67,17 @@ function readPixels(canvas: AnyCanvas): ImageData {
  * Re-encodes an image with the browser's own codecs. Runs inside the image worker when
  * OffscreenCanvas is available, and on the main thread otherwise.
  */
-export async function encodeImage({ file, settings, support, onStage }: ImageEncodeInput): Promise<ImageEncodeOutput> {
+/** JPEG has no alpha channel; without a backdrop, canvases encode transparent pixels as black. */
+function flattenOnWhite(canvas: AnyCanvas): void {
+  const ctx = getContext(canvas);
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
+export async function encodeImage({ file, settings, mode, support, onStage }: ImageEncodeInput): Promise<ImageEncodeOutput> {
   onStage('Decoding image');
   let bitmap: ImageBitmap;
   try {
@@ -103,10 +115,17 @@ export async function encodeImage({ file, settings, support, onStage }: ImageEnc
   const mayHaveAlpha = sourceFormat !== 'jpeg';
   const alpha = () => mayHaveAlpha && hasTransparency(pixelsNeeded().data);
 
-  // Never flatten transparency into JPEG. WebP keeps alpha and is still small.
   if (format === 'jpeg' && alpha()) {
-    format = support.webp ? 'webp' : 'png';
-    notes.push(`Kept transparency: saved as ${MIME_LABEL[IMAGE_MIME[format]]} instead of JPEG.`);
+    if (mode === 'convert') {
+      // The user asked for JPEG explicitly, so honor it the way image editors do.
+      flattenOnWhite(canvas);
+      pixels = null;
+      notes.push('JPEG has no transparency, so transparent areas were filled with white.');
+    } else {
+      // Never flatten transparency into JPEG when compressing. WebP keeps alpha and is still small.
+      format = support.webp ? 'webp' : 'png';
+      notes.push(`Kept transparency: saved as ${MIME_LABEL[IMAGE_MIME[format]]} instead of JPEG.`);
+    }
   }
   if (format === 'webp' && !support.webp) {
     format = alpha() ? 'png' : 'jpeg';
@@ -140,6 +159,10 @@ export async function encodeImage({ file, settings, support, onStage }: ImageEnc
   } finally {
     pixels = null;
     releaseCanvas(canvas);
+  }
+
+  if (mode === 'convert') {
+    return { blob, mime, width: target.width, height: target.height, notes, engine, keptOriginal: false };
   }
 
   const sameFormat = mime === sourceMime || (sourceMime === 'image/pjpeg' && mime === 'image/jpeg');

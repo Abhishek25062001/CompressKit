@@ -1,3 +1,4 @@
+import type { AudioTarget } from '../../types/convert';
 import type { VideoSettings } from '../../types/settings';
 import { CompressionError } from '../../utils/errors';
 import {
@@ -166,23 +167,58 @@ export interface EngineOutput {
   notes: string[];
 }
 
-/**
- * Transcodes with FFmpeg.wasm. The input is mounted with WORKERFS, so the source file is read
- * lazily from the File object instead of being copied into WebAssembly memory.
- */
-export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn): Promise<EngineOutput> {
-  const core = await loadCore(job.urls, onProgress);
-  const { settings } = job;
-  const mime = outputMime(settings);
-  const ext = settings.container;
-  const inputDir = '/input';
-  const outputPath = `/out.${ext}`;
-  // WORKERFS exposes the file by name; use a neutral name so user-supplied characters never reach the FS path.
-  const dot = job.file.name.lastIndexOf('.');
-  const inputName = `source${dot > 0 ? job.file.name.slice(dot).replace(/[^.\w]/g, '') : ''}`;
-  const inputFile = new File([job.file], inputName, { type: job.file.type });
+interface RunOptions {
+  file: File;
+  urls: FFmpegUrls;
+  duration?: number;
+  outputExt: string;
+  mime: string;
+  /** Returns one argument list per FFmpeg pass. Progress is split evenly between passes. */
+  passes: (inputPath: string, outputPath: string) => string[][];
+  /** Intermediate files the passes create, removed afterwards. */
+  scratch?: string[];
+  stage: string;
+}
 
-  let duration = job.source.duration ?? 0;
+function classifyFailure(log: string[], ret: number): CompressionError {
+  const tail = log.slice(-25).join('\n');
+  const lower = tail.toLowerCase();
+  if (lower.includes('cannot allocate memory') || lower.includes('out of memory')) {
+    return new CompressionError('OUT_OF_MEMORY', tail);
+  }
+  if (lower.includes('stream map') && lower.includes('matches no streams')) {
+    return new CompressionError(lower.includes("'0:a") ? 'NO_AUDIO_TRACK' : 'NO_VIDEO_TRACK', tail);
+  }
+  if (
+    lower.includes('invalid data found') ||
+    lower.includes('could not find codec parameters') ||
+    lower.includes('does not contain any stream') ||
+    lower.includes('moov atom not found')
+  ) {
+    return new CompressionError('DECODE_FAILED', tail);
+  }
+  if (lower.includes('decoder') && lower.includes('not found')) {
+    return new CompressionError('CODEC_UNSUPPORTED', tail);
+  }
+  return new CompressionError('UNKNOWN', `ffmpeg exited with ${ret}\n${tail}`);
+}
+
+/**
+ * Runs FFmpeg.wasm. The input is mounted with WORKERFS, so the source file is read lazily from the
+ * File object instead of being copied into WebAssembly memory.
+ */
+async function runFFmpeg(opts: RunOptions, onProgress: ProgressFn): Promise<EngineOutput> {
+  const core = await loadCore(opts.urls, onProgress);
+  const inputDir = '/input';
+  const outputPath = `/out.${opts.outputExt}`;
+  // WORKERFS exposes the file by name; use a neutral name so user-supplied characters never reach the FS path.
+  const dot = opts.file.name.lastIndexOf('.');
+  const inputName = `source${dot > 0 ? opts.file.name.slice(dot).replace(/[^.\w]/g, '') : ''}`;
+  const inputFile = new File([opts.file], inputName, { type: opts.file.type });
+  const passes = opts.passes(`${inputDir}/${inputName}`, outputPath);
+
+  let duration = opts.duration ?? 0;
+  let pass = 0;
   const log: string[] = [];
   core.setLogger(({ message }) => {
     if (log.length > 400) log.shift();
@@ -194,14 +230,62 @@ export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn)
     if (timeIdx >= 0) {
       const t = parseTimestamp(message.slice(timeIdx + 5));
       if (t !== null && duration > 0) {
-        onProgress(Math.min(0.99, t / duration), 'Encoding with FFmpeg');
+        onProgress(Math.min(0.99, (pass + Math.min(1, t / duration)) / passes.length), opts.stage);
       } else {
-        onProgress(null, 'Encoding with FFmpeg');
+        onProgress(null, opts.stage);
       }
     }
   });
   core.setProgress(() => undefined);
 
+  onProgress(null, 'Reading video');
+  let mounted = false;
+  try {
+    try {
+      core.FS.mkdir(inputDir);
+    } catch {
+      // Directory already exists from a previous job.
+    }
+    core.FS.mount(core.FS.filesystems.WORKERFS, { files: [inputFile] }, inputDir);
+    mounted = true;
+
+    for (pass = 0; pass < passes.length; pass++) {
+      let ret: number;
+      try {
+        core.setTimeout(-1);
+        ret = core.exec(...passes[pass]);
+      } finally {
+        core.reset();
+      }
+      if (ret !== 0) throw classifyFailure(log, ret);
+    }
+
+    onProgress(1, 'Finalizing');
+    const data = core.FS.readFile(outputPath);
+    const blob = new Blob([data as BlobPart], { type: opts.mime });
+    return { blob, mime: opts.mime, notes: [] };
+  } finally {
+    for (const path of [outputPath, ...(opts.scratch ?? [])]) {
+      try {
+        core.FS.unlink(path);
+      } catch {
+        // File was never created.
+      }
+    }
+    if (mounted) {
+      try {
+        core.FS.unmount(inputDir);
+      } catch {
+        // Ignore: the worker is discarded on failure anyway.
+      }
+    }
+  }
+}
+
+/** Re-encodes to MP4 (H.264) or WebM (VP8). */
+export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn): Promise<EngineOutput> {
+  const { settings } = job;
+  const duration = job.source.duration;
   const sourceBitrate = estimateSourceVideoBitrate(job.file.size, duration || undefined);
   const outSize =
     job.source.width && job.source.height
@@ -227,77 +311,94 @@ export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn)
         ? ['-c:a', 'aac', '-b:a', `${audioBps / 1000}k`]
         : ['-c:a', 'libopus', '-b:a', `${audioBps / 1000}k`];
 
-  const args = [
-    '-hide_banner', '-nostdin', '-y',
-    '-i', `${inputDir}/${inputName}`,
-    '-map', '0:v:0', '-map', '0:a:0?',
-    '-vf', scaleFilter(settings, job.source),
-    ...(settings.fps !== 'original' ? ['-fpsmax', String(settings.fps)] : []),
-    ...videoCodecArgs(settings, maxrate),
-    ...audioArgs,
-    '-map_metadata', '-1',
-    ...(settings.container === 'mp4' ? ['-movflags', '+faststart'] : []),
-    outputPath,
-  ];
+  return runFFmpeg(
+    {
+      file: job.file,
+      urls: job.urls,
+      duration,
+      outputExt: settings.container,
+      mime: outputMime(settings),
+      stage: 'Encoding with FFmpeg',
+      passes: (input, output) => [
+        [
+          '-hide_banner', '-nostdin', '-y',
+          '-i', input,
+          '-map', '0:v:0', '-map', '0:a:0?',
+          '-vf', scaleFilter(settings, job.source),
+          ...(settings.fps !== 'original' ? ['-fpsmax', String(settings.fps)] : []),
+          ...videoCodecArgs(settings, maxrate),
+          ...audioArgs,
+          '-map_metadata', '-1',
+          ...(settings.container === 'mp4' ? ['-movflags', '+faststart'] : []),
+          output,
+        ],
+      ],
+    },
+    onProgress,
+  );
+}
 
-  onProgress(null, 'Reading video');
-  let mounted = false;
-  try {
-    try {
-      core.FS.mkdir(inputDir);
-    } catch {
-      // Directory already exists from a previous job.
-    }
-    core.FS.mount(core.FS.filesystems.WORKERFS, { files: [inputFile] }, inputDir);
-    mounted = true;
+export interface ConvertJob {
+  file: File;
+  source: { duration?: number };
+  urls: FFmpegUrls;
+}
 
-    let ret: number;
-    try {
-      core.setTimeout(-1);
-      ret = core.exec(...args);
-    } finally {
-      core.reset();
-    }
+/**
+ * Animated GIF in two passes: the first builds a 256-color palette tuned to this clip, the second
+ * maps frames onto it. A single-pass split would hold every decoded frame in memory until the end.
+ */
+export function convertToGif(
+  job: ConvertJob,
+  gif: { width: number | null; fps: number },
+  onProgress: ProgressFn,
+): Promise<EngineOutput> {
+  const palette = '/palette.png';
+  const scale = gif.width ? `,scale='min(${gif.width},iw)':-1:flags=lanczos` : '';
+  const base = `fps=${gif.fps}${scale}`;
+  return runFFmpeg(
+    {
+      file: job.file,
+      urls: job.urls,
+      duration: job.source.duration,
+      outputExt: 'gif',
+      mime: 'image/gif',
+      stage: 'Creating GIF',
+      scratch: [palette],
+      passes: (input, output) => [
+        ['-hide_banner', '-nostdin', '-y', '-i', input, '-map', '0:v:0', '-vf', `${base},palettegen=stats_mode=diff`, palette],
+        [
+          '-hide_banner', '-nostdin', '-y', '-i', input, '-i', palette,
+          '-lavfi', `[0:v:0]${base}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`,
+          '-loop', '0', output,
+        ],
+      ],
+    },
+    onProgress,
+  );
+}
 
-    if (ret !== 0) {
-      const tail = log.slice(-25).join('\n');
-      const lower = tail.toLowerCase();
-      if (lower.includes('cannot allocate memory') || lower.includes('out of memory')) {
-        throw new CompressionError('OUT_OF_MEMORY', tail);
-      }
-      if (
-        lower.includes('invalid data found') ||
-        lower.includes('could not find codec parameters') ||
-        lower.includes('does not contain any stream') ||
-        lower.includes('moov atom not found')
-      ) {
-        throw new CompressionError('DECODE_FAILED', tail);
-      }
-      if (lower.includes('stream map') && lower.includes('matches no streams')) {
-        throw new CompressionError('NO_VIDEO_TRACK', tail);
-      }
-      if (lower.includes('decoder') && lower.includes('not found')) {
-        throw new CompressionError('CODEC_UNSUPPORTED', tail);
-      }
-      throw new CompressionError('UNKNOWN', `ffmpeg exited with ${ret}\n${tail}`);
-    }
+const AUDIO_ARGS: Record<AudioTarget, { mime: string; args: string[] }> = {
+  mp3: { mime: 'audio/mpeg', args: ['-c:a', 'libmp3lame', '-b:a', '192k'] },
+  m4a: { mime: 'audio/mp4', args: ['-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart'] },
+  wav: { mime: 'audio/wav', args: ['-c:a', 'pcm_s16le'] },
+};
 
-    onProgress(1, 'Finalizing');
-    const data = core.FS.readFile(outputPath);
-    const blob = new Blob([data as BlobPart], { type: mime });
-    return { blob, mime, notes: [] };
-  } finally {
-    try {
-      core.FS.unlink(outputPath);
-    } catch {
-      // Output was never created.
-    }
-    if (mounted) {
-      try {
-        core.FS.unmount(inputDir);
-      } catch {
-        // Ignore: the worker is discarded on failure anyway.
-      }
-    }
-  }
+/** Extracts the first audio track into an audio-only file. */
+export function convertToAudio(job: ConvertJob, format: AudioTarget, onProgress: ProgressFn): Promise<EngineOutput> {
+  const { mime, args } = AUDIO_ARGS[format];
+  return runFFmpeg(
+    {
+      file: job.file,
+      urls: job.urls,
+      duration: job.source.duration,
+      outputExt: format,
+      mime,
+      stage: 'Extracting audio',
+      passes: (input, output) => [
+        ['-hide_banner', '-nostdin', '-y', '-i', input, '-map', '0:a:0', '-vn', ...args, '-map_metadata', '-1', output],
+      ],
+    },
+    onProgress,
+  );
 }

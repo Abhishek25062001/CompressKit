@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { QueueItem } from '../types/media';
 
-interface QueueState {
+export interface QueueState {
   order: string[];
   items: Record<string, QueueItem>;
   /** True from pressing "Compress" until every queued file has settled. */
@@ -20,7 +20,8 @@ function releaseItem(item: QueueItem): void {
   if (item.result) URL.revokeObjectURL(item.result.url);
 }
 
-export const useQueueStore = create<QueueState>()((set, get) => ({
+/** Each tool (compressor, converter) owns an independent queue built from this factory. */
+export const createQueueStore = () => create<QueueState>()((set, get) => ({
   order: [],
   items: {},
   running: false,
@@ -58,6 +59,11 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   setRunning: (running) =>
     set((s) => ({ running, hasFinishedRun: running ? false : s.hasFinishedRun || s.running })),
 }));
+
+export type QueueStore = ReturnType<typeof createQueueStore>;
+
+export const useQueueStore = createQueueStore();
+export const useConvertQueueStore = createQueueStore();
 
 /** Selectors kept outside components so they are stable references. */
 export const selectOrder = (s: QueueState) => s.order;

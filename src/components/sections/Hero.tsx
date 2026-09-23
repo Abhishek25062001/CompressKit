@@ -1,7 +1,10 @@
 import { motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { fileInputId } from '../../features/tools';
+import { useUiStore } from '../../store/uiStore';
+import type { ToolMode } from '../../types/media';
 import { Button } from '../common/Button';
-import { FILE_INPUT_ID } from '../upload/DropZone';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -9,9 +12,11 @@ const fadeUp = {
 };
 
 export function Hero() {
-  const start = () => {
+  const start = (tool: ToolMode) => {
+    // Render the chosen tool first so its file input exists before we open the picker.
+    flushSync(() => useUiStore.getState().setActiveTool(tool));
     document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    document.getElementById(FILE_INPUT_ID)?.click();
+    document.getElementById(fileInputId(tool))?.click();
   };
 
   return (
@@ -50,7 +55,7 @@ export function Hero() {
           animate="show"
           className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted sm:text-lg"
         >
-          Reduce file sizes while preserving visual quality. Everything happens directly in your browser.
+          Reduce file sizes while preserving visual quality, or convert between formats. Everything happens directly in your browser.
         </motion.p>
         <motion.div
           custom={3}
@@ -59,9 +64,14 @@ export function Hero() {
           animate="show"
           className="mt-8 flex flex-col items-center gap-3"
         >
-          <Button variant="primary" size="lg" onClick={start} icon={<ArrowDown className="h-4 w-4" />}>
-            Start Compressing
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="primary" size="lg" onClick={() => start('compress')} icon={<ArrowDown className="h-4 w-4" />}>
+              Start Compressing
+            </Button>
+            <Button size="lg" onClick={() => start('convert')} icon={<ArrowLeftRight className="h-4 w-4" />}>
+              Convert Files
+            </Button>
+          </div>
           <p className="text-sm text-muted">No uploads • No account • Free</p>
         </motion.div>
       </div>

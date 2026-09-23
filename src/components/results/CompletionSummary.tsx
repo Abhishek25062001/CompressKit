@@ -1,8 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import { compressionManager } from '../../features/compression/CompressionManager';
-import { downloadAll } from '../../features/compression/downloads';
+import { useTool } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
 import { useUiStore } from '../../store/uiStore';
 import { formatBytes, formatPercent, savedRatio } from '../../utils/format';
@@ -38,6 +37,7 @@ function SuccessMark() {
 
 export function CompletionSummary() {
   const summary = useQueueSummary();
+  const { manager, downloadAll, mode, verb } = useTool();
   const pushNotice = useUiStore((s) => s.pushNotice);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const ratio = savedRatio(summary.completedOriginalBytes, summary.completedBytes);
@@ -53,8 +53,8 @@ export function CompletionSummary() {
     }
   };
 
-  const compressMore = () => {
-    compressionManager.clear();
+  const startOver = () => {
+    manager.clear();
     document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -74,7 +74,7 @@ export function CompletionSummary() {
       <div className="relative flex flex-col items-center">
         <SuccessMark />
         <h2 id="complete-title" className="mt-4 text-2xl font-semibold tracking-tight text-fg">
-          Compression complete
+          {verb.noun} complete
         </h2>
         <p className="mt-1 text-sm text-muted">Your files are ready.</p>
         <p className="tabular mt-3 font-mono text-sm text-fg">
@@ -84,7 +84,7 @@ export function CompletionSummary() {
         <div className="mt-6 grid w-full max-w-lg grid-cols-3 gap-2">
           <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
             <p className="tabular font-mono text-lg font-semibold text-fg">{summary.completed}</p>
-            <p className="text-[11px] text-muted">{summary.completed === 1 ? 'file compressed' : 'files compressed'}</p>
+            <p className="text-[11px] text-muted">{summary.completed === 1 ? `file ${verb.past}` : `files ${verb.past}`}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
             <p className="tabular font-mono text-lg font-semibold whitespace-nowrap text-fg">{formatBytes(summary.completedBytes)}</p>
@@ -92,14 +92,21 @@ export function CompletionSummary() {
               from <span className="tabular whitespace-nowrap">{formatBytes(summary.completedOriginalBytes)}</span>
             </p>
           </div>
-          <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
-            <p className="tabular font-mono text-lg font-semibold text-accent-text">{ratio > 0 ? formatPercent(ratio) : '0%'}</p>
-            <p className="text-[11px] text-muted">smaller</p>
-          </div>
+          {mode === 'compress' || ratio >= 0 ? (
+            <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
+              <p className="tabular font-mono text-lg font-semibold text-accent-text">{ratio > 0 ? formatPercent(ratio) : '0%'}</p>
+              <p className="text-[11px] text-muted">smaller</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
+              <p className="tabular font-mono text-lg font-semibold text-fg">{formatPercent(-ratio)}</p>
+              <p className="text-[11px] text-muted">larger</p>
+            </div>
+          )}
         </div>
         {summary.failed > 0 && (
           <p className="mt-3 text-xs text-danger">
-            {summary.failed} file{summary.failed === 1 ? '' : 's'} could not be compressed. See the details below.
+            {summary.failed} file{summary.failed === 1 ? '' : 's'} could not be {verb.past}. See the details below.
           </p>
         )}
 
@@ -117,8 +124,8 @@ export function CompletionSummary() {
                 ? 'Download All (.zip)'
                 : 'Download'}
           </Button>
-          <Button size="lg" onClick={compressMore} icon={<RefreshCw className="h-4 w-4" aria-hidden />}>
-            Compress More
+          <Button size="lg" onClick={startOver} icon={<RefreshCw className="h-4 w-4" aria-hidden />}>
+            {verb.base} More
           </Button>
         </div>
       </div>

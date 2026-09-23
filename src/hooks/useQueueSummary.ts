@@ -1,5 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
-import { useQueueStore } from '../store/queueStore';
+import { useTool } from '../features/tools';
 
 export interface QueueSummary {
   total: number;
@@ -16,7 +16,8 @@ export interface QueueSummary {
 
 /** Aggregates queue counters with a shallow comparison so progress ticks do not re-render summary UI. */
 export function useQueueSummary(): QueueSummary {
-  return useQueueStore(
+  const useQueue = useTool().useQueue;
+  return useQueue(
     useShallow((s) => {
       const summary: QueueSummary = {
         total: s.order.length,

@@ -2,6 +2,9 @@ import type { ImageSettings, VideoSettings } from './settings';
 
 export type MediaKind = 'image' | 'video';
 
+/** Which tool a queue belongs to: shrinking files, or changing their format. */
+export type ToolMode = 'compress' | 'convert';
+
 export type FileStatus = 'waiting' | 'compressing' | 'completed' | 'failed' | 'cancelled';
 
 export type ErrorCode =
@@ -13,6 +16,7 @@ export type ErrorCode =
   | 'OUT_OF_MEMORY'
   | 'WORKER_CRASHED'
   | 'NO_VIDEO_TRACK'
+  | 'NO_AUDIO_TRACK'
   | 'FILE_TOO_LARGE'
   | 'CANCELLED'
   | 'UNKNOWN';

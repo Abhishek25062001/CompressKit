@@ -1,9 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ChevronDown, Download, RotateCw, SlidersHorizontal, Square, X } from 'lucide-react';
 import { memo, useState } from 'react';
-import { compressionManager } from '../../features/compression/CompressionManager';
-import { downloadItem } from '../../features/compression/downloads';
-import { useQueueStore } from '../../store/queueStore';
+import { useTool } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
 import { cn } from '../../utils/cn';
 import { formatBytes, formatDimensions, formatDuration, formatPercent, savedRatio } from '../../utils/format';
@@ -14,7 +12,8 @@ import { FileThumb } from './FileThumb';
 import { StatusBadge } from './StatusBadge';
 
 function FileCardImpl({ id }: { id: string }) {
-  const item = useQueueStore((s) => s.items[id]);
+  const { useQueue, manager, downloadItem, mode, verb } = useTool();
+  const item = useQueue((s) => s.items[id]);
   const openSettings = useUiStore((s) => s.openFileSettings);
   const [expanded, setExpanded] = useState(false);
   if (!item) return null;
@@ -52,8 +51,14 @@ function FileCardImpl({ id }: { id: string }) {
           </div>
           <p className="tabular mt-0.5 truncate text-xs text-muted">{details.join(' · ')}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <StatusBadge status={status} />
-            {result && status === 'completed' && (
+            <StatusBadge status={status} activeLabel={verb.ing} />
+            {result && status === 'completed' && mode === 'convert' && (
+              <span className="tabular text-xs text-muted">
+                {item.typeLabel} → <span className="font-medium text-fg">{result.formatLabel}</span>
+                <span className="ml-1.5">{formatBytes(result.size)}</span>
+              </span>
+            )}
+            {result && status === 'completed' && mode === 'compress' && (
               <span className="tabular text-xs text-muted">
                 {formatBytes(item.size)} → <span className="font-medium text-fg">{formatBytes(result.size)}</span>
                 {ratio > 0 ? (
@@ -73,7 +78,7 @@ function FileCardImpl({ id }: { id: string }) {
                 size="icon"
                 aria-expanded={expanded}
                 aria-controls={panelId}
-                aria-label={expanded ? 'Hide comparison' : 'Show details and comparison'}
+                aria-label={expanded ? 'Hide details' : 'Show details and preview'}
                 onClick={() => setExpanded((v) => !v)}
               >
                 <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} aria-hidden />
@@ -90,21 +95,21 @@ function FileCardImpl({ id }: { id: string }) {
             </>
           )}
           {(status === 'failed' || status === 'cancelled') && item.error?.code !== 'FILE_TOO_LARGE' && (
-            <Button variant="ghost" size="icon" aria-label={`Retry ${item.name}`} onClick={() => compressionManager.retry(id)}>
+            <Button variant="ghost" size="icon" aria-label={`Retry ${item.name}`} onClick={() => manager.retry(id)}>
               <RotateCw className="h-4 w-4" aria-hidden />
             </Button>
           )}
-          {!busy && (
+          {!busy && mode === 'compress' && (
             <Button variant="ghost" size="icon" aria-label={`Settings for ${item.name}`} onClick={() => openSettings(id)}>
               <SlidersHorizontal className="h-4 w-4" aria-hidden />
             </Button>
           )}
           {busy ? (
-            <Button variant="ghost" size="icon" aria-label={`Cancel ${item.name}`} onClick={() => compressionManager.cancel(id)}>
+            <Button variant="ghost" size="icon" aria-label={`Cancel ${item.name}`} onClick={() => manager.cancel(id)}>
               <Square className="h-3.5 w-3.5 fill-current" aria-hidden />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" aria-label={`Remove ${item.name}`} onClick={() => compressionManager.remove(id)}>
+            <Button variant="ghost" size="icon" aria-label={`Remove ${item.name}`} onClick={() => manager.remove(id)}>
               <X className="h-4 w-4" aria-hidden />
             </Button>
           )}
@@ -119,7 +124,7 @@ function FileCardImpl({ id }: { id: string }) {
               {item.progress !== null ? `${Math.round(item.progress * 100)}%` : 'Processing media...'}
             </span>
           </div>
-          <ProgressBar value={item.progress} label={`Compressing ${item.name}`} />
+          <ProgressBar value={item.progress} label={`${verb.ing} ${item.name}`} />
         </div>
       )}
 

@@ -10,8 +10,10 @@ const CONFIG: Record<FileStatus, { label: string; className: string; Icon: typeo
   cancelled: { label: 'Cancelled', className: 'bg-surface-2 text-muted', Icon: Ban },
 };
 
-export function StatusBadge({ status }: { status: FileStatus }) {
-  const { label, className, Icon, spin } = CONFIG[status];
+/** `activeLabel` replaces "Compressing" for tools that do something else, such as converting. */
+export function StatusBadge({ status, activeLabel }: { status: FileStatus; activeLabel?: string }) {
+  const { className, Icon, spin } = CONFIG[status];
+  const label = status === 'compressing' && activeLabel ? activeLabel : CONFIG[status].label;
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium', className)}>
       <Icon className={cn('h-3 w-3', spin && 'animate-spin')} aria-hidden />

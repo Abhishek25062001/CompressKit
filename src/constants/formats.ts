@@ -1,10 +1,12 @@
 import type { MediaKind } from '../types/media';
 
-interface FormatDef {
+export interface FormatDef {
   kind: MediaKind;
   label: string;
   mimes: string[];
   extensions: string[];
+  /** How to read dimensions and a thumbnail when it differs from the kind (an animated GIF is converted as video). */
+  probeAs?: MediaKind;
 }
 
 export const INPUT_FORMATS: FormatDef[] = [
@@ -18,25 +20,39 @@ export const INPUT_FORMATS: FormatDef[] = [
   { kind: 'video', label: 'MKV', mimes: ['video/x-matroska', 'video/matroska'], extensions: ['mkv'] },
 ];
 
-export const FORMAT_BADGES = ['JPG', 'PNG', 'WebP', 'AVIF', 'MP4', 'MOV', 'WebM', 'MKV'];
+/**
+ * The converter also reads formats it never writes back out. The browser decodes BMP; FFmpeg decodes
+ * GIF (all frames, so it can become a video) and the older video containers.
+ */
+export const CONVERT_INPUT_FORMATS: FormatDef[] = [
+  ...INPUT_FORMATS,
+  { kind: 'image', label: 'BMP', mimes: ['image/bmp', 'image/x-ms-bmp'], extensions: ['bmp'] },
+  { kind: 'video', label: 'GIF', mimes: ['image/gif'], extensions: ['gif'], probeAs: 'image' },
+  { kind: 'video', label: 'AVI', mimes: ['video/x-msvideo', 'video/avi', 'video/msvideo'], extensions: ['avi'] },
+  { kind: 'video', label: 'WMV', mimes: ['video/x-ms-wmv'], extensions: ['wmv'] },
+  { kind: 'video', label: 'FLV', mimes: ['video/x-flv'], extensions: ['flv'] },
+  { kind: 'video', label: '3GP', mimes: ['video/3gpp', 'video/3gpp2'], extensions: ['3gp', '3g2'] },
+];
 
-/** Value for the file input's accept attribute. */
-export const ACCEPT_ATTRIBUTE = INPUT_FORMATS.flatMap((f) => [
-  ...f.mimes,
-  ...f.extensions.map((e) => `.${e}`),
-]).join(',');
+export const FORMAT_BADGES = ['JPG', 'PNG', 'WebP', 'AVIF', 'MP4', 'MOV', 'WebM', 'MKV'];
+export const CONVERT_FORMAT_BADGES = [...FORMAT_BADGES, 'BMP', 'GIF', 'AVI', 'WMV', 'FLV', '3GP'];
+
+/** Value for a file input's accept attribute. */
+export function acceptAttribute(formats: FormatDef[]): string {
+  return formats.flatMap((f) => [...f.mimes, ...f.extensions.map((e) => `.${e}`)]).join(',');
+}
 
 export function getExtension(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
 }
 
-export function detectFormat(file: File): FormatDef | null {
+export function detectFormat(file: File, formats: FormatDef[] = INPUT_FORMATS): FormatDef | null {
   const ext = getExtension(file.name);
   const mime = file.type.toLowerCase();
   return (
-    INPUT_FORMATS.find((f) => mime !== '' && f.mimes.includes(mime)) ??
-    INPUT_FORMATS.find((f) => f.extensions.includes(ext)) ??
+    formats.find((f) => mime !== '' && f.mimes.includes(mime)) ??
+    formats.find((f) => f.extensions.includes(ext)) ??
     null
   );
 }
@@ -60,8 +76,12 @@ export const MIME_EXTENSION: Record<string, string> = {
   'image/webp': 'webp',
   'image/avif': 'avif',
   'image/png': 'png',
+  'image/gif': 'gif',
   'video/mp4': 'mp4',
   'video/webm': 'webm',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/wav': 'wav',
 };
 
 export const MIME_LABEL: Record<string, string> = {
@@ -69,6 +89,10 @@ export const MIME_LABEL: Record<string, string> = {
   'image/webp': 'WebP',
   'image/avif': 'AVIF',
   'image/png': 'PNG',
+  'image/gif': 'GIF',
   'video/mp4': 'MP4',
   'video/webm': 'WebM',
+  'audio/mpeg': 'MP3',
+  'audio/mp4': 'M4A',
+  'audio/wav': 'WAV',
 };

@@ -2,7 +2,7 @@
 
 > Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app for shrinking images and videos without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos, and converting them between formats, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
@@ -65,6 +65,23 @@ These differences come from how the app is built.
 **Presets.** Maximum Quality, Balanced (the default), and Maximum Compression set image quality, video quality, and audio bitrate together. Changing a slider away from those values marks the settings as custom. Each file can override the global settings.
 
 **Original kept when it is already smaller.** If the output is the same format, was not resized, and is not smaller than the source, the original bytes are returned. The file is labeled already optimal. A resized or format-changed file that is not smaller is still returned, with a note that it did not shrink.
+
+### Converting files
+
+The **Convert** tool sits next to the compressor. Open it with the **Compress | Convert** switch above the drop zone, the **Convert Files** button in the hero, the **Convert** link in the header, or a link ending in `#convert`. It has its own queue, so compressing and converting never mix.
+
+| Input | Output |
+| --- | --- |
+| JPG, PNG, WebP, AVIF, BMP | JPG, PNG, WebP, or AVIF |
+| MP4, MOV, WebM, MKV, AVI, WMV, FLV, 3GP, animated GIF | MP4 (H.264), WebM (VP9 or VP8), animated GIF, MP3, M4A, or WAV |
+
+**Always the format you asked for.** The converter never swaps in the original because it was smaller. Converting a transparent image to JPG fills the transparent areas with white, as image editors do. PNG output is lossless.
+
+**Animated GIF.** Built by FFmpeg in two passes. The first computes a palette for the clip, the second applies it, at 12 frames per second and a width of 320, 480, or 720 px, or the original width. Smaller videos are never enlarged.
+
+**Audio extraction.** MP3 and M4A are written at 192 kbps, and WAV as 16-bit PCM. A video with no sound track fails with a clear message.
+
+**Older containers.** AVI, WMV, FLV, 3GP, and GIF inputs are decoded by FFmpeg.wasm, so they need the one-time engine download.
 
 ### Working with a batch
 
@@ -238,6 +255,13 @@ Supported input:
 | --- | --- | --- |
 | Warning | Over 60 MB | Over 1 GB |
 | Rejected | Over 400 MB | Over 4 GB |
+
+### Convert formats
+
+1. Select **Convert** in the switch above the drop zone.
+2. Add files the same way as for compression.
+3. In **Conversion settings**, choose the image format under **Images** and the video, GIF, or audio format under **Videos**.
+4. Select **Convert**, then download each file or **Download All (.zip)**. The ZIP is named `compresskit-converted-YYYY-MM-DD.zip`, and converted files keep their base name with the new extension.
 
 ### Choose settings
 

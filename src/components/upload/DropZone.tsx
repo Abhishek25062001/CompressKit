@@ -1,11 +1,8 @@
 import { motion } from 'framer-motion';
 import { Plus, UploadCloud } from 'lucide-react';
 import { useRef, useState, type DragEvent } from 'react';
-import { ACCEPT_ATTRIBUTE, FORMAT_BADGES } from '../../constants/formats';
-import { addFiles } from '../../features/compression/intake';
+import { fileInputId, useTool } from '../../features/tools';
 import { cn } from '../../utils/cn';
-
-export const FILE_INPUT_ID = 'ck-file-input';
 
 function hasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
@@ -15,6 +12,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
+  const { mode, addFiles, accept, badges } = useTool();
 
   const onDragEnter = (e: DragEvent) => {
     if (!hasFiles(e)) return;
@@ -59,10 +57,10 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
     >
       <input
         ref={inputRef}
-        id={FILE_INPUT_ID}
+        id={fileInputId(mode)}
         type="file"
         multiple
-        accept={ACCEPT_ATTRIBUTE}
+        accept={accept}
         className="sr-only"
         tabIndex={-1}
         aria-hidden
@@ -100,7 +98,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
         </span>
         {!compact && (
           <span id="ck-drop-formats" className="mt-2 flex max-w-md flex-wrap justify-center gap-1.5">
-            {FORMAT_BADGES.map((f) => (
+            {badges.map((f) => (
               <span
                 key={f}
                 className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-[11px] font-medium text-muted"
@@ -112,7 +110,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
         )}
         {compact && (
           <span id="ck-drop-formats" className="sr-only">
-            Supported formats: {FORMAT_BADGES.join(', ')}
+            Supported formats: {badges.join(', ')}
           </span>
         )}
       </button>

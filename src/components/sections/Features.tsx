@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Cpu, Images, Layers, ShieldCheck, SplitSquareHorizontal, WifiOff, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Cpu, Layers, ShieldCheck, SplitSquareHorizontal, WifiOff, type LucideIcon } from 'lucide-react';
 import { SectionHeading } from './SectionHeading';
 
 const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
@@ -14,9 +14,9 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
     body: 'Uses WebCodecs for fast encoding when your browser supports it, with FFmpeg.wasm as a universal fallback.',
   },
   {
-    icon: Images,
-    title: 'Smart image formats',
-    body: 'JPEG, WebP, AVIF and PNG. Transparent images are never flattened into JPEG.',
+    icon: ArrowLeftRight,
+    title: 'Convert between formats',
+    body: 'Turn images into JPG, PNG, WebP or AVIF, and videos into MP4, WebM, animated GIF or MP3, M4A and WAV audio.',
   },
   {
     icon: Layers,

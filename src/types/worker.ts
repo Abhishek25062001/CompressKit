@@ -1,11 +1,20 @@
-import type { ErrorCode, VideoEngine } from './media';
+import type { AudioTarget } from './convert';
+import type { ErrorCode, ToolMode, VideoEngine } from './media';
 import type { ImageSettings, VideoSettings } from './settings';
+
+/** What a video job produces. Only the converter asks for a GIF or an audio file. */
+export type VideoOutput =
+  | { type: 'video' }
+  | { type: 'gif'; /** Null keeps the source width. */ width: number | null; fps: number }
+  | { type: 'audio'; format: AudioTarget };
 
 export interface ImageJobRequest {
   type: 'compress';
   jobId: string;
   file: File;
   settings: ImageSettings;
+  /** In 'convert' mode the requested format is always written, even when the file does not get smaller. */
+  mode: ToolMode;
   /** Encoders the main thread already verified, so the worker does not need to re-test them. */
   support: { webp: boolean; avif: boolean };
 }
@@ -15,6 +24,8 @@ export interface VideoJobRequest {
   jobId: string;
   file: File;
   settings: VideoSettings;
+  mode: ToolMode;
+  output: VideoOutput;
   source: {
     width?: number;
     height?: number;
