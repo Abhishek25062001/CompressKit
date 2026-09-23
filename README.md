@@ -1,149 +1,685 @@
 # CompressKit
 
-**Compress your media. Keep your privacy.**
+> Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app that compresses images and videos directly in the browser. Files are never uploaded: decoding, encoding, previews and ZIP creation all happen on the user's device, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
-## Features
+**Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
-- **Images:** JPEG, PNG, WebP and AVIF in; JPEG, WebP, AVIF or PNG out. Quality control, optional resize (max width / height, never upscales), EXIF orientation respected, transparency preserved (a transparent image is never flattened into JPEG; it is saved as WebP, or PNG where WebP encoding is unavailable).
-- **PNG optimization:** palette quantization (UPNG.js) below quality 90, lossless re-encoding at 90 and above.
-- **AVIF everywhere:** native canvas AVIF encoding where the browser has it, otherwise a WebAssembly AVIF encoder (jSquash / libavif), loaded only when needed.
-- **Videos:** MP4, MOV, WebM and MKV in; MP4 or WebM out. Codec, quality, resolution (short side cap, never upscales), frame rate cap and audio bitrate (or remove audio).
-- **Two video engines:**
-  - **WebCodecs** (via Mediabunny for demuxing and muxing): hardware accelerated, fast, streams the source file lazily.
-  - **FFmpeg.wasm** (`@ffmpeg/core`, self-hosted): universal fallback, loaded lazily with real download progress.
-  - *Automatic* mode tries WebCodecs first and falls back to FFmpeg per file.
-- **Presets:** Maximum Quality, Balanced (default), Maximum Compression. Global settings plus per-file overrides.
-- **Honest progress:** percentages only when they are measured (FFmpeg `time=` output against duration, Mediabunny conversion progress, engine download bytes). Otherwise the UI shows a processing state with the current stage.
-- **Never makes files bigger silently:** if re-encoding in the same format would not reduce size, the original is kept and the UI says so.
-- **Results:** before/after slider for images, synced side by side playback for videos, per-file stats (sizes, saving, dimensions, format, engine, time).
-- **Downloads:** per file, or all files as a ZIP built in the browser (fflate, streamed, stored without recompression).
-- **Cancellation:** per file or all, implemented by terminating the worker, which frees its memory immediately.
-- Light, dark and system themes (persisted), responsive from 320 px, keyboard accessible, `prefers-reduced-motion` respected, installable PWA with an offline app shell.
+There is no public demo URL, documentation site, or package registry entry in this repository. Run it locally with the [installation steps](#installation) below, or deploy the static build to any host that can serve files.
 
-## Tech stack
+---
 
-React 19, TypeScript, Vite 8, Tailwind CSS 4, Zustand 5, Framer Motion, Lucide React. Media: Canvas / OffscreenCanvas, `createImageBitmap`, WebCodecs, Mediabunny, FFmpeg.wasm (`@ffmpeg/core` 0.12), `@jsquash/avif`, `upng-js`, `fflate`.
+## Product overview
 
-No backend, no database, no external storage, no authentication, no analytics, no environment variables, no API keys.
+CompressKit is a private media compressor. You open it in a browser, add files, choose a quality level, and download smaller copies.
 
-## Getting started
+It was built for a common tradeoff: online compressors are convenient, but they require sending photos and videos to someone else’s server. CompressKit keeps that convenience in a single page and does the work locally. There is no account, no upload form, and no server that receives the media.
 
-Requires Node.js 20.19 or newer.
+It is for people who need smaller files and want the original to remain on their machine: anyone preparing images for the web, sharing a video, or cleaning a batch of files before they leave the device.
 
-```bash
-npm install
-npm run dev
+---
+
+## The problem
+
+### Without CompressKit
+
+Typical options are a website that uploads the file, or a desktop encoder that has to be installed and configured. Upload tools add a wait, a privacy decision, and a file-size cap set by the service. Desktop tools are capable, but they are a separate install, and batch settings are easy to get wrong.
+
+### With CompressKit
+
+You open a page, drop files in, pick a preset or adjust quality, and download the results. The browser encodes them. A batch can be downloaded as one ZIP, built on the device. If a re-encode in the same format would not be smaller, CompressKit keeps the original and says so.
+
+The app does not claim a fixed speed or size improvement. Results depend on the source file, the settings, and the computer doing the work.
+
+---
+
+## What makes it different
+
+These differences come from how the app is built.
+
+**Files stay in the tab.** The File API reads each file and passes it to a worker. There is no upload path. That matters when the photo or video should not be sent to a third party in order to be compressed.
+
+**One page for images and video.** JPEG, PNG, WebP, AVIF, MP4, MOV, WebM, and MKV go through the same queue, presets, and download step. You do not switch tools when a folder contains both.
+
+**Two video engines, chosen per file.** Automatic mode tries WebCodecs (hardware encoding through Mediabunny) and falls back to a self-hosted FFmpeg.wasm build when that file cannot be encoded in the browser. You get speed where the browser can provide it, and a compatible path where it cannot.
+
+**Honest output.** Progress is a percentage only when it is measured. If the new file is not smaller, the UI says so instead of quietly handing back a larger file under a “compressed” name. Transparent images are not flattened into JPEG.
+
+**Nothing to operate on a server.** `npm run build` produces a static `dist/` folder. Hosting is file serving. There is no database, account system, or API to run beside it.
+
+---
+
+## Key features
+
+### Compressing files
+
+**Image compression.** JPEG, PNG, WebP, and AVIF in. JPEG, WebP, AVIF, or PNG out, or the same format as the original. Quality runs from 1 to 100. Optional max width and height scale a picture down and never enlarge it. EXIF orientation is respected. A transparent image that would have become JPEG is saved as WebP, or as PNG when WebP encoding is unavailable.
+
+**PNG optimization.** Below quality 90, PNG output is palette-quantized with UPNG.js (256 colors from 50 upward, 128 below that). At 90 and above, PNG is re-encoded losslessly.
+
+**AVIF encoding.** The browser’s canvas encoder is used when it can write AVIF. Otherwise a WebAssembly encoder (`@jsquash/avif`, libavif) loads only for that job.
+
+**Video compression.** MP4, MOV, WebM, and MKV in. MP4 or WebM out. You set container, codec, quality, a short-side resolution cap (4K down to 360p, or original), a frame-rate cap (60, 30, 24, or original), and audio bitrate, including removing audio. Resolution never upscales.
+
+**Presets.** Maximum Quality, Balanced (the default), and Maximum Compression set image quality, video quality, and audio bitrate together. Changing a slider away from those values marks the settings as custom. Each file can override the global settings.
+
+**Original kept when it is already smaller.** If the output is the same format, was not resized, and is not smaller than the source, the original bytes are returned. The file is labeled already optimal. A resized or format-changed file that is not smaller is still returned, with a note that it did not shrink.
+
+### Working with a batch
+
+**Queue.** Drop files, pick them from a dialog, or paste them. Unsupported types are skipped with a notice. Each card shows type, size, dimensions, and, for video, duration.
+
+**Parallel images, one video at a time.** Several images can encode at once. One video runs at a time, because a transcode already uses the CPU or hardware encoder.
+
+**Per-file controls.** Cancel one file or all of them. Retry a failed or cancelled file. Remove a file or clear the queue. Cancellation terminates the worker, which releases its memory.
+
+**Results.** Each finished card shows original size, compressed size, and the percentage saved. Expand it for dimensions, format, engine, elapsed time, notes, a before/after slider for images, or synced side-by-side playback for videos.
+
+**Downloads.** Download one file, or download every completed file. A single result downloads directly. Several results are packed into a ZIP in the browser (fflate, stored without recompressing the media).
+
+### Using the app itself
+
+**Themes.** Light, dark, and system. The choice is stored in `localStorage`.
+
+**Layout.** Usable from 320px wide. A skip link jumps to the compressor. `prefers-reduced-motion` is respected.
+
+**Installable shell.** A web app manifest and a service worker cache the app’s own pages and static assets. After the first visit, the interface can load offline. The video engine is cached after it is downloaded once. User files are never put in that cache.
+
+**Browser capability notes.** The settings panel reports which image formats and video codecs the current browser can encode, so an unavailable choice is labeled before you start.
+
+---
+
+## How it works
+
+```text
+You add files in the browser
+        ↓
+The page reads type, size, dimensions, duration, and a small thumbnail
+        ↓
+You choose a preset or custom settings, then start compression
+        ↓
+CompressionManager assigns each file to a Web Worker
+        ↓
+Images → canvas, PNG quantizer, or WebAssembly AVIF
+Videos → WebCodecs when it can encode the file, otherwise FFmpeg.wasm
+        ↓
+The worker returns a Blob (or the original, when it was already smaller)
+        ↓
+You compare and download the file, or a ZIP of the batch
 ```
 
-Open http://localhost:5173.
+Nothing in that path sends the file to a server. The only related network request is the first video job: the worker downloads the FFmpeg engine (about 32 MB) from the same site that served the app, then the browser caches it. Image jobs do not need that download.
 
-```bash
-npm run build     # type-check and production build into dist/
-npm run preview   # serve the production build locally
-npm run lint      # ESLint
-```
+### Image workflow
+
+1. Add one or more images.
+2. In **Compression settings**, leave **Balanced** or pick another preset.
+3. Under **Images**, set output format, quality, and whether to keep the original dimensions.
+4. Select **Compress**.
+5. Open a finished card to compare, then download it. For several files, use **Download all**.
+
+### Video workflow
+
+1. Add a video. The first time, the app downloads the FFmpeg engine in the background if WebCodecs cannot handle the file, or if you chose the FFmpeg engine.
+2. Under **Videos**, set format, codec, quality, resolution, frame rate, audio, and engine. **Automatic** is the default.
+3. Select **Compress**. Progress is a percentage when the encoder reports one; otherwise the card shows the current stage.
+4. Play the result next to the original, then download it.
+
+### What each step is doing
+
+| Step | What happens |
+| --- | --- |
+| Add | The file is validated against supported types and size limits, then queued. |
+| Probe | A detached image or video element reads metadata. The thumbnail is a small WebP, not a full decode. |
+| Schedule | Image workers run in a pool of up to four. One video worker runs a single job. |
+| Encode | Heavy work stays off the UI thread. Browsers without `OffscreenCanvas` encode images on the main thread instead. |
+| Finish | The queue stores the blob, stats, and notes. Object URLs are revoked when you remove or replace the file. |
+
+---
+
+## Real-world use cases
+
+### Use case: Shrink photos before sending them
+
+**Problem:** Messaging and email choke on multi-megabyte photos, and a web compressor means uploading the pictures.
+
+**How CompressKit helps:** You compress locally, see the size change, and download the smaller file.
+
+**Typical workflow:** Drop the photos, keep **Balanced**, compress, check the percentage on each card, download.
+
+### Use case: Prepare images for a website
+
+**Problem:** Source exports are large, and you want WebP or AVIF plus a maximum width.
+
+**How CompressKit helps:** Output format and max width/height are settings. Aspect ratio is kept, and images are not enlarged. Transparency is preserved instead of being flattened into JPEG.
+
+**Typical workflow:** Add the exports, set format to WebP or AVIF, turn off **Preserve resolution**, set a max width, compress, and download the batch as a ZIP.
+
+### Use case: Make a video easier to share
+
+**Problem:** A screen recording or camera file is larger than it needs to be for a chat, a ticket, or a page.
+
+**How CompressKit helps:** You can cap the short side (for example 1080p or 720p), cap frame rate, lower quality, or remove audio. Where the browser has a hardware encoder, WebCodecs does the work. Otherwise FFmpeg.wasm does.
+
+**Typical workflow:** Add the video, set resolution and quality, leave the engine on **Automatic**, compress, preview both copies, download.
+
+### Use case: Check quality before replacing the original
+
+**Problem:** A smaller file is only useful if it still looks acceptable.
+
+**How CompressKit helps:** Images get a before/after slider. Videos play side by side. Stats include sizes, dimensions, format, engine, and time. If the original was already smaller in the same format, it is returned unchanged.
+
+**Typical workflow:** Compress, expand the card, compare, then download or retry with different settings.
+
+### Use case: Hand someone a compressor without running a media server
+
+**Problem:** A team wants a shared compressor but does not want to store customer or employee media.
+
+**How CompressKit helps:** Deploy the static build. Visitors’ browsers do the encoding. The host sees normal page requests, including the one-time engine download, and does not receive the files.
+
+**Typical workflow:** Build `dist/`, host it, and send people the URL. They use the page as described above. There are no accounts to manage.
+
+---
+
+## Product tour
+
+Screenshots are not in this repository yet.
+
+<!-- TODO: Add hero / empty drop zone screenshot -->
+
+### Empty state
+
+The landing page introduces the product. The compressor is a drop zone: drag files in, browse, or paste. Navigation links jump to Features, How it works, and Privacy.
+
+<!-- TODO: Add queue and settings screenshot -->
+
+### Queue and settings
+
+After files are added, the left column lists them with status, size, and actions. The right column is **Compression settings**: presets, then image or video controls, plus a note about what this browser can encode. On smaller screens the settings sit below the queue.
+
+<!-- TODO: Add image before/after screenshot -->
+
+### Image comparison
+
+Expand a finished image to see original and compressed sizes, dimensions, format, engine, time, and a slider between the two pictures.
+
+<!-- TODO: Add video side-by-side screenshot -->
+
+### Video comparison
+
+Expand a finished video for the same stats plus duration, and side-by-side playback of the original and the result.
+
+<!-- TODO: Add completion summary screenshot -->
+
+### Batch download
+
+When a run finishes, a summary shows how many files finished, the size change, and the percentage smaller. One finished file uses **Download**. More than one uses **Download All (.zip)**, which builds `compresskit-YYYY-MM-DD.zip`. **Compress More** clears the queue.
+
+---
+
+## How to use it
+
+### Add files
+
+1. Open the app.
+2. Drop files on the page, choose them from the file dialog, or paste images or videos (paste is ignored while a text field is focused).
+3. Files the app does not recognize are skipped. You will see a notice naming them.
+4. Files over the hard size limit are listed as failed. Files over the soft limit are accepted with a memory warning.
+
+Supported input:
+
+| Kind | Types |
+| --- | --- |
+| Images | JPG, JPEG, JFIF, PNG, WebP, AVIF |
+| Videos | MP4, M4V, MOV, WebM, MKV |
+
+| Limit | Images | Videos |
+| --- | --- | --- |
+| Warning | Over 60 MB | Over 1 GB |
+| Rejected | Over 400 MB | Over 4 GB |
+
+### Choose settings
+
+1. Pick **Maximum Quality**, **Balanced**, or **Maximum Compression**.
+2. Open **Images** or **Videos** for finer control.
+3. **Reset** restores the defaults.
+4. For one file only, use the sliders icon on its card and choose **Save for this file**. The card is marked **Custom** and keeps those settings when the global ones change. **Use global settings** clears the override. Saving settings on a finished, failed, or cancelled file puts it back in the queue.
+
+| Preset | Image quality | Video quality | Audio |
+| --- | --- | --- | --- |
+| Maximum Quality | 90 | 85 | 192 kbps |
+| Balanced | 78 | 70 | 128 kbps |
+| Maximum Compression | 60 | 45 | 96 kbps |
+
+Image controls: output format (same as original, WebP, AVIF, JPEG, PNG), quality, preserve resolution, and optional max width and height.
+
+Video controls: MP4 or WebM, codec, quality, resolution, frame rate, audio bitrate or **Remove audio**, and engine.
+
+| Container | Codecs you can select |
+| --- | --- |
+| MP4 | H.264, H.265 / HEVC, AV1 |
+| WebM | VP9, VP8, AV1 |
+
+| Engine | Behavior |
+| --- | --- |
+| Automatic | WebCodecs first. FFmpeg.wasm if that file cannot be encoded that way. |
+| WebCodecs | Hardware path only. Disabled when this browser has no WebCodecs. Fails clearly if the codec is unavailable. |
+| FFmpeg.wasm | Software encode. Most compatible. Slower. |
+
+H.265, VP9, and AV1 are produced through WebCodecs when the browser can encode them. The bundled FFmpeg build is used for H.264 (MP4) and VP8 (WebM). If you asked for a codec FFmpeg cannot encode reliably, Automatic mode switches to that fallback and tells you on the result.
+
+### Compress, compare, and download
+
+1. Select **Compress**. The button counts how many files are waiting.
+2. Watch each card. Cancel one file, or **Cancel all**.
+3. Expand a finished card to compare.
+4. **Download** on the card saves that file. Names of newly encoded files end in `-compressed` before the extension. An original that was kept keeps its base name.
+5. The completion summary’s button is **Download** for one file and **Download All (.zip)** for several. The ZIP is named `compresskit-YYYY-MM-DD.zip`.
+6. **Clear** removes the queue. **Compress More** on the summary does the same. Closing the tab releases the files from memory.
+
+Theme is the control in the header: light, dark, or match the system.
+
+---
+
+## User roles and permissions
+
+CompressKit has no accounts, roles, or permission model. Anyone who can open the page can compress files in their own browser. Nothing is shared between visitors.
+
+---
 
 ## Architecture
 
-```
-React UI (components/)
-    │  Zustand stores (store/): queue, settings, theme, capabilities, ui
-    ▼
-CompressionManager (features/compression/)
-    │  schedules jobs, image worker pool + one video worker, cancellation, cleanup
-    ▼
-Web Workers (workers/)
-    ├─ image.worker.ts  → features/image/encodeImage.ts (OffscreenCanvas, UPNG, jSquash AVIF)
-    └─ video.worker.ts  → features/video/webcodecsEngine.ts (Mediabunny + WebCodecs)
-                         → features/video/ffmpegEngine.ts   (FFmpeg.wasm core)
-    ▼
-progress / done / error messages → store → UI
-```
-
-```
-src/
-├── components/   layout, sections, upload, files, compression, settings, results, preview, common, workspace
-├── features/     compression (manager, worker slots, intake, downloads), image, video
-├── workers/      image.worker.ts, video.worker.ts
-├── hooks/        theme, object URLs, queue summary
-├── store/        queueStore, settingsStore, themeStore, capabilitiesStore, uiStore
-├── utils/        browserSupport, mediaCapabilities, probe, zip, filename, format, errors
-├── types/        media, settings, worker messages
-└── constants/    formats, presets, error messages
+```mermaid
+flowchart TD
+    UI["React UI"] --> Stores["Zustand stores: queue, settings, theme, capabilities"]
+    Stores --> Manager["CompressionManager"]
+    Manager --> ImagePool["Image worker pool"]
+    Manager --> VideoWorker["Single video worker"]
+    Manager --> MainThread["Main-thread image encode when OffscreenCanvas is missing"]
+    ImagePool --> ImageEncode["Canvas, UPNG, or jSquash AVIF"]
+    VideoWorker --> WebCodecs["Mediabunny and WebCodecs"]
+    VideoWorker --> FFmpeg["FFmpeg.wasm, loaded on demand from this origin"]
+    ImageEncode --> Queue["Blob, stats, and notes back to the queue"]
+    WebCodecs --> Queue
+    FFmpeg --> Queue
+    MainThread --> Queue
+    Queue --> Download["File download or in-browser ZIP"]
 ```
 
-Key decisions:
+There is no backend service, database, authentication provider, payment system, or third-party media API.
 
-- **Workers own heavy work.** The UI thread only reads metadata (a detached `<video>` / `<img>` to read duration, dimensions and a small thumbnail).
-- **Memory.** Queue thumbnails are small WebP renders, not full decodes. Full-size originals get an object URL only while a comparison is open. FFmpeg reads the source through `WORKERFS` (no copy into WebAssembly memory); WebCodecs reads it lazily through `BlobSource`. Object URLs are revoked on removal, replacement and clear. Idle workers are terminated (images after 20 s, video after 60 s), which releases WebAssembly heaps.
-- **Rendering.** Each file card subscribes only to its own item; summary counters use shallow selectors; worker progress is throttled.
-- **Errors.** Workers send error codes, the UI maps them to friendly messages (`constants/errors.ts`). Raw details only go to the console.
+| Piece | Role |
+| --- | --- |
+| React UI | Drop zone, queue, settings, comparisons, marketing sections on the same page. |
+| Zustand | Queue state, settings, theme, detected browser capabilities, and short-lived notices. |
+| CompressionManager | Starts, cancels, retries, and clears jobs. Images use a pool sized from CPU cores, capped at four. Video uses one worker. |
+| Image worker | `OffscreenCanvas`, UPNG.js for PNG, `@jsquash/avif` when native AVIF encoding is missing. |
+| Video worker | Mediabunny for demux and mux. WebCodecs when `canEncode` succeeds at the output size. Otherwise FFmpeg.wasm. |
+| Static host | Serves the built site and, on first video use, the FFmpeg core. It does not receive user media. |
+| Service worker | Caches this origin’s app shell and hashed assets, including the engine after it has been fetched. Network-first for page loads so a new deploy can show up. |
+| `localStorage` | Theme and compression preferences only. |
 
-## FFmpeg.wasm
+Workers send error codes. The UI maps those codes to short messages. Raw error detail goes to the console.
 
-- The single-threaded `@ffmpeg/core` 0.12 is driven directly from `video.worker.ts` (no nested worker), using its current API (`exec`, `FS`, `setLogger`).
-- The core JS and WASM files are imported with Vite's `?url`, so they are **served from your own origin**. Nothing is fetched from a CDN.
-- It is only downloaded when the first video is compressed (about 32 MB, roughly 10 MB with gzip or brotli). Download progress is shown, and the browser / service worker caches it afterwards.
-- Used encoders: **libx264** (MP4) and **libvpx VP8** (WebM), AAC and Opus audio. In testing, this core's libx265 hangs and its libvpx-vp9 crashes, so H.265, VP9 and AV1 are produced only through WebCodecs. If a browser cannot encode the chosen codec, Automatic mode falls back to H.264 (MP4) or VP8 (WebM) and tells the user.
-- Quality maps to CRF (H.264 CRF about 20 / 24 / 29 for the three presets), with a `maxrate` cap derived from the source bitrate so already efficient files are not inflated.
-- The multi-threaded core needs `SharedArrayBuffer` (COOP/COEP headers). It is intentionally not used so the app runs on any static host without special headers.
+Memory choices that affect behavior:
 
-## WebCodecs
+- Queue thumbnails are small WebP renders.
+- A full-size object URL exists while a comparison is open, and is revoked on remove, replace, or clear.
+- FFmpeg reads the source through `WORKERFS` instead of copying the whole file into the WebAssembly heap. WebCodecs reads it lazily through Mediabunny’s `BlobSource`.
+- Idle image workers stop after 20 seconds. The video worker stops after 60 seconds. Stopping a worker releases its WebAssembly heap.
 
-- Support is detected with `VideoEncoder.isConfigSupported` / `AudioEncoder.isConfigSupported` (`utils/mediaCapabilities.ts`) and re-checked per file in the worker with Mediabunny's `canEncodeVideo` / `canEncodeAudio` at the real output size.
-- Nothing is assumed: if demuxing, decoding or encoding is unavailable for a file, the worker falls back to FFmpeg (Automatic mode) or reports a clear error (WebCodecs mode).
-- Quality maps to a target bitrate (bits per pixel per frame, adjusted for codec efficiency) capped by the source bitrate.
+---
 
-## Privacy architecture
+## Technology stack
 
-- Files are read with the File API and passed to workers by structured clone. There is no upload code path and no third-party request with user data.
-- Engines (FFmpeg, AVIF encoder), fonts and icons are bundled and served from the same origin.
-- `localStorage` only stores the theme and compression preferences.
-- The service worker caches only the app's own static files.
-- Re-encoded images drop EXIF metadata (canvas re-encode); videos are written without source metadata tags. Files that are kept as the original are returned byte for byte unchanged.
-- Your hosting provider will still see normal page requests (like any website). CompressKit adds no analytics.
+| Layer | Technology | Purpose |
+| --- | --- | --- |
+| UI | React 19, TypeScript | Single-page interface. |
+| Build | Vite 8 | Dev server and static production build. |
+| Styling | Tailwind CSS 4 | Layout and theme tokens. |
+| State | Zustand 5 | Queue, settings, theme, capabilities, notices. Persists theme and settings. |
+| Motion and icons | Framer Motion, Lucide React | Animation and icons. Motion follows `prefers-reduced-motion`. |
+| Fonts | Inter, JetBrains Mono (`@fontsource-variable`) | Bundled from this origin. |
+| Images | Canvas / `OffscreenCanvas`, `createImageBitmap`, `upng-js`, `@jsquash/avif` | Decode, resize, and encode. |
+| Video | WebCodecs, Mediabunny, `@ffmpeg/core` 0.12 | Hardware encode when available; software encode as fallback. |
+| Archives | fflate | ZIP download in the browser, without recompressing media. |
+| Offline shell | Service worker, web app manifest | Cache the app’s own static files. |
+| Backend | None | No server code, database, or environment variables. |
+| Tests | None in this repository | `lint` and `typecheck` are the automated checks. |
+
+---
+
+## Project structure
+
+```text
+compresskit/
+├── index.html
+├── vite.config.ts
+├── package.json
+├── public/
+│   ├── favicon.svg
+│   ├── manifest.webmanifest
+│   ├── robots.txt
+│   └── sw.js
+└── src/
+    ├── App.tsx                 page shell
+    ├── components/             layout, sections, upload, queue, settings, results, preview
+    ├── features/
+    │   ├── compression/        manager, intake, downloads, worker slots
+    │   ├── image/              resize and encode
+    │   └── video/              WebCodecs and FFmpeg engines, quality mapping
+    ├── workers/                image.worker.ts, video.worker.ts
+    ├── store/                  queue, settings, theme, capabilities, UI notices
+    ├── hooks/                  theme, object URLs, queue summary
+    ├── utils/                  probe, zip, filenames, browser and codec detection
+    ├── constants/              formats, presets, error copy
+    └── types/                  media, settings, worker messages
+```
+
+`public/sw.js` is the offline cache. User media never goes through it.
+
+`vite.config.ts` keeps `@ffmpeg/core` and `@jsquash/avif` out of Vite’s pre-bundle so their `.wasm` files resolve from `import.meta.url` and are served from your origin.
+
+---
+
+## Requirements
+
+To work on or build the app:
+
+- Node.js 20.19 or newer
+- npm (the lockfile is `package-lock.json`)
+
+To use a deployed or local build, in the browser:
+
+- A current Chromium, Firefox, or Safari. See [Browser support](#browser-support).
+- Enough RAM for the file you are compressing. Very large videos can exhaust the tab even when the file is under the 4 GB rejection limit.
+
+No database, Docker, mobile SDK, or environment file is required.
+
+---
+
+## Installation
+
+```bash
+git clone <repository-url>
+cd compresskit
+npm install
+```
+
+This repository does not record a remote URL. Replace `<repository-url>` with the clone URL you were given, or skip `git clone` if you already have the folder.
+
+Then:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+---
+
+## Environment variables
+
+None. The app does not read configuration from the environment, and it does not use API keys.
+
+---
+
+## Running the project
+
+### Development
+
+```bash
+npm run dev
+```
+
+If port 5173 is taken:
+
+```bash
+npm run dev -- --port 3000
+```
+
+### Production build
+
+```bash
+npm run build
+```
+
+Type-checks, then writes a static site to `dist/`.
+
+### Preview the production build
+
+```bash
+npm run preview
+```
+
+### Checks
+
+```bash
+npm run lint
+npm run typecheck
+```
+
+There is no separate frontend, backend, or mobile command. The Vite app is the whole product.
+
+---
+
+## API
+
+CompressKit does not expose an HTTP API. Compression is a browser job, not a request to this project.
+
+---
+
+## Privacy and security
+
+There is no login. Authentication is not part of the product.
+
+What the code does:
+
+- Files are read with the File API and transferred to workers. There is no `FormData` upload and no request that sends file bytes to another origin.
+- FFmpeg, the AVIF encoder, fonts, and icons are loaded from the same origin as the page.
+- `localStorage` stores the theme and compression preferences.
+- The service worker caches only this site’s static files. Its fetch handler ignores other origins.
+- Re-encoded images are produced by canvas or a quantizer, so camera EXIF, including location, is dropped. Re-encoded videos are written without copying source metadata tags. A file that is kept as the original is returned byte for byte.
+- The host that serves the website still sees ordinary requests for the page and assets, the same as any static site. CompressKit does not add analytics.
+
+This is a description of the data path, not a claim that every browser or hosting setup is risk-free. Anyone who can use the computer can see files you leave open in the tab.
+
+### FFmpeg license
+
+`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
+
+The CompressKit project itself has no `LICENSE` file. See [License](#license).
+
+---
 
 ## Deployment
 
-`npm run build` produces a static `dist/` folder. Deploy it to any static host (Netlify, Vercel, GitHub Pages, S3 + CloudFront, nginx).
+`npm run build` is the whole release step. Upload `dist/` to a static host such as Netlify, Vercel, GitHub Pages, S3 with CloudFront, or nginx.
 
-- The FFmpeg WASM file is about 32 MB. Some hosts cap single files (for example Cloudflare Pages at 25 MiB). On such hosts, use a different host or serve that single asset from your own bucket on the same site.
-- Enable gzip or brotli for `.wasm` to cut transfer size by about two thirds.
-- Serve over HTTPS (required for service workers and some media APIs).
-- For a sub-path deployment set `base` in `vite.config.ts` and update the paths in `index.html` and `public/manifest.webmanifest`.
+- Serve the site over HTTPS. Service workers and some media APIs require it.
+- The FFmpeg `.wasm` file is about 32 MB. Enable gzip or brotli for `.wasm`; that cuts the transfer to roughly a third. It is downloaded on the first video compression, then cached.
+- Some hosts limit a single file. Cloudflare Pages, for example, caps files around 25 MB, which is too small for this wasm asset. On those hosts, use a different host or serve that one file from storage on the same site.
+- A host such as Vercel only needs to serve the static build. You do not add serverless functions, environment variables, or a database. Confirm the host allows a single file of about 32 MB. The visitor’s CPU and RAM still do the compression.
+- For a subpath (for example `example.com/compresskit/`), set `base` in `vite.config.ts` and update the paths in `index.html` and `public/manifest.webmanifest`.
+- The multi-threaded FFmpeg core needs `SharedArrayBuffer` and cross-origin isolation headers. This app uses the single-threaded core so a normal static host works without those headers.
 
-## Browser compatibility
+There is no Dockerfile, CI workflow, or host config file in the repository. Deployment is “build, then serve `dist/`”.
 
-| Capability (approximate, check current release notes) | Chrome / Edge 114+ | Firefox 130+ | Safari 17+ |
+### Browser support
+
+Figures below match the support notes shipped with this version. Check current browser release notes before you rely on a specific codec.
+
+| Capability | Chrome / Edge 114+ | Firefox 130+ | Safari 17+ |
 | --- | --- | --- | --- |
-| Image compression in workers (OffscreenCanvas) | Yes | Yes | Yes (16.4+) |
-| WebP encoding | Yes | Yes | No, falls back to JPEG or PNG |
-| AVIF encoding | Native or WebAssembly | WebAssembly | WebAssembly |
-| WebCodecs video | Yes (codecs vary by OS and GPU) | Yes (codecs vary) | Partial, varies by version |
+| Image compression in workers (`OffscreenCanvas`) | Yes | Yes | Yes (16.4+) |
+| WebP encoding | Yes | Yes | No. Falls back to JPEG, or PNG when the image has transparency. |
+| AVIF encoding | Native canvas or WebAssembly | WebAssembly | WebAssembly |
+| WebCodecs video | Yes. Codecs depend on OS and GPU. | Yes. Codecs vary. | Partial, and it varies by version. |
 | FFmpeg.wasm fallback | Yes | Yes | Yes |
 
-Older browsers without OffscreenCanvas fall back to main-thread image encoding. Module workers are required for video.
+Older browsers without `OffscreenCanvas` fall back to main-thread image encoding. Video needs module workers.
 
-## Known limitations
+Codec availability is not the same as container support. Open-source Chromium builds often cannot decode H.264, so MP4 input there goes through FFmpeg. If a browser cannot preview MKV or HEVC, compression can still run through FFmpeg.
 
-- **FFmpeg.wasm is slow.** Single threaded software encoding runs far below real time for 1080p and above. Hardware WebCodecs is much faster where available.
-- **Memory.** WebAssembly is limited to a few GB. Very long or high resolution videos can run out of memory, especially in the FFmpeg path. Files over 4 GB are rejected, and files over 1 GB are flagged.
-- **Codec availability depends on the browser and OS.** For example, open source Chromium builds lack H.264 decoding, so MP4 input there goes through FFmpeg.
-- **H.265 / VP9 / AV1** require WebCodecs support; otherwise the fallback codec is used.
-- **Animated images** (animated WebP, APNG) are compressed as a single frame.
-- **Previews:** the browser may not be able to preview some inputs (for example MKV or HEVC); compression can still work through FFmpeg.
-- **HDR** video is converted to 8-bit SDR 4:2:0.
+---
 
 ## Troubleshooting
 
-- *"The video engine failed to load"*: check the network tab for the `ffmpeg-core-*.wasm` request; ensure your host serves `.wasm` files and does not block large files.
-- *Video is very slow*: try the Automatic engine in a Chromium-based browser with hardware encoders, lower the resolution, or pick Maximum Compression (smaller output, but slower x264 preset).
-- *"Your browser ran out of memory"*: close other tabs, lower the resolution, or split the video.
-- *Stale version after deploying*: the service worker uses network-first for pages; a normal reload picks up the new build.
-- *Port in use*: `npm run dev -- --port 3000`.
+### `npm install` or the build fails on the Node version
 
-## Licensing note
+**Cause:** `package.json` requires Node.js 20.19 or newer.
 
-`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Distributing a build that includes it carries GPL obligations. Review this before commercial distribution, or replace the FFmpeg fallback with a WebCodecs-only setup. Other dependencies are MIT, Apache-2.0 or MPL-2.0 licensed.
+**Solution:** Install a current Node 20 or Node 22 release, then run `npm install` again.
+
+### Port 5173 is already in use
+
+**Cause:** Another process is bound to Vite’s default port.
+
+**Solution:**
+
+```bash
+npm run dev -- --port 3000
+```
+
+### “The video engine failed to load”
+
+**Cause:** The `ffmpeg-core` `.wasm` request failed. The file is large, and some hosts block it or serve `.wasm` with the wrong type.
+
+**Solution:** In the network panel, confirm the wasm request returns 200 and a WASM content type. Confirm the host allows a file of about 32 MB. Reload and try the video again. The engine is cached after a successful download.
+
+### Video compression is very slow
+
+**Cause:** FFmpeg.wasm is single-threaded software encoding. 1080p and above run well below real time.
+
+**Solution:** Use **Automatic** in a Chromium-based browser that exposes a hardware encoder, lower the resolution, or accept the slower path. Maximum Compression uses a slower x264 preset because it spends more time squeezing the file.
+
+### “Your browser ran out of memory” or the worker stops unexpectedly
+
+**Cause:** The tab ran out of RAM. Long or high-resolution video is the usual case, especially on the FFmpeg path. WebAssembly heaps are limited to a few gigabytes.
+
+**Solution:** Close other tabs, lower the resolution, or split the video. Files over 4 GB are rejected. Files over 1 GB are accepted with a warning.
+
+### The output is not smaller
+
+**Cause:** The source was already efficient, or the quality and resolution settings did not remove enough data. Same-format output that is not smaller is kept as the original when the picture or video was not resized.
+
+**Solution:** Lower quality, cap resolution, or switch to a more efficient codec your browser can encode. The card’s note states which of these happened.
+
+### “Your browser can’t create this format” or a codec was replaced
+
+**Cause:** This browser cannot encode the format or codec you picked. Safari does not encode WebP. H.265, VP9, and AV1 need WebCodecs support; otherwise Automatic mode uses H.264 or VP8.
+
+**Solution:** Choose a format the capability note marks as available, or leave the engine on **Automatic** and read the note on the result.
+
+### A new deploy still shows the old app
+
+**Cause:** The service worker cached the previous shell.
+
+**Solution:** Reload the page. Navigations are network-first, so a normal reload should pick up the new build. If a tab was left open across the deploy, reload it once.
+
+### An image looks like a single frame
+
+**Cause:** Animated WebP and APNG are decoded as one frame.
+
+**Solution:** Export the animation as a video if you need every frame.
+
+---
+
+## FAQ
+
+### Who is this for?
+
+Anyone who wants smaller images or videos without sending them to a server, and anyone hosting a static copy of that tool for other people.
+
+### Does compression need a backend?
+
+No. Hosting the built files is enough. The browser does the encoding.
+
+### Does it need an internet connection?
+
+The first load needs the network to fetch the app. After that, the service worker can open the interface offline. The first video that needs FFmpeg also needs the network once, to download the engine. Later video jobs can use the cached engine. Image compression does not download an engine.
+
+### Do I need an account?
+
+No.
+
+### Will it always make files smaller?
+
+No. When a same-format re-encode would not shrink the file and you did not resize it, CompressKit returns the original and says it was already optimal. If you change format or resolution and the result is larger, you still get the new file, with a note.
+
+### Can I self-host it?
+
+Yes. Build `dist/` and serve it as static files. See [Deployment](#deployment).
+
+### Is my file uploaded if I use the hosted page?
+
+The media is processed in that browser tab. It is not posted to an application server. The host still receives ordinary requests for HTML, JavaScript, and the FFmpeg asset.
+
+### Why is there an FFmpeg download during video compression?
+
+That request fetches the encoder (~32 MB, smaller with compression), from the same origin as the app. It is not an upload of your video.
+
+---
+
+## Roadmap
+
+This repository does not contain a roadmap, issue list, or `TODO` / `FIXME` markers that describe unfinished product work.
+
+### Completed
+
+The features in [Key features](#key-features) are implemented in this tree, including local image and video encoding, presets, per-file overrides, comparisons, ZIP download, themes, and the offline app shell.
+
+### In progress
+
+Nothing in the repository is marked in progress.
+
+### Planned
+
+Nothing in the repository is marked as planned. Treat ideas that are not in the code as unbuilt.
+
+---
+
+## Limitations
+
+- **FFmpeg.wasm is slow** for high-resolution video. Hardware WebCodecs is faster where the browser and GPU provide it.
+- **Memory.** Very long or very large videos can crash the tab. Hard stops are 400 MB for images and 4 GB for video. Warnings start at 60 MB and 1 GB.
+- **Codecs follow the browser and OS.** H.265, VP9, and AV1 are WebCodecs-only. The FFmpeg fallback is H.264 or VP8. This FFmpeg build’s libx265 hangs and its libvpx-vp9 crashes, so those encoders are not used.
+- **HDR video** is converted to 8-bit SDR 4:2:0.
+- **Animated images** (animated WebP, APNG) become a single frame.
+- **Some inputs cannot be previewed** in the browser (for example some MKV or HEVC files). Compression can still succeed through FFmpeg.
+- **WebP encoding is missing in Safari.** Output falls back to JPEG, or PNG when the image has transparency.
+- **PWA icons.** `public/manifest.webmanifest` references `public/icons/icon-192.png`, `icon-512.png`, and `icon-maskable-512.png`. Those PNG files are not in the repository. `public/favicon.svg` is. Installed icons may be generic until the PNGs are added.
+- **No automated test suite.** Quality checks in-repo are ESLint and TypeScript.
+- **GPL on the video engine.** Distributing the FFmpeg.wasm core has license duties. See [FFmpeg license](#ffmpeg-license).
+
+---
+
+## Contributing
+
+There is no contributing guide or code of conduct in the repository. `package.json` marks the package `private` (it is not published to npm).
+
+If you are changing the code locally:
+
+1. Create a branch.
+2. Make the change.
+3. Run `npm run lint` and `npm run typecheck`.
+4. Open a pull request if you have a remote and permission to contribute.
+
+Do not add secrets, `.env` files, or credentials. None are used.
+
+---
+
+## License
+
+License information for the CompressKit source has not been specified. There is no `LICENSE` file.
+
+The bundled `@ffmpeg/core` package is GPL-2.0-or-later. That obligation is separate from the missing project license. Read [FFmpeg license](#ffmpeg-license) before you distribute a build.
+
+---
+
+## Support
+
+This repository does not list an email address, issue tracker URL, or other support channel.
+
+For setup problems, start with [Troubleshooting](#troubleshooting). For product behavior, the in-app error text and the notes on each result card are the user-facing explanation.
