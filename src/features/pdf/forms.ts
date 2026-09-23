@@ -68,11 +68,20 @@ export async function filledCopy(sourceId: string, values: Record<string, FieldV
   for (const [name, value] of Object.entries(values)) {
     try {
       const field = form.getField(name);
-      if (field instanceof lib.PDFTextField && typeof value === 'string') field.setText(value);
-      else if (field instanceof lib.PDFCheckBox) (value ? field.check() : field.uncheck());
-      else if (field instanceof lib.PDFRadioGroup && typeof value === 'string' && value) field.select(value);
-      else if (field instanceof lib.PDFDropdown && typeof value === 'string') (value ? field.select(value) : field.clear());
-      else if (field instanceof lib.PDFOptionList && Array.isArray(value)) (value.length ? field.select(value) : field.clear());
+      if (field instanceof lib.PDFTextField && typeof value === 'string') {
+        field.setText(value);
+      } else if (field instanceof lib.PDFCheckBox) {
+        if (value) field.check();
+        else field.uncheck();
+      } else if (field instanceof lib.PDFRadioGroup && typeof value === 'string' && value) {
+        field.select(value);
+      } else if (field instanceof lib.PDFDropdown && typeof value === 'string') {
+        if (value) field.select(value);
+        else field.clear();
+      } else if (field instanceof lib.PDFOptionList && Array.isArray(value)) {
+        if (value.length) field.select(value);
+        else field.clear();
+      }
     } catch (e) {
       throw new FormFillError(name, String(e));
     }

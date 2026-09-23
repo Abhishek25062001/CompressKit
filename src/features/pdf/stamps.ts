@@ -157,7 +157,9 @@ export function drawSignatures(
 }
 
 /** Characters the standard PDF font can encode (Windows-1252); anything else is dropped from the hidden text. */
-const WIN_ANSI = /[^\x20-\x7E -ÿ–—‘’“”•…€]/g;
+/** Punctuation outside Latin-1 that Windows-1252 still has: dashes, curly quotes, bullet, ellipsis, euro. */
+const WIN_EXTRAS = [0x2013, 0x2014, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2026, 0x20ac].map((c) => String.fromCharCode(c)).join('');
+const WIN_ANSI = new RegExp(`[^\\x20-\\x7E\\xA0-\\xFF${WIN_EXTRAS}]`, 'g');
 
 /**
  * Invisible, selectable text over each recognized word, which is how scanned PDFs become searchable.
