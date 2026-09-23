@@ -11,6 +11,8 @@ import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
 import { PageGrid } from './PageGrid';
 import { PdfPanel } from './PdfPanel';
+import { PasswordDialog } from './PasswordDialog';
+import { ScanDialog } from './ScanDialog';
 import { SignDialog } from './SignDialog';
 
 const ACCEPT = acceptAttribute(PDF_INPUT_FORMATS);
@@ -95,6 +97,8 @@ export function PdfWorkspace() {
   return (
     <>
       <SignDialog />
+      <ScanDialog />
+      <PasswordDialog />
       <AnimatePresence mode="popLayout" initial={false}>
         {!hasPages ? (
           <motion.div

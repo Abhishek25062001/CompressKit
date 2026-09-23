@@ -1,5 +1,6 @@
-import { Download, Minimize2, PenLine, Trash2 } from 'lucide-react';
+import { ClipboardList, Download, EyeOff, FileDown, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, Trash2, type LucideIcon } from 'lucide-react';
 import { useId, useState } from 'react';
+import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
 import { compressPdf, exportImages, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
 import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
@@ -10,10 +11,50 @@ import { SegmentedControl } from '../common/SegmentedControl';
 import { Select } from '../common/Select';
 import { Switch } from '../common/Switch';
 import { TargetSizeField } from '../settings/TargetSizeField';
+import { CleanTab, FormsTab, OcrTab, ProtectTab, ScanTab } from './PdfExtraTabs';
 import { SignatureMaker } from './SignatureMaker';
 import { StampSettings } from './StampSettings';
 
-type Tab = 'save' | 'split' | 'images' | 'compress' | 'sign';
+type Tab = 'save' | 'split' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
+
+const TOOLS: { value: Tab; label: string; icon: LucideIcon }[] = [
+  { value: 'save', label: 'Save', icon: FileDown },
+  { value: 'split', label: 'Split', icon: Scissors },
+  { value: 'images', label: 'Images', icon: Images },
+  { value: 'compress', label: 'Compress', icon: Minimize2 },
+  { value: 'sign', label: 'Sign', icon: PenLine },
+  { value: 'scan', label: 'Scan', icon: ScanLine },
+  { value: 'forms', label: 'Forms', icon: ClipboardList },
+  { value: 'protect', label: 'Protect', icon: Lock },
+  { value: 'clean', label: 'Clean', icon: EyeOff },
+  { value: 'ocr', label: 'OCR', icon: ScanText },
+];
+
+/** Ten tools do not fit a row of tabs: a two-row grid of buttons, one pressed at a time. */
+function ToolGrid({ value, onChange }: { value: Tab; onChange: (tab: Tab) => void }) {
+  return (
+    <div role="group" aria-label="PDF tool" className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-surface-2 p-1">
+      {TOOLS.map(({ value: tool, label, icon: Icon }) => {
+        const active = tool === value;
+        return (
+          <button
+            key={tool}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(tool)}
+            className={cn(
+              'flex min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition-all',
+              active ? 'bg-surface text-fg shadow-sm ring-1 ring-border' : 'text-muted hover:text-fg',
+            )}
+          >
+            <Icon className={cn('h-4 w-4', active && 'text-accent-text')} aria-hidden />
+            <span className="max-w-full truncate">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 type Scope = 'all' | 'selected';
 
 function Label({ children }: { children: string }) {
@@ -175,19 +216,7 @@ export function PdfPanel() {
       <h2 id="pdf-panel-title" className="mb-4 text-sm font-semibold text-fg">
         PDF tools
       </h2>
-      <SegmentedControl
-        label="PDF action"
-        size="sm"
-        value={tab}
-        onChange={setTab}
-        segments={[
-          { value: 'save', label: 'Save' },
-          { value: 'split', label: 'Split' },
-          { value: 'images', label: 'Images' },
-          { value: 'compress', label: 'Compress' },
-          { value: 'sign', label: 'Sign' },
-        ]}
-      />
+      <ToolGrid value={tab} onChange={setTab} />
       <div className="my-5 h-px bg-border" />
 
       <div className="space-y-5">
@@ -386,6 +415,11 @@ export function PdfPanel() {
         )}
 
         {tab === 'sign' && <SignTab target={target} count={count} busy={busy} />}
+        {tab === 'scan' && <ScanTab target={target} count={count} busy={busy} />}
+        {tab === 'forms' && <FormsTab target={target} count={count} busy={busy} />}
+        {tab === 'protect' && <ProtectTab target={target} count={count} busy={busy} />}
+        {tab === 'clean' && <CleanTab target={target} count={count} busy={busy} />}
+        {tab === 'ocr' && <OcrTab target={target} count={count} busy={busy} />}
       </div>
     </section>
   );
