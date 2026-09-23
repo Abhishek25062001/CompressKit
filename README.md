@@ -6,6 +6,8 @@ CompressKit is a client-side web app for shrinking images and videos without upl
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
+Designed and developed by **[Abhishek Jaiswal](https://github.com/Abhishek25062001)** · Source: [github.com/Abhishek25062001/CompressKit](https://github.com/Abhishek25062001/CompressKit)
+
 There is no public demo URL, documentation site, or package registry entry in this repository. Run it locally with the [installation steps](#installation) below, or deploy the static build to any host that can serve files.
 
 ---
@@ -402,12 +404,10 @@ No database, Docker, mobile SDK, or environment file is required.
 ## Installation
 
 ```bash
-git clone <repository-url>
-cd compresskit
+git clone https://github.com/Abhishek25062001/CompressKit.git
+cd CompressKit
 npm install
 ```
-
-This repository does not record a remote URL. Replace `<repository-url>` with the clone URL you were given, or skip `git clone` if you already have the folder.
 
 Then:
 
@@ -680,6 +680,17 @@ The bundled `@ffmpeg/core` package is GPL-2.0-or-later. That obligation is separ
 
 ## Support
 
-This repository does not list an email address, issue tracker URL, or other support channel.
-
 For setup problems, start with [Troubleshooting](#troubleshooting). For product behavior, the in-app error text and the notes on each result card are the user-facing explanation.
+
+To report a bug or ask a question, open an issue at [github.com/Abhishek25062001/CompressKit/issues](https://github.com/Abhishek25062001/CompressKit/issues).
+
+---
+
+## Author
+
+**Abhishek Jaiswal** designed and developed CompressKit.
+
+- GitHub: [@Abhishek25062001](https://github.com/Abhishek25062001)
+- Project: [github.com/Abhishek25062001/CompressKit](https://github.com/Abhishek25062001/CompressKit)
+
+If CompressKit is useful to you, a star on the repository is appreciated.
