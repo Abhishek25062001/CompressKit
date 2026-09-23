@@ -95,7 +95,7 @@ interface BuildExtras {
   ocr?: Map<string, OcrPage>;
 }
 
-/** Annotation types kept when comments are removed: links still work and form fields stay fillable. */
+/** Annotation types kept when comments are removed: links, and form widgets, which draw the fields' current values. */
 const KEPT_ANNOTATIONS = new Set(['Link', 'Widget']);
 
 /**

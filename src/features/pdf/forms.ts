@@ -23,7 +23,8 @@ export interface FormInfo {
 
 function labelFor(name: string): string {
   const last = name.split('.').pop() ?? name;
-  return last.replace(/\[\d+\]$/, '').replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim() || name;
+  const words = last.replace(/\[\d+\]$/, '').replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : name;
 }
 
 /** Lists the fillable fields of an open PDF, with their current values. Signature and button fields are left out. */

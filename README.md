@@ -126,7 +126,14 @@ The **PDF** tab works on pages instead of files. Open it with the **PDF** tab ab
 | **Split** | Separate PDFs of N pages each (1 by default), downloaded as a ZIP. |
 | **To images** | Each page as JPG or PNG at 72, 150, or 300 DPI, as a ZIP when there are several. |
 | **Compress** | A smaller PDF: photos and scans inside are recompressed (Light, Medium, or Strong), with an optional size target. |
-| **Sign** | Draw, type, or upload a signature, then place it on any page. |
+| **Sign** | Draw, type, or upload a signature, then place it on one page or all of them, and download the signed PDF. |
+| **Scan** | Straighten phone photos of documents to the page edges and give them a clean scanned look. |
+| **Forms** | Fill in a PDF form's fields and download it with the answers. |
+| **Protect** | Download a password-protected copy (AES-256), with printing and copying allowed or not. |
+| **Clean** | See the hidden details your files carry, and remove comments. Saved PDFs never include the rest. |
+| **OCR** | Read the text in scans and photos, and save a PDF where that text can be searched and copied. |
+
+The ten tools sit in a grid above the options. **All** or **Selected** pages applies to every tool.
 
 **Pages from PDFs** are copied unchanged, so text stays sharp and selectable. Rotation is stored as page rotation, not by redrawing the page.
 
@@ -136,9 +143,21 @@ The **PDF** tab works on pages instead of files. Open it with the **PDF** tab ab
 
 **Compress.** Only JPEG photos in grayscale or RGB are rewritten: smaller (2400, 1600, or 1100 px on the long side) and at lower quality. A photo is kept as it was when re-encoding would not save at least 10%. Text, fonts, and drawings are not touched, so text stays sharp and selectable. With a target (for example 200 KB), CompressKit starts at the chosen strength and steps up until the file fits. If it still does not fit, **Flatten pages if needed** (off by default) turns each page into a single image at 150, 110, then 80 DPI. That makes text unselectable and unsearchable, so the result message always says when it happened, and when the target could not be reached. PDFs of mostly text are usually small already and are reported as such. Pages from one PDF are copied together, so shared fonts and images are stored once.
 
-**Sign.** Draw a signature with a mouse, finger, or pen, type your name in a handwriting-style font, or upload a photo of a signature. Uploads can have the white paper removed, so only the ink shows. Press the pen button under a page to place it: drag to move it, drag the corner to resize it (its shape is kept), and add it more than once. Signed pages show a **Signed** badge. The signature is kept in memory for this tab only and is never saved or uploaded. It is a picture of a signature, not a certified digital signature.
+**Sign.** Draw a signature with a mouse, finger, or pen, type your name in a handwriting-style font, or upload a photo of a signature. Uploads can have the white paper removed, so only the ink shows. Press the pen button under a page to place it: drag to move it, drag the corner to resize it (its shape is kept), and add it more than once. Signed pages show a **Signed** badge. **Apply to all pages** puts it on every page (or every selected page) in one step: in the same spot as a page you already signed, or at the bottom right. The placement dialog has the same button. **Download signed PDF** is right in the Sign tab. The signature is kept in memory for this tab only and is never saved or uploaded. It is a picture of a signature, not a certified digital signature.
 
-**Limits.** Password-protected PDFs are refused with a message: remove the protection first. pdf-lib and pdf.js (about 1.5 MB) load only when the PDF tab is first used. The work runs on the main thread, so very large PDFs (hundreds of pages, or tens of MB) can make the page pause while they are built. Compression skips CMYK photos, PNG-style (lossless) images, and masked images inside PDFs.
+**Logo watermark.** Under **Save**, the watermark can be **Text** or **Logo**. A logo on white can have the white removed. Like the signature, it stays in memory only.
+
+**Scan cleanup.** Each photo page has a **Scan** button. It opens an editor with four draggable corners, placed automatically on the page edges when the page stands out from what is behind it. Beside it is a live preview of the straightened page. Choose a look: **Original**, **Enhanced** (per-channel levels, which also removes the yellow or blue cast of indoor light), **Grayscale**, or **Black & white**. Black & white uses a local threshold, so shadows across the page do not turn black. The **Scan** tool does the same for many photos at once. Cleanup applies everywhere the photo is used: saved PDFs, images, previews, and OCR.
+
+**Forms.** Every fill-in field of each PDF is listed: text boxes, check boxes, choices, and lists. Answers are written onto the page when you download (the form is flattened), so they look the same in every viewer and survive merging. Answers stay in memory only. The standard PDF font covers Latin letters, numbers, and common symbols; other scripts get a clear error. XFA forms (Adobe LiveCycle) cannot be filled in a browser. A form PDF saved without answers keeps the look of its fields, but they are no longer fillable.
+
+**Passwords.** Adding a locked PDF asks for its password. It is used once to open the file and never stored, and a wrong password asks again. Pages from an unlocked file are saved without a password. **Protect** adds one (AES-256), with a random owner password so the printing and copying choices hold in standard readers. Losing the password means losing access to the file.
+
+**Clean.** Lists what each file carries: document title, author, subject, keywords, software, dates, XMP metadata, attachments, scripts, and comments for PDFs; camera, date taken, editing software, and GPS location for JPEG photos. PDFs saved here are new documents: none of those details are copied, photos are re-drawn without EXIF, and page-level metadata and open actions are removed. Comments and markup are kept unless **Remove comments and markup** is on. You can set your own title and author.
+
+**OCR.** Uses Tesseract (English), with its worker, WebAssembly core, and language data served from this site under `ocr/`, never from a CDN. About 7 MB loads the first time; after that each page takes a few seconds. Each word is placed as invisible text over the page, aligned to the page as displayed, so the PDF looks unchanged but can be searched, selected, and copied. **Also download the text** saves a `.txt` file. Pages that already have real text are skipped.
+
+**Limits.** pdf-lib and pdf.js (about 1.5 MB) load only when the PDF tab is first used, and OCR (about 7 MB) only when it is first run. The work runs on the main thread, so very large PDFs (hundreds of pages, or tens of MB) can make the page pause while they are built. Compression skips CMYK photos, PNG-style (lossless) images, and masked images inside PDFs. OCR, the hidden text layer, and form answers support Latin script only. Automatic page-edge detection needs the page to stand out from the background; otherwise place the corners by hand.
 
 ### Working with a batch
 
@@ -487,7 +506,7 @@ This is a description of the data path, not a claim that every browser or hostin
 
 ### FFmpeg license
 
-`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The PDF tools use `pdf-lib` (MIT) and `pdfjs-dist` (Apache-2.0). The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
+`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The PDF tools use `@cantoo/pdf-lib` (MIT, a maintained fork of pdf-lib with encryption support) and `pdfjs-dist` (Apache-2.0). OCR uses `tesseract.js` and `tesseract.js-core` (Apache-2.0) with English data from `@tesseract.js-data/eng` (Apache-2.0 data, MIT package). The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
 
 The CompressKit project itself has no `LICENSE` file. See [License](#license).
 

@@ -95,6 +95,6 @@ export interface PdfSettings {
   compressTargetKB: number | null;
   /** Lets "Compress" turn pages into pictures when recompressing photos is not enough. */
   allowFlatten: boolean;
-  /** Drops comments, highlights, sticky notes and other markup from saved PDFs. Links and form fields stay. */
+  /** Drops comments, highlights, sticky notes and other markup from saved PDFs. Links stay. */
   removeComments: boolean;
 }

@@ -367,7 +367,7 @@ export function CleanTab({ target, count, busy }: TabProps) {
       </div>
       <Switch
         label="Remove comments and markup"
-        description="Sticky notes, highlights and drawings. Links and form fields stay."
+        description="Sticky notes, highlights and drawings. Links stay."
         checked={removeComments}
         onChange={(v) => update({ removeComments: v })}
       />

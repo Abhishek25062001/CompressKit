@@ -181,7 +181,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
             <figcaption className="mt-2 text-center text-xs text-muted">{note ?? 'Drag the corners onto the page.'}</figcaption>
           </figure>
           <figure className="min-w-0">
-            <div className="checkerboard flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-border bg-white">
+            <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-2">
               {previewUrl ? (
                 <img src={previewUrl} alt="Preview of the cleaned page" className="max-h-full max-w-full object-contain" />
               ) : (
