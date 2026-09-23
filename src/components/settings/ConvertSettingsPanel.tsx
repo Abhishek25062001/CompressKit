@@ -73,7 +73,7 @@ export function ConvertSettingsPanel({ defaultTab }: { defaultTab: 'image' | 'vi
             value={settings.image}
             options={imageTargets}
             onChange={(image) => settings.update({ image })}
-            hint="Transparent areas become white in JPG. WebP, PNG and AVIF keep them."
+            hint="iPhone HEIC photos work too: pick JPG for the widest support. Transparent areas become white in JPG."
           />
           {settings.image === 'png' ? (
             <p className="rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-xs text-muted">

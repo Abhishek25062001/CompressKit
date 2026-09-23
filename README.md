@@ -2,7 +2,7 @@
 
 > Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app for shrinking images and videos, and converting them between formats, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos, converting them between formats, and cropping photos to exact sizes, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
@@ -56,6 +56,8 @@ These differences come from how the app is built.
 
 **Image compression.** JPEG, PNG, WebP, and AVIF in. JPEG, WebP, AVIF, or PNG out, or the same format as the original. Quality runs from 1 to 100. Optional max width and height scale a picture down and never enlarge it. EXIF orientation is respected. A transparent image that would have become JPEG is saved as WebP, or as PNG when WebP encoding is unavailable.
 
+**Target file size.** Turn on **Target file size** under **Images**, then type a limit in KB or pick 20, 50, 100, 200, or 500 KB. This is what job, exam, and government upload forms ask for. CompressKit searches for the highest quality that fits. If quality 40 is still too large, it scales the picture down rather than making it blocky. Only a picture that would become tiny gets a lower quality. A PNG is saved as JPEG (or WebP, when it has transparency), because PNG cannot be steered to a size. A file already under the limit is returned unchanged. The limit also works per file, for example 50 KB for a photo and 20 KB for a signature.
+
 **PNG optimization.** Below quality 90, PNG output is palette-quantized with UPNG.js (256 colors from 50 upward, 128 below that). At 90 and above, PNG is re-encoded losslessly.
 
 **AVIF encoding.** The browser’s canvas encoder is used when it can write AVIF. Otherwise a WebAssembly encoder (`@jsquash/avif`, libavif) loads only for that job.
@@ -72,7 +74,7 @@ The **Convert** tool sits next to the compressor. Open it with the **Compress | 
 
 | Input | Output |
 | --- | --- |
-| JPG, PNG, WebP, AVIF, BMP | JPG, PNG, WebP, or AVIF |
+| JPG, PNG, WebP, AVIF, BMP, HEIC / HEIF (iPhone photos) | JPG, PNG, WebP, or AVIF |
 | MP4, MOV, WebM, MKV, AVI, WMV, FLV, 3GP, animated GIF | MP4 (H.264), WebM (VP9 or VP8), animated GIF, MP3, M4A, or WAV |
 
 **Always the format you asked for.** The converter never swaps in the original because it was smaller. Converting a transparent image to JPG fills the transparent areas with white, as image editors do. PNG output is lossless.
@@ -81,7 +83,36 @@ The **Convert** tool sits next to the compressor. Open it with the **Compress | 
 
 **Audio extraction.** MP3 and M4A are written at 192 kbps, and WAV as 16-bit PCM. A video with no sound track fails with a clear message.
 
+**HEIC photos.** Safari decodes HEIC itself. Other browsers use libheif compiled to WebAssembly (about 2 MB), which loads only when a HEIC file is converted. The rotation stored in the photo is applied. Chrome and Firefox cannot show a HEIC thumbnail in the queue, so those cards show an icon until the file is converted.
+
 **Older containers.** AVI, WMV, FLV, 3GP, and GIF inputs are decoded by FFmpeg.wasm, so they need the one-time engine download.
+
+### Resizing photos
+
+The **Resize** tool crops photos and scales them to an exact pixel size. Open it with the **Resize** tab above the drop zone, the **Resize Photos** button in the hero, the **Resize** link in the header, or a link ending in `#resize`. It takes JPG, PNG, WebP, AVIF, and BMP. Convert HEIC photos to JPG first.
+
+| Preset | Output (px) |
+| --- | --- |
+| Passport photo, 35 × 45 mm | 413 × 531 |
+| US passport / visa, 2 × 2 in | 600 × 600 |
+| Signature, 3.5 × 1.5 cm | 413 × 177 |
+| Profile picture (WhatsApp, LinkedIn) | 800 × 800 |
+| Instagram post | 1080 × 1080 |
+| Instagram portrait, 4:5 | 1080 × 1350 |
+| Story / Status, 9:16 | 1080 × 1920 |
+| YouTube thumbnail | 1280 × 720 |
+| X (Twitter) header | 1500 × 500 |
+| LinkedIn banner | 1584 × 396 |
+| Custom | Any width and height up to 8000 |
+| Freehand | Whatever you crop, at the original resolution |
+
+Document sizes are at 300 DPI. Always check the exact size your form asks for, and use **Custom** when it differs.
+
+**Cropping.** By default the largest centered area with the preset's shape is used. The crop button on a photo opens an editor. Drag the box to move it, or drag a corner to resize it with the shape locked. Arrow keys move it, and **+** and **−** resize it. A crop is remembered for that photo while the preset keeps the same shape, and saving a crop on a finished photo queues it again.
+
+**Freehand.** Crop any rectangle, with no fixed shape. The crop box gets edge handles as well as corner handles, so one side can move on its own. The output is the cropped area at the original resolution, for example 1845 × 1126 from a 3000 × 2000 photo. Until you draw a crop, the whole photo is kept. A crop drawn for a preset also works in Freehand. A freehand crop is set aside when you switch to a preset, because its shape would not match.
+
+**Exact size, optional KB limit.** Except in Freehand, the output is always exactly the preset's pixel size, enlarging small photos when needed. Choose JPG, PNG, or WebP. With **Target file size** on, only quality is lowered until the file fits, because the dimensions are fixed. A PNG is then saved as JPG on white, which is what upload forms accept. Files are named like `photo-413x531.jpg`.
 
 ### Working with a batch
 
@@ -430,7 +461,7 @@ This is a description of the data path, not a claim that every browser or hostin
 
 ### FFmpeg license
 
-`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
+`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
 
 The CompressKit project itself has no `LICENSE` file. See [License](#license).
 

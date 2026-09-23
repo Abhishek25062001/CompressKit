@@ -1,9 +1,10 @@
+import type { ItemCrop } from './resize';
 import type { ImageSettings, VideoSettings } from './settings';
 
 export type MediaKind = 'image' | 'video';
 
-/** Which tool a queue belongs to: shrinking files, or changing their format. */
-export type ToolMode = 'compress' | 'convert';
+/** Which tool a queue belongs to: shrinking files, changing their format, or cropping them to a size. */
+export type ToolMode = 'compress' | 'convert' | 'resize';
 
 export type FileStatus = 'waiting' | 'compressing' | 'completed' | 'failed' | 'cancelled';
 
@@ -80,5 +81,7 @@ export interface QueueItem {
   result: CompressionResult | null;
   error: FriendlyError | null;
   override: FileSettingsOverride | null;
+  /** Crop drawn in the resize tool. Null uses a centered crop. */
+  crop: ItemCrop | null;
   warning: string | null;
 }

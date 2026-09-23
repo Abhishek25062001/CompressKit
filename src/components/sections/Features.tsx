@@ -15,8 +15,8 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: ArrowLeftRight,
-    title: 'Convert between formats',
-    body: 'Turn images into JPG, PNG, WebP or AVIF, and videos into MP4, WebM, animated GIF or MP3, M4A and WAV audio.',
+    title: 'Convert, crop and resize',
+    body: 'Turn images into JPG, PNG, WebP or AVIF and videos into MP4, WebM, GIF or audio. Crop photos to passport, signature and social media sizes.',
   },
   {
     icon: Layers,

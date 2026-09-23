@@ -53,6 +53,7 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   preserveResolution: true,
   maxWidth: 1920,
   maxHeight: 1920,
+  targetKB: null,
 };
 
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {

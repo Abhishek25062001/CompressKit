@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ChevronDown, Download, RotateCw, SlidersHorizontal, Square, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Crop, Download, RotateCw, SlidersHorizontal, Square, X } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTool } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
@@ -15,6 +15,7 @@ function FileCardImpl({ id }: { id: string }) {
   const { useQueue, manager, downloadItem, mode, verb } = useTool();
   const item = useQueue((s) => s.items[id]);
   const openSettings = useUiStore((s) => s.openFileSettings);
+  const openCrop = useUiStore((s) => s.openCrop);
   const [expanded, setExpanded] = useState(false);
   if (!item) return null;
 
@@ -45,6 +46,9 @@ function FileCardImpl({ id }: { id: string }) {
             <p className="truncate text-sm font-medium text-fg" title={item.name}>
               {item.name}
             </p>
+            {mode === 'resize' && item.crop && (
+              <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Cropped</span>
+            )}
             {item.override && (
               <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Custom</span>
             )}
@@ -56,6 +60,14 @@ function FileCardImpl({ id }: { id: string }) {
               <span className="tabular text-xs text-muted">
                 {item.typeLabel} → <span className="font-medium text-fg">{result.formatLabel}</span>
                 <span className="ml-1.5">{formatBytes(result.size)}</span>
+              </span>
+            )}
+            {result && status === 'completed' && mode === 'resize' && (
+              <span className="tabular text-xs text-muted">
+                → <span className="font-medium text-fg">{formatDimensions(result.width, result.height)}</span>
+                <span className="ml-1.5">
+                  {result.formatLabel} · {formatBytes(result.size)}
+                </span>
               </span>
             )}
             {result && status === 'completed' && mode === 'compress' && (
@@ -97,6 +109,11 @@ function FileCardImpl({ id }: { id: string }) {
           {(status === 'failed' || status === 'cancelled') && item.error?.code !== 'FILE_TOO_LARGE' && (
             <Button variant="ghost" size="icon" aria-label={`Retry ${item.name}`} onClick={() => manager.retry(id)}>
               <RotateCw className="h-4 w-4" aria-hidden />
+            </Button>
+          )}
+          {!busy && mode === 'resize' && (
+            <Button variant="ghost" size="icon" aria-label={`Crop ${item.name}`} onClick={() => openCrop(id)}>
+              <Crop className="h-4 w-4" aria-hidden />
             </Button>
           )}
           {!busy && mode === 'compress' && (

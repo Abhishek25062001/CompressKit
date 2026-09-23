@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowDown, ArrowLeftRight } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, Crop } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { fileInputId } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
@@ -55,7 +55,7 @@ export function Hero() {
           animate="show"
           className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted sm:text-lg"
         >
-          Reduce file sizes while preserving visual quality, or convert between formats. Everything happens directly in your browser.
+          Reduce file sizes while preserving visual quality, convert between formats, or crop photos to exact sizes. Everything happens directly in your browser.
         </motion.p>
         <motion.div
           custom={3}
@@ -70,6 +70,9 @@ export function Hero() {
             </Button>
             <Button size="lg" onClick={() => start('convert')} icon={<ArrowLeftRight className="h-4 w-4" />}>
               Convert Files
+            </Button>
+            <Button size="lg" onClick={() => start('resize')} icon={<Crop className="h-4 w-4" />}>
+              Resize Photos
             </Button>
           </div>
           <p className="text-sm text-muted">No uploads • No account • Free</p>

@@ -17,6 +17,7 @@ workerScope.addEventListener('message', (event: MessageEvent<ImageJobRequest>) =
         file: job.file,
         settings: job.settings,
         mode: job.mode,
+        transform: job.transform,
         support: job.support,
         onStage: (stage) => post({ type: 'progress', jobId: job.jobId, progress: null, stage }),
       });

@@ -5,17 +5,18 @@ import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
   { href: '#convert', label: 'Convert' },
+  { href: '#resize', label: 'Resize' },
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How it works' },
   { href: '#privacy', label: 'Privacy' },
 ];
 
-/** "#convert" is not a real anchor: it switches the workspace to the converter, then scrolls to it. */
+/** "#convert" and "#resize" are not real anchors: they switch the workspace to that tool, then scroll to it. */
 function onNavClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
-  if (href !== '#convert') return;
+  if (href !== '#convert' && href !== '#resize') return;
   e.preventDefault();
-  useUiStore.getState().setActiveTool('convert');
-  history.replaceState(null, '', '#convert');
+  useUiStore.getState().setActiveTool(href === '#convert' ? 'convert' : 'resize');
+  history.replaceState(null, '', href);
   document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

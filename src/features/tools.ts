@@ -4,11 +4,18 @@ import {
   CONVERT_INPUT_FORMATS,
   FORMAT_BADGES,
   INPUT_FORMATS,
+  RESIZE_FORMAT_BADGES,
+  RESIZE_INPUT_FORMATS,
   acceptAttribute,
 } from '../constants/formats';
-import { useConvertQueueStore, useQueueStore, type QueueStore } from '../store/queueStore';
+import { useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../store/queueStore';
 import type { ToolMode } from '../types/media';
-import { compressionManager, conversionManager, type CompressionManager } from './compression/CompressionManager';
+import {
+  compressionManager,
+  conversionManager,
+  resizeManager,
+  type CompressionManager,
+} from './compression/CompressionManager';
 import { downloadAll, downloadItem } from './compression/downloads';
 import { addFilesTo } from './compression/intake';
 
@@ -50,7 +57,19 @@ export const convertTool: Tool = {
   verb: { base: 'Convert', ing: 'Converting', past: 'converted', noun: 'Conversion' },
 };
 
-export const TOOLS: Record<ToolMode, Tool> = { compress: compressTool, convert: convertTool };
+export const resizeTool: Tool = {
+  mode: 'resize',
+  useQueue: useResizeQueueStore,
+  manager: resizeManager,
+  addFiles: (files) => addFilesTo(useResizeQueueStore, RESIZE_INPUT_FORMATS, files),
+  downloadItem: (id) => downloadItem(useResizeQueueStore, id),
+  downloadAll: (onProgress) => downloadAll(useResizeQueueStore, 'compresskit-resized', onProgress),
+  accept: acceptAttribute(RESIZE_INPUT_FORMATS),
+  badges: RESIZE_FORMAT_BADGES,
+  verb: { base: 'Resize', ing: 'Resizing', past: 'resized', noun: 'Resize' },
+};
+
+export const TOOLS: Record<ToolMode, Tool> = { compress: compressTool, convert: convertTool, resize: resizeTool };
 
 export const ToolContext = createContext<Tool>(compressTool);
 

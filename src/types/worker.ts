@@ -1,4 +1,5 @@
 import type { AudioTarget } from './convert';
+import type { ImageTransform } from './resize';
 import type { ErrorCode, ToolMode, VideoEngine } from './media';
 import type { ImageSettings, VideoSettings } from './settings';
 
@@ -15,6 +16,8 @@ export interface ImageJobRequest {
   settings: ImageSettings;
   /** In 'convert' mode the requested format is always written, even when the file does not get smaller. */
   mode: ToolMode;
+  /** Resize tool only: crop, then scale to an exact size. */
+  transform?: ImageTransform;
   /** Encoders the main thread already verified, so the worker does not need to re-test them. */
   support: { webp: boolean; avif: boolean };
 }

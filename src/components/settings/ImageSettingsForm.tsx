@@ -4,6 +4,8 @@ import { NumberField } from '../common/NumberField';
 import { Select, type SelectOption } from '../common/Select';
 import { Slider } from '../common/Slider';
 import { Switch } from '../common/Switch';
+import { TargetSizeField } from './TargetSizeField';
+
 
 interface Props {
   value: ImageSettings;
@@ -38,14 +40,21 @@ export function ImageSettingsForm({ value, onChange }: Props) {
         onChange={(format) => onChange({ format })}
         hint="Transparent images are never flattened into JPEG. They are kept as WebP or PNG."
       />
-      <Slider
-        label="Quality"
-        min={1}
-        max={100}
-        value={value.quality}
-        onChange={(quality) => onChange({ quality })}
-        hint={qualityHint(value.format, value.quality)}
+      <TargetSizeField
+        value={value.targetKB}
+        onChange={(targetKB) => onChange({ targetKB })}
+        hint="Quality is picked automatically: the highest that fits. When a good quality can't fit, the image is scaled down instead, so it stays sharp. PNG is saved as JPEG or WebP, since PNG can't hit an exact size."
       />
+      {!value.targetKB && (
+        <Slider
+          label="Quality"
+          min={1}
+          max={100}
+          value={value.quality}
+          onChange={(quality) => onChange({ quality })}
+          hint={qualityHint(value.format, value.quality)}
+        />
+      )}
       <Switch
         label="Preserve resolution"
         description="Keep the original pixel dimensions."

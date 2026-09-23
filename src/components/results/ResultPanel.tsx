@@ -27,7 +27,16 @@ export function ResultPanel({ item }: { item: QueueItem }) {
 
   return (
     <div className="space-y-4">
-      {mode === 'convert' ? (
+      {mode === 'resize' ? (
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Original size" value={formatDimensions(item.meta.width, item.meta.height)} />
+          <Stat label="Output size" value={formatDimensions(result.width, result.height)} strong />
+          <Stat label="Original" value={formatBytes(item.size)} />
+          <Stat label="Resized" value={formatBytes(result.size)} />
+          <Stat label="Format" value={result.formatLabel} />
+          <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
+        </dl>
+      ) : mode === 'convert' ? (
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="From" value={item.typeLabel} />
           <Stat label="To" value={result.formatLabel} strong />
@@ -62,7 +71,7 @@ export function ResultPanel({ item }: { item: QueueItem }) {
           ))}
         </ul>
       )}
-      {item.kind !== outputKind ? (
+      {item.kind !== outputKind || mode === 'resize' ? (
         <ConvertedPreview result={result} />
       ) : item.kind === 'image' ? (
         <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} />

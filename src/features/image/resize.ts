@@ -1,3 +1,4 @@
+import type { CropRect } from '../../types/resize';
 import type { ImageSettings } from '../../types/settings';
 import { createCanvas, getContext, releaseCanvas, type AnyCanvas } from './canvas';
 
@@ -23,10 +24,10 @@ export function computeTargetSize(source: Size, settings: ImageSettings): Size {
  * Draws the bitmap at the target size. Large reductions are done in halving steps, which avoids
  * the aliasing a single bilinear pass produces when shrinking by more than 2x.
  */
-export function renderToCanvas(bitmap: ImageBitmap, target: Size): AnyCanvas {
-  let source: CanvasImageSource = bitmap;
-  let width = bitmap.width;
-  let height = bitmap.height;
+export function renderToCanvas(image: ImageBitmap | AnyCanvas, target: Size): AnyCanvas {
+  let source: CanvasImageSource = image;
+  let width = image.width;
+  let height = image.height;
   let intermediate: AnyCanvas | null = null;
 
   while (width / 2 >= target.width && height / 2 >= target.height) {
@@ -45,6 +46,19 @@ export function renderToCanvas(bitmap: ImageBitmap, target: Size): AnyCanvas {
   getContext(out).drawImage(source, 0, 0, target.width, target.height);
   if (intermediate) releaseCanvas(intermediate);
   return out;
+}
+
+/** Cuts `rect` (fractions of the image) out of the image and scales it to exactly `out`, up or down. */
+export function cropToCanvas(image: ImageBitmap | AnyCanvas, rect: CropRect, out: Size): AnyCanvas {
+  const sx = Math.min(image.width - 1, Math.max(0, Math.round(rect.x * image.width)));
+  const sy = Math.min(image.height - 1, Math.max(0, Math.round(rect.y * image.height)));
+  const sw = Math.max(1, Math.min(image.width - sx, Math.round(rect.width * image.width)));
+  const sh = Math.max(1, Math.min(image.height - sy, Math.round(rect.height * image.height)));
+  const cropped = createCanvas(sw, sh);
+  getContext(cropped).drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+  const result = renderToCanvas(cropped, out);
+  releaseCanvas(cropped);
+  return result;
 }
 
 export function hasTransparency(data: Uint8ClampedArray): boolean {

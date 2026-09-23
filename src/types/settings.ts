@@ -11,6 +11,11 @@ export interface ImageSettings {
   /** Only used when preserveResolution is false. Null means "no limit". */
   maxWidth: number | null;
   maxHeight: number | null;
+  /**
+   * When set, quality (and, if needed, dimensions) are chosen automatically so the file fits
+   * under this many kilobytes, as upload forms often require. Null means "no limit".
+   */
+  targetKB: number | null;
 }
 
 export type VideoContainer = 'mp4' | 'webm';

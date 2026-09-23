@@ -21,12 +21,19 @@ export const INPUT_FORMATS: FormatDef[] = [
 ];
 
 /**
- * The converter also reads formats it never writes back out. The browser decodes BMP; FFmpeg decodes
+ * The converter also reads formats it never writes back out. The browser decodes BMP, libheif decodes
+ * iPhone HEIC photos (natively in Safari); FFmpeg decodes
  * GIF (all frames, so it can become a video) and the older video containers.
  */
 export const CONVERT_INPUT_FORMATS: FormatDef[] = [
   ...INPUT_FORMATS,
   { kind: 'image', label: 'BMP', mimes: ['image/bmp', 'image/x-ms-bmp'], extensions: ['bmp'] },
+  {
+    kind: 'image',
+    label: 'HEIC',
+    mimes: ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'],
+    extensions: ['heic', 'heif'],
+  },
   { kind: 'video', label: 'GIF', mimes: ['image/gif'], extensions: ['gif'], probeAs: 'image' },
   { kind: 'video', label: 'AVI', mimes: ['video/x-msvideo', 'video/avi', 'video/msvideo'], extensions: ['avi'] },
   { kind: 'video', label: 'WMV', mimes: ['video/x-ms-wmv'], extensions: ['wmv'] },
@@ -34,8 +41,17 @@ export const CONVERT_INPUT_FORMATS: FormatDef[] = [
   { kind: 'video', label: '3GP', mimes: ['video/3gpp', 'video/3gpp2'], extensions: ['3gp', '3g2'] },
 ];
 
+/**
+ * Photos the resize tool can crop. HEIC is left out: its crop editor shows the photo in an <img>,
+ * which only Safari can do for HEIC. Convert HEIC to JPG first.
+ */
+export const RESIZE_INPUT_FORMATS: FormatDef[] = CONVERT_INPUT_FORMATS.filter(
+  (f) => f.kind === 'image' && f.label !== 'HEIC',
+);
+
 export const FORMAT_BADGES = ['JPG', 'PNG', 'WebP', 'AVIF', 'MP4', 'MOV', 'WebM', 'MKV'];
-export const CONVERT_FORMAT_BADGES = [...FORMAT_BADGES, 'BMP', 'GIF', 'AVI', 'WMV', 'FLV', '3GP'];
+export const RESIZE_FORMAT_BADGES = RESIZE_INPUT_FORMATS.map((f) => f.label);
+export const CONVERT_FORMAT_BADGES = [...FORMAT_BADGES, 'HEIC', 'BMP', 'GIF', 'AVI', 'WMV', 'FLV', '3GP'];
 
 /** Value for a file input's accept attribute. */
 export function acceptAttribute(formats: FormatDef[]): string {

@@ -12,6 +12,10 @@ interface UiState {
   /** Tool shown in the workspace section. */
   activeTool: ToolMode;
   setActiveTool: (tool: ToolMode) => void;
+  /** File whose crop editor is open (resize tool). */
+  croppingFileId: string | null;
+  openCrop: (id: string) => void;
+  closeCrop: () => void;
   /** File whose individual settings dialog is open. */
   editingFileId: string | null;
   notices: Notice[];
@@ -21,11 +25,21 @@ interface UiState {
   dismissNotice: (id: string) => void;
 }
 
+/** "#convert" and "#resize" links open those tools directly. */
+export function toolFromHash(): ToolMode {
+  if (typeof window === 'undefined') return 'compress';
+  const hash = window.location.hash;
+  return hash === '#convert' ? 'convert' : hash === '#resize' ? 'resize' : 'compress';
+}
+
 let noticeSeq = 0;
 
 export const useUiStore = create<UiState>()((set) => ({
-  activeTool: typeof window !== 'undefined' && window.location.hash === '#convert' ? 'convert' : 'compress',
+  activeTool: toolFromHash(),
   setActiveTool: (activeTool) => set({ activeTool }),
+  croppingFileId: null,
+  openCrop: (id) => set({ croppingFileId: id }),
+  closeCrop: () => set({ croppingFileId: null }),
   editingFileId: null,
   notices: [],
   openFileSettings: (id) => set({ editingFileId: id }),

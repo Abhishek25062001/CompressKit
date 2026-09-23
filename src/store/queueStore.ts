@@ -64,6 +64,7 @@ export type QueueStore = ReturnType<typeof createQueueStore>;
 
 export const useQueueStore = createQueueStore();
 export const useConvertQueueStore = createQueueStore();
+export const useResizeQueueStore = createQueueStore();
 
 /** Selectors kept outside components so they are stable references. */
 export const selectOrder = (s: QueueState) => s.order;

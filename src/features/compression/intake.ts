@@ -71,6 +71,7 @@ export function addFilesTo(queue: QueueStore, formats: FormatDef[], files: Itera
       result: null,
       error: tooLarge ? toFriendlyError('FILE_TOO_LARGE') : null,
       override: null,
+      crop: null,
       warning:
         !tooLarge && file.size > large
           ? `Large file (${formatBytes(file.size)}). Processing may be slow and use a lot of memory.`

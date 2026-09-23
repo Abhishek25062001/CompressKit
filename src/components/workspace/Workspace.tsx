@@ -1,23 +1,28 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeftRight, Shrink } from 'lucide-react';
+import { ArrowLeftRight, Crop, Shrink } from 'lucide-react';
 import { useEffect } from 'react';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
-import { useUiStore } from '../../store/uiStore';
+import { toolFromHash, useUiStore } from '../../store/uiStore';
 import type { ToolMode } from '../../types/media';
 import { SegmentedControl } from '../common/SegmentedControl';
 import { CompressionBar } from '../compression/CompressionBar';
 import { FileQueue } from '../files/FileQueue';
+import { CropDialog } from '../resize/CropDialog';
 import { CompletionSummary } from '../results/CompletionSummary';
 import { ConvertSettingsPanel } from '../settings/ConvertSettingsPanel';
 import { FileSettingsDialog } from '../settings/FileSettingsDialog';
+import { ResizeSettingsPanel } from '../settings/ResizeSettingsPanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { DropZone } from '../upload/DropZone';
 
 const TOOL_INTRO: Record<ToolMode, string> = {
   compress: 'Make images and videos smaller while keeping them looking the same.',
   convert: 'Change file formats: images to JPG, PNG, WebP or AVIF, and videos to MP4, WebM, GIF or audio.',
+  resize: 'Crop and resize photos to exact sizes: passport photos, signatures, profile pictures, posts and thumbnails.',
 };
+
+const SECTION_LABEL: Record<ToolMode, string> = { compress: 'Compressor', convert: 'Converter', resize: 'Photo resizer' };
 
 function ToolPanel({ mode }: { mode: ToolMode }) {
   const tool = TOOLS[mode];
@@ -72,7 +77,13 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
             <DropZone compact />
           </div>
           <div className="lg:sticky lg:top-20">
-            {mode === 'compress' ? <SettingsPanel defaultTab={defaultTab} /> : <ConvertSettingsPanel defaultTab={defaultTab} />}
+            {mode === 'compress' ? (
+              <SettingsPanel defaultTab={defaultTab} />
+            ) : mode === 'convert' ? (
+              <ConvertSettingsPanel defaultTab={defaultTab} />
+            ) : (
+              <ResizeSettingsPanel />
+            )}
           </div>
         </motion.div>
       )}
@@ -84,11 +95,12 @@ export function Workspace() {
   const active = useUiStore((s) => s.activeTool);
   const setActive = useUiStore((s) => s.setActiveTool);
 
-  // A shared "#convert" link opens the converter; there is no element with that id to scroll to.
+  // Shared "#convert" and "#resize" links open those tools; there are no elements with those ids to scroll to.
   useEffect(() => {
     const open = () => {
-      if (window.location.hash !== '#convert') return;
-      setActive('convert');
+      const tool = toolFromHash();
+      if (tool === 'compress') return;
+      setActive(tool);
       document.getElementById('compress')?.scrollIntoView({ block: 'start' });
     };
     open();
@@ -97,7 +109,7 @@ export function Workspace() {
   }, [setActive]);
 
   return (
-    <section id="compress" aria-label={active === 'compress' ? 'Compressor' : 'Converter'} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
+    <section id="compress" aria-label={SECTION_LABEL[active]} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
         <SegmentedControl
           label="Tool"
@@ -106,6 +118,7 @@ export function Workspace() {
           segments={[
             { value: 'compress', label: <><Shrink className="h-4 w-4" aria-hidden /> Compress</> },
             { value: 'convert', label: <><ArrowLeftRight className="h-4 w-4" aria-hidden /> Convert</> },
+            { value: 'resize', label: <><Crop className="h-4 w-4" aria-hidden /> Resize</> },
           ]}
         />
         <p className="max-w-xl text-sm text-muted">{TOOL_INTRO[active]}</p>
@@ -114,6 +127,7 @@ export function Workspace() {
         <ToolPanel key={active} mode={active} />
       </ToolContext>
       <FileSettingsDialog />
+      <CropDialog />
     </section>
   );
 }

@@ -4,15 +4,18 @@ import { toFriendlyError } from '../../constants/errors';
 import { MIME_EXTENSION, MIME_LABEL, getExtension } from '../../constants/formats';
 import { useCapabilitiesStore } from '../../store/capabilitiesStore';
 import { useConvertSettingsStore } from '../../store/convertSettingsStore';
-import { useConvertQueueStore, useQueueStore, type QueueStore } from '../../store/queueStore';
+import { useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../../store/queueStore';
+import { useResizeSettingsStore } from '../../store/resizeSettingsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import type { CompressionResult, ErrorCode, QueueItem, ToolMode } from '../../types/media';
+import type { ImageTransform } from '../../types/resize';
 import type { ImageSettings, VideoSettings } from '../../types/settings';
 import type { ImageJobRequest, VideoJobRequest, VideoOutput, WorkerDoneMessage, WorkerResponse } from '../../types/worker';
 import { classifyError, describeError } from '../../utils/errors';
 import { buildOutputName, sanitizeBaseName } from '../../utils/filename';
 import { probeImage, probeVideo } from '../../utils/probe';
 import { convertImageSettings, convertVideoOutput, convertVideoSettings } from '../convert/convertJob';
+import { resizeImageSettings, resizeTransform } from '../resize/resizeJob';
 import { WorkerSlot } from './workerSlot';
 
 const ENGINE_LABEL: Record<string, string> = {
@@ -43,6 +46,8 @@ interface JobResolver {
   image(item: QueueItem): ImageSettings;
   video(item: QueueItem): VideoSettings;
   videoOutput(item: QueueItem): VideoOutput;
+  /** Crop and exact output size, for the resize tool. */
+  transform?(item: QueueItem): ImageTransform;
 }
 
 /**
@@ -159,7 +164,8 @@ class CompressionManager {
       jobId: item.id,
       file: item.file,
       settings: this.resolve.image(item),
-        mode: this.mode,
+      mode: this.mode,
+      transform: this.resolve.transform?.(item),
       support: this.imageSupport(),
     };
     slot.run(item.id, request, {
@@ -180,6 +186,7 @@ class CompressionManager {
         file: item.file,
         settings: this.resolve.image(item),
         mode: this.mode,
+        transform: this.resolve.transform?.(item),
         support: this.imageSupport(),
         onStage: (stage) => {
           if (!this.cancelledMainThread.has(item.id)) this.queue.getState().updateItem(item.id, { stage });
@@ -268,7 +275,9 @@ class CompressionManager {
       fileName:
         this.mode === 'convert'
           ? `${sanitizeBaseName(item.name)}.${extension}`
-          : buildOutputName(item.name, extension, msg.keptOriginal),
+          : this.mode === 'resize'
+            ? `${sanitizeBaseName(item.name)}-${width}x${height}.${extension}`
+            : buildOutputName(item.name, extension, msg.keptOriginal),
       mime: msg.mime,
       formatLabel: MIME_LABEL[msg.mime] ?? extension.toUpperCase(),
       size: msg.blob.size,
@@ -313,4 +322,12 @@ export const conversionManager = new CompressionManager('convert', useConvertQue
   image: () => convertImageSettings(useConvertSettingsStore.getState()),
   video: () => convertVideoSettings(useConvertSettingsStore.getState()),
   videoOutput: () => convertVideoOutput(useConvertSettingsStore.getState()),
+});
+
+export const resizeManager = new CompressionManager('resize', useResizeQueueStore, {
+  image: () => resizeImageSettings(useResizeSettingsStore.getState()),
+  // The resize tool accepts images only.
+  video: () => convertVideoSettings(useConvertSettingsStore.getState()),
+  videoOutput: () => ({ type: 'video' }),
+  transform: (item) => resizeTransform(item, useResizeSettingsStore.getState()),
 });
