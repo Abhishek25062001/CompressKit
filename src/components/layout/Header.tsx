@@ -1,22 +1,23 @@
 import type { MouseEvent } from 'react';
-import { useUiStore } from '../../store/uiStore';
+import { isToolHash, toolFromHash, useUiStore } from '../../store/uiStore';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
   { href: '#convert', label: 'Convert' },
   { href: '#resize', label: 'Resize' },
+  { href: '#pdf', label: 'PDF' },
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How it works' },
   { href: '#privacy', label: 'Privacy' },
 ];
 
-/** "#convert" and "#resize" are not real anchors: they switch the workspace to that tool, then scroll to it. */
+/** Tool links are not real anchors: they switch the workspace to that tool, then scroll to it. */
 function onNavClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
-  if (href !== '#convert' && href !== '#resize') return;
+  if (!isToolHash(href)) return;
   e.preventDefault();
-  useUiStore.getState().setActiveTool(href === '#convert' ? 'convert' : 'resize');
   history.replaceState(null, '', href);
+  useUiStore.getState().setActiveTool(toolFromHash());
   document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -46,10 +47,11 @@ export function Header() {
         </nav>
       </div>
       <nav aria-label="Sections" className="border-t border-border/60 md:hidden">
-        <ul className="mx-auto flex max-w-6xl justify-center gap-1 px-4 py-1.5">
+        {/* Six links do not fit a phone screen: the row scrolls sideways instead of wrapping. */}
+        <ul className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-1.5 [scrollbar-width:none] sm:justify-center">
           {NAV.map((item) => (
             <li key={item.href}>
-              <a href={item.href} onClick={(e) => onNavClick(e, item.href)} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted hover:text-fg">
+              <a href={item.href} onClick={(e) => onNavClick(e, item.href)} className="block rounded-md px-2.5 py-1.5 text-[13px] whitespace-nowrap text-muted hover:text-fg">
                 {item.label}
               </a>
             </li>

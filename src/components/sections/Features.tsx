@@ -15,8 +15,8 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: ArrowLeftRight,
-    title: 'Convert, crop and resize',
-    body: 'Turn images into JPG, PNG, WebP or AVIF and videos into MP4, WebM, GIF or audio. Crop photos to passport, signature and social media sizes.',
+    title: 'Convert, crop, resize and PDF',
+    body: 'Convert images and videos, crop photos to passport or social media sizes, and turn photos into PDFs, merge, split or reorder pages.',
   },
   {
     icon: Layers,

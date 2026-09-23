@@ -6,6 +6,9 @@ export type MediaKind = 'image' | 'video';
 /** Which tool a queue belongs to: shrinking files, changing their format, or cropping them to a size. */
 export type ToolMode = 'compress' | 'convert' | 'resize';
 
+/** Tabs of the workspace: the queue tools plus the PDF tool, which works on pages instead of a file queue. */
+export type WorkspaceTab = ToolMode | 'pdf';
+
 export type FileStatus = 'waiting' | 'compressing' | 'completed' | 'failed' | 'cancelled';
 
 export type ErrorCode =

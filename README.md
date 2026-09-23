@@ -2,7 +2,7 @@
 
 > Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app for shrinking images and videos, converting them between formats, and cropping photos to exact sizes, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos, converting them between formats, cropping photos to exact sizes, and building or splitting PDFs, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
@@ -113,6 +113,24 @@ Document sizes are at 300 DPI. Always check the exact size your form asks for, a
 **Freehand.** Crop any rectangle, with no fixed shape. The crop box gets edge handles as well as corner handles, so one side can move on its own. The output is the cropped area at the original resolution, for example 1845 × 1126 from a 3000 × 2000 photo. Until you draw a crop, the whole photo is kept. A crop drawn for a preset also works in Freehand. A freehand crop is set aside when you switch to a preset, because its shape would not match.
 
 **Exact size, optional KB limit.** Except in Freehand, the output is always exactly the preset's pixel size, enlarging small photos when needed. Choose JPG, PNG, or WebP. With **Target file size** on, only quality is lowered until the file fits, because the dimensions are fixed. A PNG is then saved as JPG on white, which is what upload forms accept. Files are named like `photo-413x531.jpg`.
+
+### PDF tools
+
+The **PDF** tab works on pages instead of files. Open it with the **PDF** tab above the drop zone, the **PDF Tools** button in the hero, the **PDF** link in the header, or a link ending in `#pdf`. Add PDFs and photos (JPG, PNG, WebP, HEIC, AVIF, BMP). Every page of every PDF, and every photo, becomes a thumbnail on one board.
+
+**Organize.** Drag pages to reorder them, or use the arrow buttons under each page, which also work on phones and from the keyboard. Rotate a page 90° at a time, or remove it. Click pages to select them, or type ranges such as `1-3, 7` or `5-` under **Split**.
+
+| Action | What you get |
+| --- | --- |
+| **Save PDF** | One PDF of all pages, or only the selected ones, in board order. This covers photos to PDF, merging, extracting pages, and saving a reordered copy. |
+| **Split** | Separate PDFs of N pages each (1 by default), downloaded as a ZIP. |
+| **To images** | Each page as JPG or PNG at 72, 150, or 300 DPI, as a ZIP when there are several. |
+
+**Pages from PDFs** are copied unchanged, so text stays sharp and selectable. Rotation is stored as page rotation, not by redrawing the page.
+
+**Pages from photos** are placed on A4, US Letter, or a page that fits the photo, with automatic or fixed orientation and no, small, or large margins. The photo's own orientation (EXIF) is applied, so phone photos are not sideways. **Standard** quality scales large photos to about 200 DPI on an A4 page, which is sharp for reading and printing and keeps files small. **Original** keeps full resolution. Transparent images are embedded as PNG, and the rest as JPEG.
+
+**Limits.** Password-protected PDFs are refused with a message: remove the protection first. pdf-lib and pdf.js (about 1.5 MB) load only when the PDF tab is first used. The work runs on the main thread, so very large PDFs (hundreds of pages, or tens of MB) can make the page pause while they are built. Compressing PDFs, page numbers, watermarks, and signing are not built yet.
 
 ### Working with a batch
 
@@ -461,7 +479,7 @@ This is a description of the data path, not a claim that every browser or hostin
 
 ### FFmpeg license
 
-`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
+`@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The PDF tools use `pdf-lib` (MIT) and `pdfjs-dist` (Apache-2.0). The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
 
 The CompressKit project itself has no `LICENSE` file. See [License](#license).
 

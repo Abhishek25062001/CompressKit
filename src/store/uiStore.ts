@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ToolMode } from '../types/media';
+import type { WorkspaceTab } from '../types/media';
 
 export interface Notice {
   id: string;
@@ -10,8 +10,8 @@ export interface Notice {
 
 interface UiState {
   /** Tool shown in the workspace section. */
-  activeTool: ToolMode;
-  setActiveTool: (tool: ToolMode) => void;
+  activeTool: WorkspaceTab;
+  setActiveTool: (tool: WorkspaceTab) => void;
   /** File whose crop editor is open (resize tool). */
   croppingFileId: string | null;
   openCrop: (id: string) => void;
@@ -25,11 +25,16 @@ interface UiState {
   dismissNotice: (id: string) => void;
 }
 
-/** "#convert" and "#resize" links open those tools directly. */
-export function toolFromHash(): ToolMode {
+const HASH_TABS: Record<string, WorkspaceTab> = { '#convert': 'convert', '#resize': 'resize', '#pdf': 'pdf' };
+
+/** "#convert", "#resize" and "#pdf" links open those tools directly. */
+export function toolFromHash(): WorkspaceTab {
   if (typeof window === 'undefined') return 'compress';
-  const hash = window.location.hash;
-  return hash === '#convert' ? 'convert' : hash === '#resize' ? 'resize' : 'compress';
+  return HASH_TABS[window.location.hash] ?? 'compress';
+}
+
+export function isToolHash(href: string): boolean {
+  return href in HASH_TABS;
 }
 
 let noticeSeq = 0;

@@ -9,7 +9,7 @@ import {
   acceptAttribute,
 } from '../constants/formats';
 import { useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../store/queueStore';
-import type { ToolMode } from '../types/media';
+import type { ToolMode, WorkspaceTab } from '../types/media';
 import {
   compressionManager,
   conversionManager,
@@ -78,4 +78,4 @@ export function useTool(): Tool {
 }
 
 /** Id of the hidden file input inside a tool's drop zone. */
-export const fileInputId = (mode: ToolMode) => `ck-file-input-${mode}`;
+export const fileInputId = (tab: WorkspaceTab) => `ck-file-input-${tab}`;

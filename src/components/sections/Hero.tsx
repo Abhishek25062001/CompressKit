@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { ArrowDown, ArrowLeftRight, Crop } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, Crop, FileText } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { fileInputId } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
-import type { ToolMode } from '../../types/media';
+import type { WorkspaceTab } from '../../types/media';
 import { Button } from '../common/Button';
 
 const fadeUp = {
@@ -12,7 +12,7 @@ const fadeUp = {
 };
 
 export function Hero() {
-  const start = (tool: ToolMode) => {
+  const start = (tool: WorkspaceTab) => {
     // Render the chosen tool first so its file input exists before we open the picker.
     flushSync(() => useUiStore.getState().setActiveTool(tool));
     document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -55,7 +55,7 @@ export function Hero() {
           animate="show"
           className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted sm:text-lg"
         >
-          Reduce file sizes while preserving visual quality, convert between formats, or crop photos to exact sizes. Everything happens directly in your browser.
+          Reduce file sizes while preserving visual quality, convert between formats, crop photos to exact sizes, or build and split PDFs. Everything happens directly in your browser.
         </motion.p>
         <motion.div
           custom={3}
@@ -73,6 +73,9 @@ export function Hero() {
             </Button>
             <Button size="lg" onClick={() => start('resize')} icon={<Crop className="h-4 w-4" />}>
               Resize Photos
+            </Button>
+            <Button size="lg" onClick={() => start('pdf')} icon={<FileText className="h-4 w-4" />}>
+              PDF Tools
             </Button>
           </div>
           <p className="text-sm text-muted">No uploads • No account • Free</p>

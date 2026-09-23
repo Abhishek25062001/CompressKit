@@ -8,11 +8,24 @@ function hasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
+interface FileDropZoneProps {
+  inputId: string;
+  accept: string;
+  badges: string[];
+  onFiles: (files: FileList) => void;
+  compact?: boolean;
+}
+
+/** Drop zone for the queue tool on screen, which supplies its formats through the tool context. */
 export function DropZone({ compact = false }: { compact?: boolean }) {
+  const { mode, addFiles, accept, badges } = useTool();
+  return <FileDropZone inputId={fileInputId(mode)} accept={accept} badges={badges} onFiles={addFiles} compact={compact} />;
+}
+
+export function FileDropZone({ inputId, accept, badges, onFiles, compact = false }: FileDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
-  const { mode, addFiles, accept, badges } = useTool();
 
   const onDragEnter = (e: DragEvent) => {
     if (!hasFiles(e)) return;
@@ -34,7 +47,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
     e.preventDefault();
     depth.current = 0;
     setDragging(false);
-    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    if (e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
   };
 
   const browse = () => inputRef.current?.click();
@@ -57,7 +70,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
     >
       <input
         ref={inputRef}
-        id={fileInputId(mode)}
+        id={inputId}
         type="file"
         multiple
         accept={accept}
@@ -65,7 +78,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
         tabIndex={-1}
         aria-hidden
         onChange={(e) => {
-          if (e.target.files?.length) addFiles(e.target.files);
+          if (e.target.files?.length) onFiles(e.target.files);
           e.target.value = '';
         }}
       />
