@@ -6,9 +6,7 @@ CompressKit is a client-side web app for shrinking images and videos without upl
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
-Designed and developed by **[Abhishek Jaiswal](https://github.com/Abhishek25062001)** · Source: [github.com/Abhishek25062001/CompressKit](https://github.com/Abhishek25062001/CompressKit)
-
-There is no public demo URL, documentation site, or package registry entry in this repository. Run it locally with the [installation steps](#installation) below, or deploy the static build to any host that can serve files.
+Designed and developed by **[Abhishek Jaiswal](https://abhishekjaiswal.net/)** ·
 
 ---
 
