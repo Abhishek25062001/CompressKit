@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>CompressKit — High-Quality Image &amp; Video Compressor</title>
+    <meta
+      name="description"
+      content="Compress images and videos directly in your browser. Reduce file size while preserving visual quality. No uploads required."
+    />
+    <meta name="theme-color" content="#f6f7f7" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CompressKit" />
+    <meta property="og:title" content="CompressKit — High-Quality Image & Video Compressor" />
+    <meta
+      property="og:description"
+      content="Compress images and videos directly in your browser. Reduce file size while preserving visual quality. No uploads required."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CompressKit — High-Quality Image & Video Compressor" />
+    <meta
+      name="twitter:description"
+      content="Compress images and videos directly in your browser. No uploads required."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <script>
+      // Apply the saved theme before first paint to avoid a flash of the wrong colors.
+      (function () {
+        try {
+          var raw = localStorage.getItem('compresskit-theme');
+          var pref = raw ? JSON.parse(raw).state.preference : 'system';
+          var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <p style="padding: 2rem; font-family: system-ui">CompressKit compresses files inside your browser and needs JavaScript enabled.</p>
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
