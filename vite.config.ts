@@ -1,8 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { CATALOG, HOME_META, SITE_NAME } from './src/features/catalog';
 
 const require = createRequire(import.meta.url);
 
@@ -98,9 +100,48 @@ function selfHostedModel(): Plugin {
   };
 }
 
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Sets the page title and every description or title meta tag in an HTML document. */
+function withMeta(html: string, title: string, description: string): string {
+  const t = escapeHtml(title);
+  const d = escapeHtml(description);
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${t}</title>`)
+    .replace(/(<meta\s+(?:name|property)="(?:og:title|twitter:title)"\s+content=")[^"]*"/g, `$1${t}"`)
+    .replace(/(<meta\s+(?:name|property)="(?:description|og:description|twitter:description)"\s+content=")[^"]*"/g, `$1${d}"`);
+}
+
+/**
+ * Writes an HTML page for each tool address (dist/compress/index.html, …) with that tool's title
+ * and description, so links and search results show the right text before any script runs, and
+ * the site works on any static host without rewrite rules. 404.html serves unknown addresses.
+ */
+function toolPages(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'compresskit-tool-pages',
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    transformIndexHtml(html) {
+      return withMeta(html, HOME_META.title, HOME_META.description);
+    },
+    writeBundle() {
+      const index = readFileSync(join(outDir, 'index.html'), 'utf8');
+      for (const tool of CATALOG) {
+        const dir = join(outDir, tool.path.slice(1));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), withMeta(index, tool.title, tool.description));
+      }
+      writeFileSync(join(outDir, '404.html'), withMeta(index, `Page not found | ${SITE_NAME}`, HOME_META.description));
+    },
+  };
+}
+
 // CompressKit is a fully static, client-side app. No server code, no env vars.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel()],
+  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), toolPages()],
   worker: {
     // Module workers let the video worker dynamically import the FFmpeg core.
     format: 'es',

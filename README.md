@@ -52,6 +52,26 @@ These differences come from how the app is built.
 
 ## Key features
 
+### Pages and navigation
+
+The home page presents the whole product. A drop zone at the top takes any photo, video or PDF and lists the tools that can open it; picking one opens that tool with the file already added. Below it, every tool has a card. The **Tools** menu in the header lists them all on every page.
+
+Each tool has its own address and page:
+
+| Tool | Address |
+| --- | --- |
+| Compress | `/compress` |
+| Convert | `/convert` |
+| Resize & crop | `/resize` |
+| Remove background | `/remove-background` |
+| Trim & split video | `/trim-video` |
+| Remove location | `/remove-location` |
+| PDF tools | `/pdf` |
+
+A tool page shows the tool first, then how it works in three steps, what it can do, and related tools. Moving between pages does not reload the app, so files added to a tool are still there when you come back, and the browser's Back button works. Links from before tools had pages (`#convert`, `#clean`, `#remove-background` and so on) redirect to the new addresses.
+
+To add a tool: add it to `CATALOG` in `src/features/catalog.ts` (name, address, page title and description), give it an icon, steps and highlights in `src/features/toolContent.tsx`, list the files it accepts in `src/features/handoff.ts`, and render its workspace in `src/components/workspace/ToolWorkspace.tsx`. The home page, the menu, the footer and the build's HTML pages pick it up from there.
+
 ### Compressing files
 
 **Image compression.** JPEG, PNG, WebP, and AVIF in. JPEG, WebP, AVIF, or PNG out, or the same format as the original. Quality runs from 1 to 100. Optional max width and height scale a picture down and never enlarge it. EXIF orientation is respected. A transparent image that would have become JPEG is saved as WebP, or as PNG when WebP encoding is unavailable.
@@ -70,7 +90,7 @@ These differences come from how the app is built.
 
 ### Converting files
 
-The **Convert** tool sits next to the compressor. Open it with the **Compress | Convert** switch above the drop zone, the **Convert Files** button in the hero, the **Convert** link in the header, or a link ending in `#convert`. It has its own queue, so compressing and converting never mix.
+The **Convert** tool lives at `/convert`. It has its own queue, so compressing and converting never mix.
 
 | Input | Output |
 | --- | --- |
@@ -89,7 +109,7 @@ The **Convert** tool sits next to the compressor. Open it with the **Compress | 
 
 ### Resizing photos
 
-The **Resize** tool crops photos and scales them to an exact pixel size. Open it with the **Resize** tab above the drop zone, the **Resize Photos** button in the hero, the **Resize** link in the header, or a link ending in `#resize`. It takes JPG, PNG, WebP, AVIF, and BMP. Convert HEIC photos to JPG first.
+The **Resize & crop** tool (`/resize`) crops photos and scales them to an exact pixel size. It takes JPG, PNG, WebP, AVIF, and BMP. Convert HEIC photos to JPG first.
 
 | Preset | Output (px) |
 | --- | --- |
@@ -116,7 +136,7 @@ Document sizes are at 300 DPI. Always check the exact size your form asks for, a
 
 ### Trimming and splitting videos
 
-The **Trim** tool cuts one video on a timeline. Open it with the **Trim** tab above the drop zone, the **Trim Video** button in the hero, the **Trim** link in the header, or a link ending in `#trim`. It takes MP4, MOV, WebM, and MKV.
+The **Trim & split video** tool (`/trim-video`) cuts one video on a timeline. It takes MP4, MOV, WebM, and MKV.
 
 **Timeline.** The video plays above a strip of frames from the clip. Drag the two handles to set the start and end, click the strip to move the playhead, or type times such as `1:05.5`. **Here** sets the start or end to the frame on screen, and **Play selection** plays only the part you keep. The handles also move with the arrow keys (0.1 s, or 1 s with Shift), Page Up and Page Down (5 s), Home, and End. A file this browser cannot play (for example HEVC in some browsers) can still be cut by typing the times.
 
@@ -133,7 +153,7 @@ A fast cut falls back to re-encoding, with a note, when the video cannot be copi
 
 ### Removing backgrounds
 
-The **Remove BG** tool cuts the person, animal or object out of a photo. Open it with the **Remove BG** tab above the drop zone, the **Remove Background** button in the hero, the header link, or a link ending in `#remove-background`. It takes JPG, PNG, WebP, AVIF, and BMP.
+The **Remove background** tool (`/remove-background`) cuts the person, animal or object out of a photo. It takes JPG, PNG, WebP, AVIF, and BMP.
 
 **An AI model on your device.** The cut-out comes from IS-Net, a segmentation network, run by ONNX Runtime Web. The first photo downloads the model (88 MB) from this site, never from a third-party CDN, and checks it against a pinned SHA-256 before using it. The service worker then keeps it, so later visits start right away and work offline. Photos never leave the device.
 
@@ -145,7 +165,7 @@ The **Remove BG** tool cuts the person, animal or object out of a photo. Open it
 
 ### Removing hidden location data
 
-Phones write where and when a photo or video was taken into the file, along with the camera model and more. Anyone who receives the original file can read it. The **Clean** tool removes it. Open it with the **Clean** tab above the drop zone, the **Remove Location** button in the hero, the **Clean** link in the header, or a link ending in `#clean`. It takes JPG, PNG, WebP, AVIF, and HEIC photos, and MP4, MOV, and 3GP videos.
+Phones write where and when a photo or video was taken into the file, along with the camera model and more. Anyone who receives the original file can read it. The **Remove location** tool (`/remove-location`) removes it. It takes JPG, PNG, WebP, AVIF, and HEIC photos, and MP4, MOV, and 3GP videos.
 
 **See what a file hides.** Each file is read as soon as it is added. Its card shows the location it gives away (for example `Location: 37.33490, -122.00900`) and what else it carries: camera, date, names, software. The panel says how many of the files reveal where they were taken.
 
@@ -157,7 +177,7 @@ Phones write where and when a photo or video was taken into the file, along with
 
 ### PDF tools
 
-The **PDF** tab works on pages instead of files. Open it with the **PDF** tab above the drop zone, the **PDF Tools** button in the hero, the **PDF** link in the header, or a link ending in `#pdf`. Add PDFs and photos (JPG, PNG, WebP, HEIC, AVIF, BMP). Every page of every PDF, and every photo, becomes a thumbnail on one board.
+The **PDF tools** (`/pdf`) work on pages instead of files. Add PDFs and photos (JPG, PNG, WebP, HEIC, AVIF, BMP). Every page of every PDF, and every photo, becomes a thumbnail on one board.
 
 **Organize.** Drag pages to reorder them, or use the arrow buttons under each page, which also work on phones and from the keyboard. Rotate a page 90° at a time, or remove it. Click pages to select them, or type ranges such as `1-3, 7` or `5-` under **Split**.
 
@@ -216,7 +236,7 @@ The ten tools sit in a grid above the options. **All** or **Selected** pages app
 
 **Themes.** Light, dark, and system. The choice is stored in `localStorage`.
 
-**Layout.** Usable from 320px wide. A skip link jumps to the compressor. `prefers-reduced-motion` is respected.
+**Layout.** Usable from 320px wide. A skip link jumps to the page content, or straight to the tool on a tool page. `prefers-reduced-motion` is respected.
 
 **Installable shell.** A web app manifest and a service worker cache the app’s own pages and static assets. After the first visit, the interface can load offline. The video engine is cached after it is downloaded once. User files are never put in that cache.
 
@@ -324,7 +344,7 @@ Screenshots are not in this repository yet.
 
 ### Empty state
 
-The landing page introduces the product. The compressor is a drop zone: drag files in, browse, or paste. Navigation links jump to Features, How it works, and Privacy.
+The home page introduces the product, with a drop zone that suggests tools for a file and a card for every tool. Each tool's page opens with its own drop zone: drag files in, browse, or paste.
 
 <!-- TODO: Add queue and settings screenshot -->
 
@@ -506,7 +526,7 @@ compresskit/
 │   └── sw.js
 └── src/
     ├── App.tsx                 page shell
-    ├── components/             layout, sections, upload, queue, settings, results, preview
+    ├── components/             pages, layout, sections, tool cards and menu, upload, queue, settings, results, preview
     ├── features/
     │   ├── background/         AI background removal: model download, segmentation, compositing
     │   ├── clean/              metadata removal for JPEG, PNG, WebP, HEIF/AVIF and MP4/MOV
@@ -555,13 +575,15 @@ This is a description of the data path, not a claim that every browser or hostin
 
 The background remover uses `onnxruntime-web` (MIT) and the IS-Net general-use model from [DIS](https://github.com/xuebinqin/DIS) by Xuebin Qin et al. (Apache-2.0), in the ONNX export with fp16 weights published by IMG.LY at [`imgly/isnet-general-onnx`](https://huggingface.co/imgly/isnet-general-onnx) (MIT). Keep those notices when you distribute a build.
 
-The CompressKit project itself has no `LICENSE` file. See [License](#license).
+CompressKit's own code is proprietary. See [License](#license).
 
 ---
 
 ## Deployment
 
 `npm run build` is the whole release step. Upload `dist/` to a static host such as Netlify, Vercel, GitHub Pages, S3 with CloudFront, or nginx.
+
+The build writes one HTML file per tool (`dist/compress/index.html`, `dist/remove-location/index.html`, …) with that tool's title and description, so each address works without server rewrite rules and shows the right text in search results and link previews. `dist/404.html` loads the app for any other address and shows a "page not found" screen. Links inside the app point to `/compress` without a trailing slash: most hosts serve `compress/index.html` for it or redirect to `/compress/`. If yours answers with its 404 page instead, turn on its clean-URLs or directory-index option (on nginx, `try_files $uri $uri/ /404.html;`).
 
 The build needs the background-removal model. `npm run build` first runs `npm run model`, which downloads it once into `models/` (not committed, it is 88 MB) from a pinned Hugging Face revision and checks its SHA-256; the build fails if that is not possible. `npm run dev` tries the same download but only warns when offline. The build writes the model to `dist/models/isnet-<hash>/` as five parts of at most 20 MB, so it fits hosts with per-file limits, and the folder name changes with the model so it can be cached forever. With it, `dist/` is about 175 MB, but visitors only download the model when they use the background remover.
 
@@ -679,9 +701,9 @@ Do not add secrets, `.env` files, or credentials. None are used.
 
 ## License
 
-License information for the CompressKit source has not been specified. There is no `LICENSE` file.
+Copyright © 2026 Abhishek Jaiswal. The source code is proprietary: see [`LICENSE`](LICENSE) for the full terms. In short, you may use the software free of charge for personal or internal use, but you may not copy, redistribute, fork for redistribution, publish modified versions, sell or sublicense it, or use the source to build a competing product. All rights not expressly granted are reserved.
 
-The bundled `@ffmpeg/core` package is GPL-2.0-or-later. That obligation is separate from the missing project license. Read [FFmpeg license](#ffmpeg-license) before you distribute a build.
+These terms cover CompressKit's own code only. Third-party packages it bundles keep their own licenses, including `@ffmpeg/core` (GPL-2.0-or-later) and `libheif-js` (LGPL-3.0). Read [FFmpeg license](#ffmpeg-license) before you distribute a build.
 
 ---
 

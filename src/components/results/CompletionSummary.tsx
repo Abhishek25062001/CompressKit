@@ -66,7 +66,7 @@ export function CompletionSummary() {
 
   const startOver = () => {
     manager.clear();
-    document.getElementById('compress')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('tool')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (

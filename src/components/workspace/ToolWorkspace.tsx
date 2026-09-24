@@ -1,11 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeftRight, Crop, FileText, MapPinOff, Scissors, Shrink, WandSparkles } from 'lucide-react';
 import { useEffect } from 'react';
+import { TOOL_BY_ID, type ToolId } from '../../features/catalog';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
-import { toolFromHash, useUiStore } from '../../store/uiStore';
-import type { ToolMode, WorkspaceTab } from '../../types/media';
-import { SegmentedControl } from '../common/SegmentedControl';
+import type { ToolMode } from '../../types/media';
 import { PdfWorkspace } from '../pdf/PdfWorkspace';
 import { CompressionBar } from '../compression/CompressionBar';
 import { FileQueue } from '../files/FileQueue';
@@ -19,26 +17,6 @@ import { ResizeSettingsPanel } from '../settings/ResizeSettingsPanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { TrimWorkspace } from '../trim/TrimWorkspace';
 import { DropZone } from '../upload/DropZone';
-
-const TOOL_INTRO: Record<WorkspaceTab, string> = {
-  compress: 'Make images and videos smaller while keeping them looking the same.',
-  convert: 'Change file formats: images to JPG, PNG, WebP or AVIF, and videos to MP4, WebM, GIF or audio.',
-  resize: 'Crop and resize photos to exact sizes: passport photos, signatures, profile pictures, posts and thumbnails.',
-  trim: 'Cut a video down to the part you want, or split it into 60-second parts for WhatsApp Status.',
-  clean: 'Remove hidden location, camera and date details from photos and videos before you share them.',
-  background: 'Cut the person or object out of a photo with an AI model that runs on your device.',
-  pdf: 'Turn photos into a PDF, merge PDFs, reorder, rotate or remove pages, split files, or save pages as images.',
-};
-
-const SECTION_LABEL: Record<WorkspaceTab, string> = {
-  compress: 'Compressor',
-  convert: 'Converter',
-  resize: 'Photo resizer',
-  trim: 'Video trimmer',
-  clean: 'Hidden info remover',
-  background: 'Background remover',
-  pdf: 'PDF tools',
-};
 
 function ToolPanel({ mode }: { mode: ToolMode }) {
   const tool = TOOLS[mode];
@@ -111,51 +89,17 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
   );
 }
 
-export function Workspace() {
-  const active = useUiStore((s) => s.activeTool);
-  const setActive = useUiStore((s) => s.setActiveTool);
-
-  // Shared links such as "#convert" or "#remove-background" open those tools; there are no elements with those ids to scroll to.
-  useEffect(() => {
-    const open = () => {
-      const tool = toolFromHash();
-      if (tool === 'compress') return;
-      setActive(tool);
-      document.getElementById('compress')?.scrollIntoView({ block: 'start' });
-    };
-    open();
-    window.addEventListener('hashchange', open);
-    return () => window.removeEventListener('hashchange', open);
-  }, [setActive]);
-
+/** The tool itself, as shown on its page: the drop zone and, once files are added, its queue and settings. */
+export function ToolWorkspace({ id }: { id: ToolId }) {
   return (
-    <section id="compress" aria-label={SECTION_LABEL[active]} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
-      <div className="mb-6 flex flex-col items-center gap-3 text-center">
-        <SegmentedControl
-          label="Tool"
-          size="tabs"
-          value={active}
-          onChange={setActive}
-          segments={[
-            // Icons hide and padding shrinks on phones; the row scrolls sideways on the narrowest ones.
-            { value: 'compress', label: <><Shrink className="hidden h-4 w-4 sm:block" aria-hidden /> Compress</> },
-            { value: 'convert', label: <><ArrowLeftRight className="hidden h-4 w-4 sm:block" aria-hidden /> Convert</> },
-            { value: 'resize', label: <><Crop className="hidden h-4 w-4 sm:block" aria-hidden /> Resize</> },
-            { value: 'trim', label: <><Scissors className="hidden h-4 w-4 sm:block" aria-hidden /> Trim</> },
-            { value: 'background', label: <><WandSparkles className="hidden h-4 w-4 sm:block" aria-hidden /> Remove BG</> },
-            { value: 'clean', label: <><MapPinOff className="hidden h-4 w-4 sm:block" aria-hidden /> Clean</> },
-            { value: 'pdf', label: <><FileText className="hidden h-4 w-4 sm:block" aria-hidden /> PDF</> },
-          ]}
-        />
-        <p className="max-w-xl text-sm text-muted">{TOOL_INTRO[active]}</p>
-      </div>
-      {active === 'pdf' ? (
+    <section id="tool" aria-label={TOOL_BY_ID[id].name} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
+      {id === 'pdf' ? (
         <PdfWorkspace />
-      ) : active === 'trim' ? (
+      ) : id === 'trim' ? (
         <TrimWorkspace />
       ) : (
-        <ToolContext value={TOOLS[active]}>
-          <ToolPanel key={active} mode={active} />
+        <ToolContext value={TOOLS[id]}>
+          <ToolPanel mode={id} />
         </ToolContext>
       )}
       <FileSettingsDialog />

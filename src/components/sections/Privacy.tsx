@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
-import { EyeOff, HardDrive, Lock, ServerOff } from 'lucide-react';
+import { ArrowRight, EyeOff, HardDrive, Lock, ServerOff, ShieldCheck } from 'lucide-react';
+import { Link } from '../common/Link';
 
 const POINTS = [
   {
     icon: ServerOff,
     title: 'No uploads',
-    body: 'Files are read from your device by the browser and encoded in Web Workers. They never leave this tab.',
+    body: 'Files are read by your browser and processed on your device. They never leave this tab.',
   },
   {
     icon: EyeOff,
@@ -15,18 +16,18 @@ const POINTS = [
   {
     icon: HardDrive,
     title: 'Self-hosted engines',
-    body: 'The video engine and codecs are served from this site, not a third-party CDN, and run locally.',
+    body: 'The video engine, the AI model and the codecs are served from this site, not a third-party CDN, and run locally.',
   },
   {
     icon: Lock,
-    title: 'Metadata removed',
-    body: 'Files CompressKit re-encodes drop embedded metadata such as camera details and GPS location. Files it keeps as the original are returned untouched.',
+    title: 'Hidden details removed',
+    body: 'Re-encoded files drop camera details and GPS location. The Remove location tool strips them from any photo or video without re-encoding it.',
   },
 ];
 
 export function Privacy() {
   return (
-    <section aria-labelledby="privacy-title" id="privacy" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
+    <section aria-labelledby="privacy-title" id="privacy" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
       <div className="card relative overflow-hidden p-6 sm:p-12">
         <div
           className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full opacity-60 blur-3xl"
@@ -40,11 +41,12 @@ export function Privacy() {
               Your files stay on your device.
             </h2>
             <p className="mt-4 text-pretty text-muted">
-              CompressKit processes your files directly in your browser. Your images and videos are not uploaded to our servers.
+              Every tool processes your files directly in your browser. Your photos, videos and documents are not uploaded to any server.
             </p>
             <p className="mt-4 text-sm text-pretty text-muted">
               Your files live only in this tab's memory and are released when you remove them or close the page. The
-              only things stored on your device are your theme and compression preferences.
+              only things kept on your device are your theme, your tool settings, and the engines and AI model once
+              they are downloaded.
             </p>
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -64,6 +66,28 @@ export function Privacy() {
             ))}
           </ul>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** One line on each tool page, linking to the full privacy section on the home page. */
+export function PrivacyNote() {
+  return (
+    <section aria-label="Privacy" className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 sm:pb-24">
+      <div className="card flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-text">
+            <ShieldCheck className="h-5 w-5" aria-hidden />
+          </span>
+          <div>
+            <p className="font-semibold text-fg">Your files never leave your device</p>
+            <p className="text-sm text-muted">No uploads, no account and no tracking. Everything runs in this browser tab.</p>
+          </div>
+        </div>
+        <Link to="/#privacy" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg text-sm font-medium text-accent-text hover:underline">
+          How privacy works <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </div>
     </section>
   );

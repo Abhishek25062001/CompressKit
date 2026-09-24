@@ -14,6 +14,10 @@ interface FileDropZoneProps {
   badges: string[];
   onFiles: (files: FileList) => void;
   compact?: boolean;
+  /** Replaces "Drop your files here" on the full-size zone. */
+  title?: string;
+  /** Less vertical padding, for a drop zone that shares the screen with other content. */
+  short?: boolean;
 }
 
 /** Drop zone for the queue tool on screen, which supplies its formats through the tool context. */
@@ -22,7 +26,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
   return <FileDropZone inputId={fileInputId(mode)} accept={accept} badges={badges} onFiles={addFiles} compact={compact} />;
 }
 
-export function FileDropZone({ inputId, accept, badges, onFiles, compact = false }: FileDropZoneProps) {
+export function FileDropZone({ inputId, accept, badges, onFiles, compact = false, title = 'Drop your files here', short = false }: FileDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
@@ -88,7 +92,7 @@ export function FileDropZone({ inputId, accept, badges, onFiles, compact = false
         aria-describedby="ck-drop-formats"
         className={cn(
           'flex w-full flex-col items-center justify-center rounded-[22px] text-center outline-offset-4',
-          compact ? 'gap-2 px-4 py-6 sm:flex-row sm:gap-4 sm:py-5' : 'gap-4 px-6 py-12 sm:py-20',
+          compact ? 'gap-2 px-4 py-6 sm:flex-row sm:gap-4 sm:py-5' : short ? 'gap-3 px-6 py-8 sm:py-10' : 'gap-4 px-6 py-12 sm:py-20',
         )}
       >
         <motion.span
@@ -103,7 +107,7 @@ export function FileDropZone({ inputId, accept, badges, onFiles, compact = false
         </motion.span>
         <span className={cn('flex flex-col', compact ? 'items-center sm:items-start' : 'items-center')}>
           <span className={cn('font-semibold tracking-tight text-fg', compact ? 'text-base' : 'text-xl sm:text-2xl')}>
-            {dragging ? 'Release to add files' : compact ? 'Add more files' : 'Drop your files here'}
+            {dragging ? 'Release to add files' : compact ? 'Add more files' : title}
           </span>
           <span className="mt-1 text-sm text-muted">
             or <span className="font-medium text-accent-text underline-offset-4 group-hover:underline">click to browse</span>
