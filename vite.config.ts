@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -40,9 +40,67 @@ function selfHostedOcr(): Plugin {
   };
 }
 
+/**
+ * The background-removal model, served from this site in parts of at most 20 MB so it fits the
+ * per-file limits of static hosts. Part names carry the model's hash, so they can be cached forever.
+ * The app imports the part list from `virtual:background-model`. `npm run model` downloads the file.
+ */
+const MODEL_PART_BYTES = 20 * 1024 * 1024;
+
+function selfHostedModel(): Plugin {
+  const virtualId = 'virtual:background-model';
+  const resolvedId = `\0${virtualId}`;
+  let parts: { fileName: string; start: number; end: number }[] = [];
+  let model: { sha256: string; size: number; file: string } | null = null;
+  let isBuild = false;
+
+  return {
+    name: 'compresskit-background-model',
+    async configResolved(config) {
+      isBuild = config.command === 'build';
+      const { MODEL } = await import('./scripts/fetch-model.mjs');
+      if (!existsSync(MODEL.file)) {
+        if (isBuild) throw new Error('Background-removal model missing: run `npm run model`.');
+        return;
+      }
+      model = MODEL;
+      const count = Math.ceil(MODEL.size / MODEL_PART_BYTES);
+      parts = Array.from({ length: count }, (_, i) => ({
+        fileName: `models/isnet-${MODEL.sha256.slice(0, 12)}/part-${String(i + 1).padStart(2, '0')}.bin`,
+        start: i * MODEL_PART_BYTES,
+        end: Math.min(MODEL.size, (i + 1) * MODEL_PART_BYTES),
+      }));
+    },
+    resolveId(id) {
+      return id === virtualId ? resolvedId : undefined;
+    },
+    load(id) {
+      if (id !== resolvedId) return undefined;
+      const info = model ? { parts: parts.map((p) => p.fileName), size: model.size, sha256: model.sha256 } : null;
+      return `export default ${JSON.stringify(info)};`;
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\//, '');
+        const part = parts.find((p) => p.fileName === path);
+        if (!part || !model) return next();
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.end(readFileSync(model.file).subarray(part.start, part.end));
+      });
+    },
+    generateBundle() {
+      if (!model) return;
+      const bytes = readFileSync(model.file);
+      for (const part of parts) {
+        this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
+      }
+    },
+  };
+}
+
 // CompressKit is a fully static, client-side app. No server code, no env vars.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), selfHostedOcr()],
+  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel()],
   worker: {
     // Module workers let the video worker dynamically import the FFmpeg core.
     format: 'es',
@@ -50,7 +108,7 @@ export default defineConfig({
   optimizeDeps: {
     // These packages locate their .wasm files relative to import.meta.url,
     // which breaks if Vite pre-bundles them.
-    exclude: ['@ffmpeg/core', '@jsquash/avif'],
+    exclude: ['@ffmpeg/core', '@jsquash/avif', 'onnxruntime-web'],
   },
   build: {
     target: 'es2022',

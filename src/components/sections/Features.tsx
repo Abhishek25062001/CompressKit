@@ -6,7 +6,7 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldCheck,
     title: 'Private by design',
-    body: 'Files are read and processed by your browser in background workers. They are never uploaded.',
+    body: 'Files are processed by your browser and never uploaded. The Clean tool also strips the hidden GPS location, camera and date from photos and videos before you share them.',
   },
   {
     icon: Cpu,

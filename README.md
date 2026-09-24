@@ -2,7 +2,7 @@
 
 > Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app for shrinking images and videos, converting them between formats, cropping photos to exact sizes, trimming videos or splitting them into WhatsApp Status parts, and building or splitting PDFs, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos, converting them between formats, cropping photos to exact sizes, removing photo backgrounds with an on-device AI model, trimming videos or splitting them into WhatsApp Status parts, removing hidden location data, and building or splitting PDFs, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
@@ -130,6 +130,30 @@ The **Trim** tool cuts one video on a timeline. Open it with the **Trim** tab ab
 | **Exact** | Re-encodes each part to H.264 MP4 with AAC sound, with WebCodecs where possible and FFmpeg.wasm otherwise. | Cuts on the exact frame, and the output plays everywhere. Slower, and the resolution can be capped at 1080p, 720p, or 480p. |
 
 A fast cut falls back to re-encoding, with a note, when the video cannot be copied: its key frames are too far apart to keep parts under the limit, or its codec cannot be stored in the output container. **Keep sound** off removes the audio track. Parts never run over the limit: fast cuts leave out the audio frame that straddles a cut, and re-encoded parts leave 0.1 s for the padding an AAC encoder adds.
+
+### Removing backgrounds
+
+The **Remove BG** tool cuts the person, animal or object out of a photo. Open it with the **Remove BG** tab above the drop zone, the **Remove Background** button in the hero, the header link, or a link ending in `#remove-background`. It takes JPG, PNG, WebP, AVIF, and BMP.
+
+**An AI model on your device.** The cut-out comes from IS-Net, a segmentation network, run by ONNX Runtime Web. The first photo downloads the model (88 MB) from this site, never from a third-party CDN, and checks it against a pinned SHA-256 before using it. The service worker then keeps it, so later visits start right away and work offline. Photos never leave the device.
+
+**Speed.** With WebGPU (recent Chrome, Edge, and Safari, and Firefox on Windows) the model runs on the graphics card: about a second per photo, after a few seconds to start. Without it, it runs on the CPU in WebAssembly, single-threaded because a plain static host is not cross-origin isolated: about a minute per photo. The settings panel says which one this browser will use.
+
+**Output.** A transparent PNG (lossless) or WebP (smaller), or the subject on white or any colour, which can also be saved as JPG. **Crop to the subject** removes the empty space around it, with a small margin. Expand a result to compare it with the original using the before/after slider. Photos larger than 40 megapixels are cut out at 40 megapixels.
+
+**What to expect.** The model is strongest on a clear subject with some background around it: people, pets, products, cars. Close-ups where the subject fills the whole frame, or where it is hard to tell what the subject is, can lose parts of it. The result is a soft mask, so hair and fur keep fine edges, but colour from the old background can show at the edges.
+
+### Removing hidden location data
+
+Phones write where and when a photo or video was taken into the file, along with the camera model and more. Anyone who receives the original file can read it. The **Clean** tool removes it. Open it with the **Clean** tab above the drop zone, the **Remove Location** button in the hero, the **Clean** link in the header, or a link ending in `#clean`. It takes JPG, PNG, WebP, AVIF, and HEIC photos, and MP4, MOV, and 3GP videos.
+
+**See what a file hides.** Each file is read as soon as it is added. Its card shows the location it gives away (for example `Location: 37.33490, -122.00900`) and what else it carries: camera, date, names, software. The panel says how many of the files reveal where they were taken.
+
+**What is removed.** GPS position and place names, camera make, model, lens and serial number, capture dates, owner, author, artist and copyright, editing software, comments, XMP and IPTC blocks, and vendor data. For JPEG, data stored after the picture, such as a motion-photo clip or an HDR gain map, is dropped too. For videos, the location, device and date tags are removed and the recording timestamps in the movie and track headers are cleared.
+
+**Nothing is re-encoded.** Only metadata blocks are removed or blanked; the compressed picture and sound are copied byte for byte, so the clean copy looks and plays exactly like the original. The orientation is written back, so a phone photo is not shown sideways, and colour profiles are kept. HEIC, AVIF, MP4, and MOV keep their exact size: metadata boxes are overwritten in place and renamed to padding, so no offsets inside the file change. Because the output is assembled from slices of the original, a multi-gigabyte video is cleaned in a second or two without being loaded into memory.
+
+**Results.** Expand a file to see every detail that was removed and what it said, then download it under its original name, or download everything as a ZIP. A file with nothing hidden is returned unchanged, and says so. WebM and MKV are not accepted, because phones do not record location into them.
 
 ### PDF tools
 
@@ -460,6 +484,7 @@ Memory choices that affect behavior:
 | Fonts | Inter, JetBrains Mono (`@fontsource-variable`) | Bundled from this origin. |
 | Images | Canvas / `OffscreenCanvas`, `createImageBitmap`, `upng-js`, `@jsquash/avif` | Decode, resize, and encode. |
 | Video | WebCodecs, Mediabunny, `@ffmpeg/core` 0.12 | Hardware encode when available; software encode as fallback. |
+| Background removal | ONNX Runtime Web (WebGPU and WebAssembly), IS-Net | On-device segmentation model, self-hosted and loaded on first use. |
 | Archives | fflate | ZIP download in the browser, without recompressing media. |
 | Offline shell | Service worker, web app manifest | Cache the app’s own static files. |
 | Backend | None | No server code, database, or environment variables. |
@@ -483,6 +508,8 @@ compresskit/
     ├── App.tsx                 page shell
     ├── components/             layout, sections, upload, queue, settings, results, preview
     ├── features/
+    │   ├── background/         AI background removal: model download, segmentation, compositing
+    │   ├── clean/              metadata removal for JPEG, PNG, WebP, HEIF/AVIF and MP4/MOV
     │   ├── compression/        manager, intake, downloads, worker slots
     │   ├── image/              resize and encode
     │   ├── trim/               video trimmer: lossless key-frame cuts, part planning, jobs
@@ -514,7 +541,7 @@ There is no login. Authentication is not part of the product.
 What the code does:
 
 - Files are read with the File API and transferred to workers. There is no `FormData` upload and no request that sends file bytes to another origin.
-- FFmpeg, the AVIF encoder, fonts, and icons are loaded from the same origin as the page.
+- FFmpeg, the AVIF encoder, the background-removal model and its runtime, fonts, and icons are loaded from the same origin as the page.
 - `localStorage` stores the theme and compression preferences.
 - The service worker caches only this site’s static files. Its fetch handler ignores other origins.
 - Re-encoded images are produced by canvas or a quantizer, so camera EXIF, including location, is dropped. Re-encoded videos are written without copying source metadata tags. A file that is kept as the original is returned byte for byte.
@@ -526,6 +553,8 @@ This is a description of the data path, not a claim that every browser or hostin
 
 `@ffmpeg/core` bundles FFmpeg with libx264 and is licensed **GPL-2.0-or-later**. Shipping a build that includes it carries GPL obligations. Review that before commercial distribution, or remove the FFmpeg fallback and keep WebCodecs only. The PDF tools use `@cantoo/pdf-lib` (MIT, a maintained fork of pdf-lib with encryption support) and `pdfjs-dist` (Apache-2.0). OCR uses `tesseract.js` and `tesseract.js-core` (Apache-2.0) with English data from `@tesseract.js-data/eng` (Apache-2.0 data, MIT package). The HEIC decoder, `libheif-js`, is LGPL-3.0. It is loaded as a separate, unmodified module, which the LGPL allows, but keep its license notice when you distribute a build. Other dependencies in this project use MIT, Apache-2.0, or MPL-2.0.
 
+The background remover uses `onnxruntime-web` (MIT) and the IS-Net general-use model from [DIS](https://github.com/xuebinqin/DIS) by Xuebin Qin et al. (Apache-2.0), in the ONNX export with fp16 weights published by IMG.LY at [`imgly/isnet-general-onnx`](https://huggingface.co/imgly/isnet-general-onnx) (MIT). Keep those notices when you distribute a build.
+
 The CompressKit project itself has no `LICENSE` file. See [License](#license).
 
 ---
@@ -534,8 +563,10 @@ The CompressKit project itself has no `LICENSE` file. See [License](#license).
 
 `npm run build` is the whole release step. Upload `dist/` to a static host such as Netlify, Vercel, GitHub Pages, S3 with CloudFront, or nginx.
 
+The build needs the background-removal model. `npm run build` first runs `npm run model`, which downloads it once into `models/` (not committed, it is 88 MB) from a pinned Hugging Face revision and checks its SHA-256; the build fails if that is not possible. `npm run dev` tries the same download but only warns when offline. The build writes the model to `dist/models/isnet-<hash>/` as five parts of at most 20 MB, so it fits hosts with per-file limits, and the folder name changes with the model so it can be cached forever. With it, `dist/` is about 175 MB, but visitors only download the model when they use the background remover.
+
 - Serve the site over HTTPS. Service workers and some media APIs require it.
-- The FFmpeg `.wasm` file is about 32 MB. Enable gzip or brotli for `.wasm`; that cuts the transfer to roughly a third. It is downloaded on the first video compression, then cached.
+- The FFmpeg `.wasm` file is about 32 MB, and ONNX Runtime's about 28 MB. Enable gzip or brotli for `.wasm`; that cuts the transfer to roughly a third. It is downloaded on the first video compression, then cached.
 - Some hosts limit a single file. Cloudflare Pages, for example, caps files around 25 MB, which is too small for this wasm asset. On those hosts, use a different host or serve that one file from storage on the same site.
 - A host such as Vercel only needs to serve the static build. You do not add serverless functions, environment variables, or a database. Confirm the host allows a single file of about 32 MB. The visitor’s CPU and RAM still do the compression.
 - For a subpath (for example `example.com/compresskit/`), set `base` in `vite.config.ts` and update the paths in `index.html` and `public/manifest.webmanifest`.

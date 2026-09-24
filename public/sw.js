@@ -42,8 +42,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Hashed build assets (JS, CSS, fonts, the FFmpeg core) never change: cache first.
-  if (url.pathname.includes('/assets/')) {
+  // Hashed build assets (JS, CSS, fonts, the FFmpeg core) and the AI model parts, whose folder
+  // name carries the model's hash, never change: cache first.
+  if (url.pathname.includes('/assets/') || url.pathname.includes('/models/')) {
     event.respondWith(
       caches.match(request).then(
         (hit) =>

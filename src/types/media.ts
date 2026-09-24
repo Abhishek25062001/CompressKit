@@ -1,10 +1,14 @@
+import type { HiddenInfo } from './clean';
 import type { ItemCrop } from './resize';
 import type { ImageSettings, VideoSettings } from './settings';
 
 export type MediaKind = 'image' | 'video';
 
-/** Which tool a queue belongs to: shrinking files, changing their format, or cropping them to a size. */
-export type ToolMode = 'compress' | 'convert' | 'resize';
+/**
+ * Which tool a queue belongs to: shrinking files, changing their format, cropping them to a size,
+ * removing hidden details such as location, or cutting the subject out of a photo.
+ */
+export type ToolMode = 'compress' | 'convert' | 'resize' | 'clean' | 'background';
 
 /**
  * Tabs of the workspace: the queue tools, plus the video trimmer (one video on a timeline) and the
@@ -56,11 +60,13 @@ export interface CompressionResult {
   height?: number;
   duration?: number;
   elapsedMs: number;
-  engine: 'canvas' | 'wasm-avif' | 'upng' | VideoEngine | 'original';
+  engine: 'canvas' | 'wasm-avif' | 'upng' | VideoEngine | 'original' | 'metadata' | 'webgpu' | 'wasm';
   /** Human readable notes, for example "Kept transparency: saved as WebP". */
   notes: string[];
   /** True when the original file was returned because re-encoding would not have made it smaller. */
   keptOriginal: boolean;
+  /** Clean tool: the hidden details that were taken out. */
+  removed?: HiddenInfo[];
 }
 
 export interface FileSettingsOverride {
@@ -90,4 +96,6 @@ export interface QueueItem {
   /** Crop drawn in the resize tool. Null uses a centered crop. */
   crop: ItemCrop | null;
   warning: string | null;
+  /** Clean tool: hidden details found in the file. Undefined until the file has been read. */
+  hidden?: HiddenInfo[];
 }

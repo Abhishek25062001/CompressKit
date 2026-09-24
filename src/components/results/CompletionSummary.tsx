@@ -1,9 +1,11 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useTool } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
 import { useUiStore } from '../../store/uiStore';
+import { hasLocation } from '../../features/clean/summary';
 import { formatBytes, formatPercent, savedRatio } from '../../utils/format';
 import { Button } from '../common/Button';
 
@@ -37,7 +39,16 @@ function SuccessMark() {
 
 export function CompletionSummary() {
   const summary = useQueueSummary();
-  const { manager, downloadAll, mode, verb } = useTool();
+  const { manager, downloadAll, mode, verb, useQueue } = useTool();
+  const cleanCounts = useQueue(
+    useShallow((s) => {
+      const results = s.order.map((id) => s.items[id]?.result).filter((r) => r?.removed);
+      return {
+        located: results.filter((r) => hasLocation(r!.removed)).length,
+        details: results.reduce((n, r) => n + r!.removed!.length, 0),
+      };
+    }),
+  );
   const pushNotice = useUiStore((s) => s.pushNotice);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const ratio = savedRatio(summary.completedOriginalBytes, summary.completedBytes);
@@ -76,23 +87,45 @@ export function CompletionSummary() {
         <h2 id="complete-title" className="mt-4 text-2xl font-semibold tracking-tight text-fg">
           {verb.noun} complete
         </h2>
-        <p className="mt-1 text-sm text-muted">Your files are ready.</p>
-        <p className="tabular mt-3 font-mono text-sm text-fg">
-          {formatBytes(summary.completedOriginalBytes)} → {formatBytes(summary.completedBytes)}
+        <p className="mt-1 text-sm text-muted">
+          {mode === 'clean' ? 'Your files are safe to share. They look and play exactly as before.' : 'Your files are ready.'}
         </p>
+        {mode !== 'clean' && mode !== 'background' && (
+          <p className="tabular mt-3 font-mono text-sm text-fg">
+            {formatBytes(summary.completedOriginalBytes)} → {formatBytes(summary.completedBytes)}
+          </p>
+        )}
 
         <div className="mt-6 grid w-full max-w-lg grid-cols-3 gap-2">
           <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
             <p className="tabular font-mono text-lg font-semibold text-fg">{summary.completed}</p>
             <p className="text-[11px] text-muted">{summary.completed === 1 ? `file ${verb.past}` : `files ${verb.past}`}</p>
           </div>
-          <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
-            <p className="tabular font-mono text-lg font-semibold whitespace-nowrap text-fg">{formatBytes(summary.completedBytes)}</p>
-            <p className="text-[11px] text-muted">
-              from <span className="tabular whitespace-nowrap">{formatBytes(summary.completedOriginalBytes)}</span>
-            </p>
-          </div>
-          {mode === 'compress' || ratio >= 0 ? (
+          {mode === 'clean' ? (
+            <>
+              <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
+                <p className="tabular font-mono text-lg font-semibold text-fg">{cleanCounts.details}</p>
+                <p className="text-[11px] text-muted">details removed</p>
+              </div>
+              <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
+                <p className="tabular font-mono text-lg font-semibold text-accent-text">{cleanCounts.located}</p>
+                <p className="text-[11px] text-muted">{cleanCounts.located === 1 ? 'location removed' : 'locations removed'}</p>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-3">
+              <p className="tabular font-mono text-lg font-semibold whitespace-nowrap text-fg">{formatBytes(summary.completedBytes)}</p>
+              <p className="text-[11px] text-muted">
+                from <span className="tabular whitespace-nowrap">{formatBytes(summary.completedOriginalBytes)}</span>
+              </p>
+            </div>
+          )}
+          {mode === 'clean' ? null : mode === 'background' ? (
+            <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
+              <p className="tabular font-mono text-lg font-semibold text-accent-text">0</p>
+              <p className="text-[11px] text-muted">uploads</p>
+            </div>
+          ) : mode === 'compress' || ratio >= 0 ? (
             <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
               <p className="tabular font-mono text-lg font-semibold text-accent-text">{ratio > 0 ? formatPercent(ratio) : '0%'}</p>
               <p className="text-[11px] text-muted">smaller</p>

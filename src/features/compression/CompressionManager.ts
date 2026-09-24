@@ -25,6 +25,9 @@ const ENGINE_LABEL: Record<string, string> = {
   webcodecs: 'WebCodecs',
   ffmpeg: 'FFmpeg.wasm',
   original: 'Original kept',
+  metadata: 'Metadata removed',
+  webgpu: 'AI on GPU (WebGPU)',
+  wasm: 'AI on CPU (WebAssembly)',
 };
 
 export function engineLabel(engine: string): string {

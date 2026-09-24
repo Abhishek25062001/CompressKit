@@ -1,6 +1,7 @@
 import type { QueueItem } from '../../types/media';
 import { engineLabel } from '../../features/compression/CompressionManager';
 import { useTool } from '../../features/tools';
+import { KIND_LABEL } from '../../features/clean/summary';
 import { formatBytes, formatDimensions, formatDuration, formatElapsed, formatPercent, savedRatio } from '../../utils/format';
 import { ConvertedPreview } from '../preview/ConvertedPreview';
 import { ImageCompare } from '../preview/ImageCompare';
@@ -24,6 +25,33 @@ export function ResultPanel({ item }: { item: QueueItem }) {
   const ratio = savedRatio(item.size, result.size);
   const saved = item.size - result.size;
   const outputKind = result.mime.startsWith('image/') ? 'image' : result.mime.startsWith('video/') ? 'video' : 'other';
+
+  if (mode === 'clean') return <CleanResult item={item} />;
+  if (mode === 'background') {
+    return (
+      <div className="space-y-4">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Output size" value={formatDimensions(result.width, result.height)} strong />
+          <Stat label="Format" value={result.formatLabel} />
+          <Stat label="File size" value={formatBytes(result.size)} />
+          <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
+        </dl>
+        {result.notes.length > 0 && (
+          <ul className="space-y-1 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-xs text-muted">
+            {result.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        )}
+        {/* A cropped cut-out no longer lines up with the photo, so it is shown on its own. */}
+        {result.width === item.meta.width && result.height === item.meta.height ? (
+          <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} resultLabel="Cut-out" />
+        ) : (
+          <ConvertedPreview result={result} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -85,6 +113,65 @@ export function ResultPanel({ item }: { item: QueueItem }) {
           compressedDuration={result.duration}
         />
       )}
+    </div>
+  );
+}
+
+/** Clean tool: every detail that was taken out, then the clean copy. */
+function CleanResult({ item }: { item: QueueItem }) {
+  const result = item.result!;
+  const removed = result.removed ?? [];
+  // Chrome and Firefox cannot show HEIC; the clean copy is still fine to download.
+  const previewable = item.kind === 'video' || !/hei[cf]/.test(result.mime);
+  return (
+    <div className="space-y-4">
+      {removed.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-left text-xs">
+            <caption className="sr-only">Hidden information removed from {item.name}</caption>
+            <thead className="bg-surface-2/60 text-[11px] tracking-wide text-muted uppercase">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">Removed</th>
+                <th scope="col" className="px-3 py-2 font-medium">What it said</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {removed.map((r) => (
+                <tr key={`${r.label}${r.value}`}>
+                  <th scope="row" className="px-3 py-2 align-top font-medium whitespace-nowrap text-fg">
+                    {r.label}
+                    {!r.label.startsWith(KIND_LABEL[r.kind]) && (
+                      <span className="block text-[10px] font-normal text-subtle">{KIND_LABEL[r.kind]}</span>
+                    )}
+                  </th>
+                  <td className={r.kind === 'location' ? 'px-3 py-2 font-mono break-all text-warning' : 'px-3 py-2 font-mono break-all text-muted'}>
+                    {r.value}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Details removed" value={String(removed.length)} strong />
+        <Stat label="Original" value={formatBytes(item.size)} />
+        <Stat label="Clean copy" value={formatBytes(result.size)} />
+        <Stat label="Time" value={formatElapsed(result.elapsedMs)} />
+      </dl>
+      {result.notes.length > 0 && (
+        <ul className="space-y-1 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-xs text-muted">
+          {result.notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
+      {previewable &&
+        (item.kind === 'video' ? (
+          <video src={result.url} controls playsInline preload="metadata" className="mx-auto max-h-[60vh] w-full rounded-xl bg-black" />
+        ) : (
+          <ConvertedPreview result={result} />
+        ))}
     </div>
   );
 }

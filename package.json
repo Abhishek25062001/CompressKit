@@ -11,7 +11,10 @@
   },
   "type": "module",
   "scripts": {
+    "model": "node scripts/fetch-model.mjs",
+    "predev": "node scripts/fetch-model.mjs --optional",
     "dev": "vite",
+    "prebuild": "node scripts/fetch-model.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -29,6 +32,7 @@
     "libheif-js": "^1.23.2",
     "lucide-react": "^1.47.0",
     "mediabunny": "^1.59.0",
+    "onnxruntime-web": "^1.30.0",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

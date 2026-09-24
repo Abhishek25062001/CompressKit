@@ -9,6 +9,7 @@ import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { ResultPanel } from '../results/ResultPanel';
 import { FileThumb } from './FileThumb';
+import { HiddenInfoChips } from './HiddenInfoChips';
 import { StatusBadge } from './StatusBadge';
 
 function FileCardImpl({ id }: { id: string }) {
@@ -56,10 +57,19 @@ function FileCardImpl({ id }: { id: string }) {
           <p className="tabular mt-0.5 truncate text-xs text-muted">{details.join(' · ')}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <StatusBadge status={status} activeLabel={verb.ing} />
+            {mode === 'clean' && <HiddenInfoChips item={item} />}
             {result && status === 'completed' && mode === 'convert' && (
               <span className="tabular text-xs text-muted">
                 {item.typeLabel} → <span className="font-medium text-fg">{result.formatLabel}</span>
                 <span className="ml-1.5">{formatBytes(result.size)}</span>
+              </span>
+            )}
+            {result && status === 'completed' && mode === 'background' && (
+              <span className="tabular text-xs text-muted">
+                → <span className="font-medium text-fg">{result.formatLabel}</span>
+                <span className="ml-1.5">
+                  {formatDimensions(result.width, result.height)} · {formatBytes(result.size)}
+                </span>
               </span>
             )}
             {result && status === 'completed' && mode === 'resize' && (
