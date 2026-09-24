@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowDown, ArrowLeftRight, Crop, FileText } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, Crop, FileText, MapPinOff, Scissors, WandSparkles } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { fileInputId } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
@@ -55,7 +55,7 @@ export function Hero() {
           animate="show"
           className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted sm:text-lg"
         >
-          Reduce file sizes while preserving visual quality, convert between formats, crop photos to exact sizes, or build and split PDFs. Everything happens directly in your browser.
+          Reduce file sizes while preserving visual quality, convert between formats, crop photos to exact sizes, remove photo backgrounds, trim videos for WhatsApp Status, remove hidden location data, or build and split PDFs. Everything happens directly in your browser.
         </motion.p>
         <motion.div
           custom={3}
@@ -73,6 +73,15 @@ export function Hero() {
             </Button>
             <Button size="lg" onClick={() => start('resize')} icon={<Crop className="h-4 w-4" />}>
               Resize Photos
+            </Button>
+            <Button size="lg" onClick={() => start('trim')} icon={<Scissors className="h-4 w-4" />}>
+              Trim Video
+            </Button>
+            <Button size="lg" onClick={() => start('background')} icon={<WandSparkles className="h-4 w-4" />}>
+              Remove Background
+            </Button>
+            <Button size="lg" onClick={() => start('clean')} icon={<MapPinOff className="h-4 w-4" />}>
+              Remove Location
             </Button>
             <Button size="lg" onClick={() => start('pdf')} icon={<FileText className="h-4 w-4" />}>
               PDF Tools

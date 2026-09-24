@@ -49,7 +49,21 @@ export const RESIZE_INPUT_FORMATS: FormatDef[] = CONVERT_INPUT_FORMATS.filter(
   (f) => f.kind === 'image' && f.label !== 'HEIC',
 );
 
+/**
+ * Photos and videos the clean tool can strip of location and other hidden details without
+ * re-encoding them. WebM and MKV are left out: phones do not record location into them.
+ */
+export const CLEAN_INPUT_FORMATS: FormatDef[] = [
+  ...INPUT_FORMATS.filter((f) => f.label !== 'WebM' && f.label !== 'MKV'),
+  CONVERT_INPUT_FORMATS.find((f) => f.label === 'HEIC')!,
+  { kind: 'video', label: '3GP', mimes: ['video/3gpp', 'video/3gpp2'], extensions: ['3gp', '3g2'] },
+];
+
+/** Photos the background remover can cut out. It decodes them in a worker, which rules out HEIC. */
+export const BACKGROUND_INPUT_FORMATS: FormatDef[] = RESIZE_INPUT_FORMATS;
+
 export const FORMAT_BADGES = ['JPG', 'PNG', 'WebP', 'AVIF', 'MP4', 'MOV', 'WebM', 'MKV'];
+export const CLEAN_FORMAT_BADGES = CLEAN_INPUT_FORMATS.map((f) => f.label);
 export const RESIZE_FORMAT_BADGES = RESIZE_INPUT_FORMATS.map((f) => f.label);
 export const CONVERT_FORMAT_BADGES = [...FORMAT_BADGES, 'HEIC', 'BMP', 'GIF', 'AVI', 'WMV', 'FLV', '3GP'];
 
@@ -95,6 +109,7 @@ export const MIME_EXTENSION: Record<string, string> = {
   'image/gif': 'gif',
   'video/mp4': 'mp4',
   'video/webm': 'webm',
+  'video/x-matroska': 'mkv',
   'audio/mpeg': 'mp3',
   'audio/mp4': 'm4a',
   'audio/wav': 'wav',
@@ -108,6 +123,7 @@ export const MIME_LABEL: Record<string, string> = {
   'image/gif': 'GIF',
   'video/mp4': 'MP4',
   'video/webm': 'WebM',
+  'video/x-matroska': 'MKV',
   'audio/mpeg': 'MP3',
   'audio/mp4': 'M4A',
   'audio/wav': 'WAV',

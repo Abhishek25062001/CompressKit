@@ -2,8 +2,14 @@ import type { WorkerResponse } from '../../types/worker';
 
 export type WorkerFactory = () => Worker;
 
-export interface SlotCallbacks {
-  onMessage: (message: WorkerResponse) => void;
+/** Any worker reply the slot can route: it only needs to know the job and whether it is final. */
+interface SlotMessage {
+  type: string;
+  jobId: string;
+}
+
+export interface SlotCallbacks<M extends SlotMessage = WorkerResponse> {
+  onMessage: (message: M) => void;
   onCrash: (detail: string) => void;
 }
 
@@ -25,12 +31,12 @@ export class WorkerSlot {
     return this.jobId !== null;
   }
 
-  run(jobId: string, message: unknown, callbacks: SlotCallbacks): void {
+  run<M extends SlotMessage = WorkerResponse>(jobId: string, message: unknown, callbacks: SlotCallbacks<M>): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = null;
     this.jobId = jobId;
     const worker = (this.worker ??= this.factory());
-    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+    worker.onmessage = (event: MessageEvent<M>) => {
       if (event.data.jobId !== this.jobId) return;
       if (event.data.type !== 'progress') this.release();
       callbacks.onMessage(event.data);

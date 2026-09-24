@@ -1,5 +1,8 @@
 import { createContext, useContext } from 'react';
 import {
+  BACKGROUND_INPUT_FORMATS,
+  CLEAN_FORMAT_BADGES,
+  CLEAN_INPUT_FORMATS,
   CONVERT_FORMAT_BADGES,
   CONVERT_INPUT_FORMATS,
   FORMAT_BADGES,
@@ -8,22 +11,29 @@ import {
   RESIZE_INPUT_FORMATS,
   acceptAttribute,
 } from '../constants/formats';
-import { useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../store/queueStore';
+import { useBackgroundQueueStore, useCleanQueueStore, useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../store/queueStore';
 import type { ToolMode, WorkspaceTab } from '../types/media';
-import {
-  compressionManager,
-  conversionManager,
-  resizeManager,
-  type CompressionManager,
-} from './compression/CompressionManager';
+import { BackgroundManager } from './background/backgroundManager';
+import { CleanManager } from './clean/cleanManager';
+import { compressionManager, conversionManager, resizeManager } from './compression/CompressionManager';
 import { downloadAll, downloadItem } from './compression/downloads';
 import { addFilesTo } from './compression/intake';
+
+/** What the shared queue UI asks of the object that runs a tool's jobs. */
+export interface QueueManager {
+  start(): void;
+  cancel(id: string): void;
+  cancelAll(): void;
+  remove(id: string): void;
+  clear(): void;
+  retry(id: string): void;
+}
 
 /** Everything the shared queue UI needs to drive one tool. */
 export interface Tool {
   mode: ToolMode;
   useQueue: QueueStore;
-  manager: CompressionManager;
+  manager: QueueManager;
   addFiles: (files: Iterable<File>) => number;
   downloadItem: (id: string) => void;
   downloadAll: (onProgress?: (ratio: number) => void) => Promise<void>;
@@ -69,7 +79,44 @@ export const resizeTool: Tool = {
   verb: { base: 'Resize', ing: 'Resizing', past: 'resized', noun: 'Resize' },
 };
 
-export const TOOLS: Record<ToolMode, Tool> = { compress: compressTool, convert: convertTool, resize: resizeTool };
+const cleanManager = new CleanManager(useCleanQueueStore);
+
+export const cleanTool: Tool = {
+  mode: 'clean',
+  useQueue: useCleanQueueStore,
+  manager: cleanManager,
+  addFiles: (files) => {
+    const added = addFilesTo(useCleanQueueStore, CLEAN_INPUT_FORMATS, files);
+    // Read each new file right away, so its card can show what it hides before anything is removed.
+    cleanManager.scan();
+    return added;
+  },
+  downloadItem: (id) => downloadItem(useCleanQueueStore, id),
+  downloadAll: (onProgress) => downloadAll(useCleanQueueStore, 'compresskit-clean', onProgress),
+  accept: acceptAttribute(CLEAN_INPUT_FORMATS),
+  badges: CLEAN_FORMAT_BADGES,
+  verb: { base: 'Clean', ing: 'Cleaning', past: 'cleaned', noun: 'Cleaning' },
+};
+
+export const backgroundTool: Tool = {
+  mode: 'background',
+  useQueue: useBackgroundQueueStore,
+  manager: new BackgroundManager(useBackgroundQueueStore),
+  addFiles: (files) => addFilesTo(useBackgroundQueueStore, BACKGROUND_INPUT_FORMATS, files),
+  downloadItem: (id) => downloadItem(useBackgroundQueueStore, id),
+  downloadAll: (onProgress) => downloadAll(useBackgroundQueueStore, 'compresskit-cutouts', onProgress),
+  accept: acceptAttribute(BACKGROUND_INPUT_FORMATS),
+  badges: BACKGROUND_INPUT_FORMATS.map((f) => f.label),
+  verb: { base: 'Cut out', ing: 'Cutting out', past: 'cut out', noun: 'Background removal' },
+};
+
+export const TOOLS: Record<ToolMode, Tool> = {
+  compress: compressTool,
+  convert: convertTool,
+  resize: resizeTool,
+  clean: cleanTool,
+  background: backgroundTool,
+};
 
 export const ToolContext = createContext<Tool>(compressTool);
 

@@ -7,10 +7,12 @@ interface ImageCompareProps {
   compressedUrl: string;
   width?: number;
   height?: number;
+  /** What the processed image is, for its alt text. */
+  resultLabel?: string;
 }
 
 /** Before/after slider. A native range input drives it, so it works with keyboard and screen readers. */
-export function ImageCompare({ original, compressedUrl, width, height }: ImageCompareProps) {
+export function ImageCompare({ original, compressedUrl, width, height, resultLabel = 'Compressed version' }: ImageCompareProps) {
   const originalUrl = useObjectUrl(original);
   const [position, setPosition] = useState(50);
   const id = useId();
@@ -22,7 +24,7 @@ export function ImageCompare({ original, compressedUrl, width, height }: ImageCo
         className="checkerboard relative mx-auto max-h-[60vh] w-full overflow-hidden rounded-xl border border-border select-none"
         style={{ aspectRatio: ratio, maxWidth: width && height ? `calc(60vh * ${width / height})` : undefined }}
       >
-        <img src={compressedUrl} alt="Compressed version" className="absolute inset-0 h-full w-full object-contain" draggable={false} />
+        <img src={compressedUrl} alt={resultLabel} className="absolute inset-0 h-full w-full object-contain" draggable={false} />
         {originalUrl && (
           <img
             src={originalUrl}
