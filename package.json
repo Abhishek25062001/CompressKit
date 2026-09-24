@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Private, in-browser image and video compression.",
   "author": "Abhishek Jaiswal (https://github.com/Abhishek25062001)",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/Abhishek25062001/CompressKit",
   "repository": {
     "type": "git",
