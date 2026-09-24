@@ -1,5 +1,6 @@
 import type { AudioTarget } from '../../types/convert';
 import type { VideoSettings } from '../../types/settings';
+import type { TimeRange } from '../../types/trim';
 import { CompressionError } from '../../utils/errors';
 import {
   audioBitsPerSecond,
@@ -159,6 +160,8 @@ export interface FFmpegJob {
   settings: VideoSettings;
   source: { width?: number; height?: number; duration?: number };
   urls: FFmpegUrls;
+  /** Only encode this part of the source (trim tool). */
+  trim?: TimeRange;
 }
 
 export interface EngineOutput {
@@ -284,9 +287,8 @@ async function runFFmpeg(opts: RunOptions, onProgress: ProgressFn): Promise<Engi
 
 /** Re-encodes to MP4 (H.264) or WebM (VP8). */
 export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn): Promise<EngineOutput> {
-  const { settings } = job;
-  const duration = job.source.duration;
-  const sourceBitrate = estimateSourceVideoBitrate(job.file.size, duration || undefined);
+  const { settings, trim } = job;
+  const sourceBitrate = estimateSourceVideoBitrate(job.file.size, job.source.duration || undefined);
   const outSize =
     job.source.width && job.source.height
       ? computeVideoSize({ width: job.source.width, height: job.source.height }, settings.resolution)
@@ -315,13 +317,15 @@ export async function compressWithFFmpeg(job: FFmpegJob, onProgress: ProgressFn)
     {
       file: job.file,
       urls: job.urls,
-      duration,
+      duration: trim ? trim.end - trim.start : job.source.duration,
       outputExt: settings.container,
       mime: outputMime(settings),
       stage: 'Encoding with FFmpeg',
       passes: (input, output) => [
         [
           '-hide_banner', '-nostdin', '-y',
+          // Seeking before the input is frame-accurate when re-encoding, and skips decoding what comes before.
+          ...(trim ? ['-ss', trim.start.toFixed(3), '-t', (trim.end - trim.start).toFixed(3)] : []),
           '-i', input,
           '-map', '0:v:0', '-map', '0:a:0?',
           '-vf', scaleFilter(settings, job.source),

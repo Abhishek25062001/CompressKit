@@ -16,6 +16,7 @@ import {
   type VideoCodec,
 } from 'mediabunny';
 import type { VideoCodecId, VideoSettings } from '../../types/settings';
+import type { TimeRange } from '../../types/trim';
 import { CompressionError } from '../../utils/errors';
 import type { EngineOutput, ProgressFn } from './ffmpegEngine';
 import {
@@ -45,6 +46,8 @@ const CODEC_MAP: Record<VideoCodecId, VideoCodec> = {
 export interface WebCodecsJob {
   file: File;
   settings: VideoSettings;
+  /** Only encode this part of the source (trim tool). */
+  trim?: TimeRange;
 }
 
 export function webCodecsAvailable(): boolean {
@@ -143,6 +146,7 @@ export async function compressWithWebCodecs(
         forceTranscode: true,
       },
       audio,
+      trim: job.trim,
       tags: {},
       showWarnings: false,
     });

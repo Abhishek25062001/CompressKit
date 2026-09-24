@@ -6,6 +6,7 @@ import { ThemeToggle } from './ThemeToggle';
 const NAV = [
   { href: '#convert', label: 'Convert' },
   { href: '#resize', label: 'Resize' },
+  { href: '#trim', label: 'Trim' },
   { href: '#pdf', label: 'PDF' },
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How it works' },

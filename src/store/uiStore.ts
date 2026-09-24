@@ -25,9 +25,9 @@ interface UiState {
   dismissNotice: (id: string) => void;
 }
 
-const HASH_TABS: Record<string, WorkspaceTab> = { '#convert': 'convert', '#resize': 'resize', '#pdf': 'pdf' };
+const HASH_TABS: Record<string, WorkspaceTab> = { '#convert': 'convert', '#resize': 'resize', '#trim': 'trim', '#pdf': 'pdf' };
 
-/** "#convert", "#resize" and "#pdf" links open those tools directly. */
+/** "#convert", "#resize", "#trim" and "#pdf" links open those tools directly. */
 export function toolFromHash(): WorkspaceTab {
   if (typeof window === 'undefined') return 'compress';
   return HASH_TABS[window.location.hash] ?? 'compress';

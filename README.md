@@ -2,7 +2,7 @@
 
 > Compress images and videos in the browser. Files stay on the device.
 
-CompressKit is a client-side web app for shrinking images and videos, converting them between formats, cropping photos to exact sizes, and building or splitting PDFs, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
+CompressKit is a client-side web app for shrinking images and videos, converting them between formats, cropping photos to exact sizes, trimming videos or splitting them into WhatsApp Status parts, and building or splitting PDFs, without uploading them. Decoding, encoding, previews, and ZIP creation run on the visitor’s computer, inside Web Workers.
 
 **Version 1.0.0** · **React 19** · **Node.js 20.19+** · **Static site, no backend**
 
@@ -113,6 +113,23 @@ Document sizes are at 300 DPI. Always check the exact size your form asks for, a
 **Freehand.** Crop any rectangle, with no fixed shape. The crop box gets edge handles as well as corner handles, so one side can move on its own. The output is the cropped area at the original resolution, for example 1845 × 1126 from a 3000 × 2000 photo. Until you draw a crop, the whole photo is kept. A crop drawn for a preset also works in Freehand. A freehand crop is set aside when you switch to a preset, because its shape would not match.
 
 **Exact size, optional KB limit.** Except in Freehand, the output is always exactly the preset's pixel size, enlarging small photos when needed. Choose JPG, PNG, or WebP. With **Target file size** on, only quality is lowered until the file fits, because the dimensions are fixed. A PNG is then saved as JPG on white, which is what upload forms accept. Files are named like `photo-413x531.jpg`.
+
+### Trimming and splitting videos
+
+The **Trim** tool cuts one video on a timeline. Open it with the **Trim** tab above the drop zone, the **Trim Video** button in the hero, the **Trim** link in the header, or a link ending in `#trim`. It takes MP4, MOV, WebM, and MKV.
+
+**Timeline.** The video plays above a strip of frames from the clip. Drag the two handles to set the start and end, click the strip to move the playhead, or type times such as `1:05.5`. **Here** sets the start or end to the frame on screen, and **Play selection** plays only the part you keep. The handles also move with the arrow keys (0.1 s, or 1 s with Shift), Page Up and Page Down (5 s), Home, and End. A file this browser cannot play (for example HEVC in some browsers) can still be cut by typing the times.
+
+**Trim** keeps the selected part as one clip, named like `video-trimmed.mp4`.
+
+**Split for Status** cuts the selected part into consecutive parts of at most 60 seconds, the length of a WhatsApp Status video, so they play back to back. 10, 15, 30, and 90 seconds are also available. The timeline marks where each part begins, and the panel lists their lengths before you start. Parts are named like `video-part-1-of-3.mp4`, and **Download all** packs them into a ZIP. On a phone, **Share** opens the system share sheet, from which WhatsApp can post them to your status.
+
+| Cut | How it works | Trade-off |
+| --- | --- | --- |
+| **Fast** (default) | Copies the encoded video and audio with Mediabunny. Nothing is re-encoded. | No quality loss and usually under a second. Cuts land on key frames: a clip can start slightly before the time you picked, and parts end on the last key frame that keeps them under the limit, so they can be a little shorter. The container is kept (MP4 and MOV become MP4, WebM stays WebM, MKV stays MKV). |
+| **Exact** | Re-encodes each part to H.264 MP4 with AAC sound, with WebCodecs where possible and FFmpeg.wasm otherwise. | Cuts on the exact frame, and the output plays everywhere. Slower, and the resolution can be capped at 1080p, 720p, or 480p. |
+
+A fast cut falls back to re-encoding, with a note, when the video cannot be copied: its key frames are too far apart to keep parts under the limit, or its codec cannot be stored in the output container. **Keep sound** off removes the audio track. Parts never run over the limit: fast cuts leave out the audio frame that straddles a cut, and re-encoded parts leave 0.1 s for the padding an AAC encoder adds.
 
 ### PDF tools
 
@@ -468,8 +485,9 @@ compresskit/
     ├── features/
     │   ├── compression/        manager, intake, downloads, worker slots
     │   ├── image/              resize and encode
+    │   ├── trim/               video trimmer: lossless key-frame cuts, part planning, jobs
     │   └── video/              WebCodecs and FFmpeg engines, quality mapping
-    ├── workers/                image.worker.ts, video.worker.ts
+    ├── workers/                image.worker.ts, video.worker.ts, trim.worker.ts
     ├── store/                  queue, settings, theme, capabilities, UI notices
     ├── hooks/                  theme, object URLs, queue summary
     ├── utils/                  probe, zip, filenames, browser and codec detection

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeftRight, Crop, FileText, Shrink } from 'lucide-react';
+import { ArrowLeftRight, Crop, FileText, Scissors, Shrink } from 'lucide-react';
 import { useEffect } from 'react';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
@@ -15,12 +15,14 @@ import { ConvertSettingsPanel } from '../settings/ConvertSettingsPanel';
 import { FileSettingsDialog } from '../settings/FileSettingsDialog';
 import { ResizeSettingsPanel } from '../settings/ResizeSettingsPanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
+import { TrimWorkspace } from '../trim/TrimWorkspace';
 import { DropZone } from '../upload/DropZone';
 
 const TOOL_INTRO: Record<WorkspaceTab, string> = {
   compress: 'Make images and videos smaller while keeping them looking the same.',
   convert: 'Change file formats: images to JPG, PNG, WebP or AVIF, and videos to MP4, WebM, GIF or audio.',
   resize: 'Crop and resize photos to exact sizes: passport photos, signatures, profile pictures, posts and thumbnails.',
+  trim: 'Cut a video down to the part you want, or split it into 60-second parts for WhatsApp Status.',
   pdf: 'Turn photos into a PDF, merge PDFs, reorder, rotate or remove pages, split files, or save pages as images.',
 };
 
@@ -28,6 +30,7 @@ const SECTION_LABEL: Record<WorkspaceTab, string> = {
   compress: 'Compressor',
   convert: 'Converter',
   resize: 'Photo resizer',
+  trim: 'Video trimmer',
   pdf: 'PDF tools',
 };
 
@@ -102,7 +105,7 @@ export function Workspace() {
   const active = useUiStore((s) => s.activeTool);
   const setActive = useUiStore((s) => s.setActiveTool);
 
-  // Shared "#convert" and "#resize" links open those tools; there are no elements with those ids to scroll to.
+  // Shared "#convert", "#resize", "#trim" and "#pdf" links open those tools; there are no elements with those ids to scroll to.
   useEffect(() => {
     const open = () => {
       const tool = toolFromHash();
@@ -123,10 +126,11 @@ export function Workspace() {
           value={active}
           onChange={setActive}
           segments={[
-            // Icons hide on phones so all four tabs fit on one line.
+            // Icons hide on phones so all five tabs fit on one line.
             { value: 'compress', label: <><Shrink className="hidden h-4 w-4 sm:block" aria-hidden /> Compress</> },
             { value: 'convert', label: <><ArrowLeftRight className="hidden h-4 w-4 sm:block" aria-hidden /> Convert</> },
             { value: 'resize', label: <><Crop className="hidden h-4 w-4 sm:block" aria-hidden /> Resize</> },
+            { value: 'trim', label: <><Scissors className="hidden h-4 w-4 sm:block" aria-hidden /> Trim</> },
             { value: 'pdf', label: <><FileText className="hidden h-4 w-4 sm:block" aria-hidden /> PDF</> },
           ]}
         />
@@ -134,6 +138,8 @@ export function Workspace() {
       </div>
       {active === 'pdf' ? (
         <PdfWorkspace />
+      ) : active === 'trim' ? (
+        <TrimWorkspace />
       ) : (
         <ToolContext value={TOOLS[active]}>
           <ToolPanel key={active} mode={active} />

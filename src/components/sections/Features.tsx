@@ -15,8 +15,8 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: ArrowLeftRight,
-    title: 'Convert, crop, resize and PDF',
-    body: 'Convert images and videos, crop photos to passport or social media sizes, and turn photos into PDFs, merge, split or reorder pages.',
+    title: 'Convert, crop, trim and PDF',
+    body: 'Convert images and videos, crop photos to passport or social media sizes, trim videos or split them for WhatsApp Status, and turn photos into PDFs, merge, split or reorder pages.',
   },
   {
     icon: Layers,
