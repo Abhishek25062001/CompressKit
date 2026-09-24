@@ -4,7 +4,6 @@ import { LogoMark } from './Logo';
 
 const AUTHOR_NAME = 'Abhishek Jaiswal';
 const AUTHOR_URL = 'https://abhishekjaiswal.net/';
-const REPO_URL = 'https://github.com/Abhishek25062001/CompressKit';
 
 const linkClass = 'rounded-sm font-medium text-fg underline-offset-4 hover:underline';
 

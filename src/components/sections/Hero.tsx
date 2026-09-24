@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { Link } from '../common/Link';
-import { SmartDrop } from '../tools/SmartDrop';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -48,9 +47,6 @@ export function Hero() {
           Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, and work with PDFs.
           Everything runs right here in your browser.
         </motion.p>
-        <motion.div custom={3} variants={fadeUp} initial="hidden" animate="show" className="mx-auto mt-8 max-w-2xl">
-          {/* <SmartDrop /> */}
-        </motion.div>
         <motion.div
           custom={4}
           variants={fadeUp}
