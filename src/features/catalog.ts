@@ -4,10 +4,22 @@
  * each address has its own title and description before any script runs.
  */
 
-export type ToolId = 'compress' | 'convert' | 'resize' | 'background' | 'trim' | 'clean' | 'pdf';
+export type ToolId =
+  | 'compress'
+  | 'convert'
+  | 'resize'
+  | 'background'
+  | 'trim'
+  | 'clean'
+  | 'pdf'
+  | 'edit-pdf'
+  | 'merge'
+  | 'docx-to-pdf'
+  | 'pdf-to-docx'
+  | 'edit-docx';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
-export type FileKind = 'image' | 'video' | 'pdf';
+export type FileKind = 'image' | 'video' | 'pdf' | 'word';
 
 export interface ToolInfo {
   id: ToolId;
@@ -33,7 +45,7 @@ export const SITE_NAME = 'CompressKit';
 export const HOME_META = {
   title: 'CompressKit: Private File Tools That Run in Your Browser',
   description:
-    'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, and work with PDFs. Everything runs in your browser. No uploads, no account.',
+    'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert between them. Everything runs in your browser. No uploads, no account.',
 };
 
 export const CATALOG: ToolInfo[] = [
@@ -118,8 +130,68 @@ export const CATALOG: ToolInfo[] = [
     description:
       'Turn photos into a PDF, merge, split and reorder pages, sign, fill forms, compress, protect with a password or make scans searchable. All in your browser.',
     title: 'Free PDF Tools: Merge, Split, Sign, Compress, OCR | CompressKit',
+    handles: ['pdf', 'image', 'word'],
+    formats: 'PDF · DOCX · JPG · PNG · HEIC · WebP',
+  },
+  {
+    id: 'edit-pdf',
+    path: '/edit-pdf',
+    name: 'Edit PDF',
+    heading: 'Edit a PDF',
+    tagline: 'Change text, add text and pictures, white out, highlight and draw.',
+    description:
+      'Edit PDF files in your browser: change existing text, add text boxes and pictures, white out, highlight, draw and add shapes. Your PDF is never uploaded.',
+    title: 'Edit PDF Online: Change Text, Add Text and Images, Free | CompressKit',
     handles: ['pdf', 'image'],
-    formats: 'PDF · JPG · PNG · HEIC · WebP',
+    formats: 'PDF · JPG · PNG',
+  },
+  {
+    id: 'merge',
+    path: '/merge-documents',
+    name: 'Merge documents',
+    heading: 'Merge PDFs, Word files and photos',
+    tagline: 'Combine PDFs, Word documents and photos into one file.',
+    description:
+      'Merge PDF files, Word documents (DOCX) and photos into one PDF, in the order you choose, or join Word files into one DOCX. Nothing is uploaded.',
+    title: 'Merge PDF and Word Documents into One File, Free | CompressKit',
+    handles: ['pdf', 'word', 'image'],
+    formats: 'PDF · DOCX · JPG · PNG · HEIC',
+  },
+  {
+    id: 'docx-to-pdf',
+    path: '/docx-to-pdf',
+    name: 'Word to PDF',
+    heading: 'Convert Word to PDF',
+    tagline: 'Turn DOCX files into PDFs with selectable text.',
+    description:
+      'Convert Word documents (DOCX) to PDF in your browser, with headings, lists, tables and pictures, and text that stays selectable. Your documents are never uploaded.',
+    title: 'Word to PDF Converter: DOCX to PDF, Free and Private | CompressKit',
+    handles: ['word'],
+    formats: 'DOCX',
+  },
+  {
+    id: 'pdf-to-docx',
+    path: '/pdf-to-docx',
+    name: 'PDF to Word',
+    heading: 'Convert PDF to Word',
+    tagline: 'Turn PDFs into editable DOCX files, scans included.',
+    description:
+      'Convert PDF files to editable Word documents (DOCX) with headings, lists and pictures. Scanned pages can be read with OCR. All in your browser, nothing uploaded.',
+    title: 'PDF to Word Converter: PDF to DOCX, Free and Private | CompressKit',
+    handles: ['pdf'],
+    formats: 'PDF',
+  },
+  {
+    id: 'edit-docx',
+    path: '/edit-docx',
+    name: 'Edit Word document',
+    heading: 'Edit a Word document',
+    tagline: 'Open, edit and save DOCX files, or start a new one.',
+    description:
+      'Open and edit Word documents (DOCX) in your browser: text, headings, lists, tables and pictures. Save as DOCX or PDF. No account, no upload, no Office needed.',
+    title: 'Edit Word Documents Online: Free DOCX Editor | CompressKit',
+    handles: ['word', 'pdf'],
+    formats: 'DOCX · PDF',
   },
 ];
 

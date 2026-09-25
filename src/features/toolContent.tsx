@@ -1,5 +1,18 @@
 import {
+  ArrowDownUp,
   ArrowLeftRight,
+  Combine,
+  Eraser,
+  FileInput,
+  FileOutput,
+  Heading,
+  Highlighter,
+  Languages,
+  ListOrdered,
+  Replace,
+  SquarePen,
+  Table2,
+  TextCursorInput,
   Crop,
   Eye,
   FileImage,
@@ -135,15 +148,88 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
   pdf: {
     icon: FileText,
     steps: [
-      ['Add PDFs and photos', 'Every page and photo appears on one board.'],
+      ['Add PDFs, Word files and photos', 'Every page and photo appears on one board.'],
       ['Arrange and choose', 'Reorder, rotate or remove pages, then pick what to do with them.'],
       ['Save', 'Download one PDF, separate files, or pages as images.'],
     ],
     highlights: [
       { icon: FileImage, title: 'Photos to PDF', body: 'Turn phone photos into an A4 or Letter PDF, and straighten and clean up photographed pages.' },
-      { icon: FileStack, title: 'Merge, split and reorder', body: 'Combine files, pull out pages, or split a document into parts.' },
+      { icon: FileStack, title: 'Merge, split and reorder', body: 'Combine PDFs, Word files and photos, pull out pages, or split a document into parts.' },
+      { icon: TextCursorInput, title: 'Edit pages', body: 'Change existing text, add text and pictures, white out, highlight and draw.' },
       { icon: FilePen, title: 'Sign and fill forms', body: 'Draw, type or upload a signature, and fill in PDF form fields.' },
       { icon: ScanText, title: 'Compress, protect and OCR', body: 'Shrink scanned PDFs, add a password, and make scans searchable.' },
+    ],
+  },
+  'edit-pdf': {
+    icon: FilePen,
+    steps: [
+      ['Add your PDF', 'Its pages appear on a board. Photos of documents work too.'],
+      ['Edit a page', 'Press Edit on a page: retype text, add text boxes and pictures, white out, highlight or draw.'],
+      ['Download', 'Save the edited PDF. Your changes become part of the pages.'],
+    ],
+    highlights: [
+      { icon: Replace, title: 'Change existing text', body: 'Click a line to retype it. The old text is covered in its background colour and your text is written in its place.' },
+      { icon: TextCursorInput, title: 'Add text anywhere', body: 'Fill in forms that have no fields, add notes or dates, in any size, colour and style.' },
+      { icon: Eraser, title: 'White-out', body: 'Cover mistakes, old details or anything you do not want to share.' },
+      { icon: Highlighter, title: 'Highlight, draw and box', body: 'Mark up a page with highlights, boxes and freehand drawing.' },
+      { icon: Images, title: 'Pictures and logos', body: 'Place a photo, stamp or logo on any page and size it by dragging.' },
+      { icon: ShieldCheck, title: 'Stays on your device', body: 'The PDF is edited in your browser. Nothing is uploaded, so contracts and IDs stay private.' },
+    ],
+  },
+  merge: {
+    icon: Combine,
+    steps: [
+      ['Add your files', 'PDFs, Word documents and photos, as many as you like.'],
+      ['Put them in order', 'Drag pages to reorder, rotate them or remove the ones you do not need.'],
+      ['Merge', 'Download one PDF, or join Word files into one Word document.'],
+    ],
+    highlights: [
+      { icon: Layers, title: 'Mix file types', body: 'Combine PDFs, DOCX files and photos into a single PDF.' },
+      { icon: ArrowDownUp, title: 'Page by page control', body: 'Every page is on the board, so you can reorder, rotate and remove pages across files.' },
+      { icon: FileText, title: 'Word into Word', body: 'Join several Word documents into one .docx that you can keep editing.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Files are merged in your browser and never uploaded.' },
+    ],
+  },
+  'docx-to-pdf': {
+    icon: FileOutput,
+    steps: [
+      ['Add Word files', 'Drop one or many .docx files.'],
+      ['Wait a moment', 'Each document is laid out as PDF pages on your device.'],
+      ['Download', 'Save each PDF, or all of them as a ZIP.'],
+    ],
+    highlights: [
+      { icon: Heading, title: 'Keeps the structure', body: 'Headings, bold and italic, colours, lists, tables, links and pictures come across.' },
+      { icon: TextCursorInput, title: 'Real text', body: 'Text in the PDF stays selectable and searchable, not a picture of the page.' },
+      { icon: Languages, title: 'Any language', body: 'Hindi, Arabic, Chinese and other scripts are drawn by your browser so they show up correctly.' },
+      { icon: WifiOff, title: 'No Office needed', body: 'Works in any modern browser, offline after your first visit, without uploading the file.' },
+    ],
+  },
+  'pdf-to-docx': {
+    icon: FileInput,
+    steps: [
+      ['Add PDFs', 'Drop one or many PDFs, including scans.'],
+      ['Choose options', 'Keep pictures, read scanned pages with OCR, and keep page breaks.'],
+      ['Download', 'Open the .docx in Word, Google Docs or Pages, or edit it right here.'],
+    ],
+    highlights: [
+      { icon: Heading, title: 'Headings and lists', body: 'Larger text becomes headings, and bullets and numbers become real lists.' },
+      { icon: Images, title: 'Pictures included', body: 'Photos and logos are pulled out and placed where they appear.' },
+      { icon: ScanText, title: 'Scans too', body: 'Scanned pages are read with OCR into text you can edit.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
+    ],
+  },
+  'edit-docx': {
+    icon: SquarePen,
+    steps: [
+      ['Open a document', 'Drop a Word file or PDF, or start a blank page.'],
+      ['Edit', 'Type, format text, add headings, lists, tables, links and pictures.'],
+      ['Save', 'Download as Word (.docx) or PDF.'],
+    ],
+    highlights: [
+      { icon: SquarePen, title: 'Familiar editing', body: 'Bold, italic, underline, colours, fonts and sizes, alignment and indents, with undo and redo.' },
+      { icon: ListOrdered, title: 'Lists and headings', body: 'Bulleted and numbered lists, titles, headings and quotes.' },
+      { icon: Table2, title: 'Tables and pictures', body: 'Insert tables, paste or drop pictures, and add page breaks.' },
+      { icon: FileInput, title: 'Edit PDFs as text', body: 'Open a PDF to turn it into an editable document, then save it as Word or PDF.' },
     ],
   },
 };

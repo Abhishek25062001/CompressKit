@@ -3,12 +3,14 @@ import { SectionHeading } from '../sections/SectionHeading';
 import { ToolCard } from './ToolCard';
 
 /**
- * Compress (where the product started) and PDF tools get wide cards. With seven tools that fills
- * every row: 2 + 1, 3, 1 + 2 in three columns, and pairs with a wide last card in two.
+ * Some tools get wide cards so that twelve tools fill every row: 2 + 1, 3, 1 + 2, 2 + 1, 3 in
+ * three columns, and pairs with PDF tools and Edit Word document spanning the row in two.
  */
 const WIDE: Partial<Record<ToolId, { span: string; highlights: string }>> = {
   compress: { span: 'lg:col-span-2', highlights: 'lg:flex' },
   pdf: { span: 'sm:col-span-2', highlights: 'sm:flex' },
+  'edit-pdf': { span: 'lg:col-span-2', highlights: 'lg:flex' },
+  'edit-docx': { span: 'sm:col-span-2 lg:col-span-1', highlights: 'sm:flex lg:hidden' },
 };
 
 export function ToolGrid() {

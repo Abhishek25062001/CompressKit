@@ -4,6 +4,8 @@ import { TOOL_BY_ID, type ToolId } from '../../features/catalog';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
 import type { ToolMode } from '../../types/media';
+import { ConvertWorkspace } from '../docs/ConvertWorkspace';
+import { DocxEditor } from '../docs/DocxEditor';
 import { PdfWorkspace } from '../pdf/PdfWorkspace';
 import { CompressionBar } from '../compression/CompressionBar';
 import { FileQueue } from '../files/FileQueue';
@@ -93,8 +95,12 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
 export function ToolWorkspace({ id }: { id: ToolId }) {
   return (
     <section id="tool" aria-label={TOOL_BY_ID[id].name} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
-      {id === 'pdf' ? (
-        <PdfWorkspace />
+      {id === 'pdf' || id === 'edit-pdf' || id === 'merge' ? (
+        <PdfWorkspace variant={id === 'pdf' ? 'pdf' : id === 'edit-pdf' ? 'edit' : 'merge'} />
+      ) : id === 'docx-to-pdf' || id === 'pdf-to-docx' ? (
+        <ConvertWorkspace kind={id} />
+      ) : id === 'edit-docx' ? (
+        <DocxEditor />
       ) : id === 'trim' ? (
         <TrimWorkspace />
       ) : (

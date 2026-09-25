@@ -37,6 +37,61 @@ export interface ScanSettings {
   filter: ScanFilter;
 }
 
+/**
+ * A change drawn on a page with Edit PDF. Positions and sizes are fractions of the page as it is
+ * displayed (after rotation), from the top-left corner, like signature placements; text size is a
+ * fraction of the page height, so an edit lands in the same place at any page size.
+ */
+export type PageEdit =
+  | {
+      id: string;
+      kind: 'text';
+      x: number;
+      y: number;
+      width: number;
+      text: string;
+      /** Font size as a fraction of the page height. */
+      size: number;
+      color: string;
+      bold: boolean;
+      italic: boolean;
+      font: 'sans' | 'serif' | 'mono';
+      align: 'left' | 'center' | 'right';
+      /** Fill behind the text box, which covers what was there (used when replacing text). */
+      background?: string;
+      /** Height of the covered area, when replacing text, as a fraction of the page height. */
+      coverHeight?: number;
+    }
+  | {
+      id: string;
+      /** white-out covers, highlight tints, box outlines. */
+      kind: 'whiteout' | 'highlight' | 'box';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      color: string;
+    }
+  | {
+      id: string;
+      kind: 'draw';
+      /** Strokes, each a list of points as fractions of the page. */
+      strokes: [number, number][][];
+      color: string;
+      /** Line width as a fraction of the page width. */
+      thickness: number;
+    }
+  | {
+      id: string;
+      kind: 'image';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      /** Key into the PDF store's edit images. */
+      imageId: string;
+    };
+
 /** One page on the board. Pages keep a pointer to their source, so reordering never touches file data. */
 export interface PdfPage {
   id: string;
@@ -50,6 +105,8 @@ export interface PdfPage {
   signatures: SignaturePlacement[];
   /** Photo pages only. */
   scan?: ScanSettings;
+  /** Changes made with Edit PDF. */
+  edits?: PageEdit[];
 }
 
 export type PdfPageSize = 'fit' | 'a4' | 'letter';
@@ -97,4 +154,6 @@ export interface PdfSettings {
   allowFlatten: boolean;
   /** Drops comments, highlights, sticky notes and other markup from saved PDFs. Links stay. */
   removeComments: boolean;
+  /** Turns pages with white-out or retyped text into pictures, so the covered text is really gone. */
+  flattenCovered: boolean;
 }

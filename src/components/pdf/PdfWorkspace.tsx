@@ -9,6 +9,8 @@ import { usePdfStore } from '../../store/pdfStore';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
+import { EditDialog } from './EditDialog';
+import { MergePanel } from './MergePanel';
 import { PageGrid } from './PageGrid';
 import { PdfPanel } from './PdfPanel';
 import { PasswordDialog } from './PasswordDialog';
@@ -70,7 +72,17 @@ function PdfBar() {
   );
 }
 
-export function PdfWorkspace() {
+const DROP_TITLE = {
+  pdf: 'Drop your files here',
+  edit: 'Drop a PDF to edit',
+  merge: 'Drop PDFs, Word files and photos',
+} as const;
+
+/**
+ * The page board, shared by PDF tools, Edit PDF and Merge documents: the same pages, with the
+ * panel that suits the page it is on.
+ */
+export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | 'merge' }) {
   const hasPages = usePdfStore((s) => s.pages.length > 0);
   const busy = usePdfStore((s) => s.busy);
   const onFiles = (files: FileList) => void addPdfFiles(Array.from(files));
@@ -91,12 +103,13 @@ export function PdfWorkspace() {
   }, []);
 
   const dropZone = (compact: boolean) => (
-    <FileDropZone inputId={fileInputId('pdf')} accept={ACCEPT} badges={PDF_BADGES} onFiles={onFiles} compact={compact} />
+    <FileDropZone inputId={fileInputId('pdf')} accept={ACCEPT} badges={PDF_BADGES} onFiles={onFiles} compact={compact} title={DROP_TITLE[variant]} />
   );
 
   return (
     <>
       <SignDialog />
+      <EditDialog />
       <ScanDialog />
       <PasswordDialog />
       <AnimatePresence mode="popLayout" initial={false}>
@@ -129,7 +142,7 @@ export function PdfWorkspace() {
               {dropZone(true)}
             </div>
             <div className="lg:sticky lg:top-20">
-              <PdfPanel />
+              {variant === 'merge' ? <MergePanel /> : <PdfPanel initialTab={variant === 'edit' ? 'edit' : 'save'} />}
             </div>
           </motion.div>
         )}

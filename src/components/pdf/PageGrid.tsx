@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, FileText, Loader2, PenLine, RotateCw, ScanLine, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, FilePen, FileText, Loader2, PenLine, RotateCw, ScanLine, Trash2 } from 'lucide-react';
 import { memo, useState, type DragEvent } from 'react';
 import { usePdfStore } from '../../store/pdfStore';
 import { cn } from '../../utils/cn';
@@ -18,7 +18,7 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
   const page = usePdfStore((s) => s.pages.find((p) => p.id === id));
   const source = usePdfStore((s) => (page ? s.sources[page.sourceId] : undefined));
   const busy = usePdfStore((s) => s.busy !== null);
-  const { toggleSelected, rotatePage, removePage, movePage, setSigningPage, setScanningPage } = usePdfStore.getState();
+  const { toggleSelected, rotatePage, removePage, movePage, setSigningPage, setScanningPage, setEditingPage } = usePdfStore.getState();
   if (!page || !source) return null;
 
   const label = `Page ${position + 1}`;
@@ -86,6 +86,19 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
           <Check className="h-3.5 w-3.5" />
         </span>
       </button>
+      <button
+        type="button"
+        onClick={() => setEditingPage(id)}
+        disabled={busy}
+        aria-label={`Edit ${label}: change text, add text, pictures, highlights and drawings`}
+        className={cn(
+          'absolute top-2 right-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-colors disabled:opacity-40',
+          page.edits?.length ? 'border-accent/50 bg-accent-soft text-accent-text' : 'border-border bg-surface/90 text-fg hover:border-accent',
+        )}
+      >
+        <FilePen className="h-3 w-3" aria-hidden />
+        {page.edits?.length ? 'Edited' : 'Edit'}
+      </button>
       {source.kind === 'image' && (
         <button
           type="button"
@@ -93,12 +106,12 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
           disabled={busy}
           aria-label={`Scan cleanup for ${label}: straighten and clean up the photo`}
           className={cn(
-            'absolute top-2 right-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-colors disabled:opacity-40',
+            'absolute top-9 right-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shadow-sm transition-colors disabled:opacity-40',
             page.scan ? 'border-accent/50 bg-accent-soft text-accent-text' : 'border-border bg-surface/90 text-fg hover:border-accent',
           )}
         >
           <ScanLine className="h-3 w-3" aria-hidden />
-          {page.scan ? 'Edited' : 'Scan'}
+          {page.scan ? 'Cleaned' : 'Scan'}
         </button>
       )}
       <div className="flex items-center gap-2 border-t border-border px-2.5 pt-2">

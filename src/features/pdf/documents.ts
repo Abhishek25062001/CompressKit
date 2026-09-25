@@ -71,9 +71,10 @@ export function getOpenPdf(sourceId: string): OpenPdf {
   return doc;
 }
 
-setPdfReleaseListener((ids) => {
-  for (const id of ids) {
-    void open.get(id)?.view.loadingTask.destroy();
-    open.delete(id);
-  }
-});
+/** Releases a PDF opened outside the page board, such as one being converted to Word. */
+export function closePdf(sourceId: string): void {
+  void open.get(sourceId)?.view.loadingTask.destroy();
+  open.delete(sourceId);
+}
+
+setPdfReleaseListener((ids) => ids.forEach(closePdf));

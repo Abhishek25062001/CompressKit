@@ -12,6 +12,7 @@ import { getOpenPdf } from './documents';
 import { renderPage } from './render';
 import { filledCopy, FormFillError } from './forms';
 import { hasTextLayer, recognizePage, type OcrPage } from './ocr';
+import { coversContent, createEditCache, drawEdits, flattenPages } from './edits';
 import { drawInvisibleText, drawPageNumber, drawSignatures, drawWatermark, embedWatermark } from './stamps';
 
 /** Page sizes in PDF points (1/72 inch). */
@@ -56,14 +57,20 @@ async function embedPhoto(out: LibDocument, page: PdfPage, source: PdfSource, se
 }
 
 /**
- * Adds page numbers, the watermark and placed signatures. They go on top of each page after it is
- * built, so they sit above photos and PDF content alike. Numbering counts pages in this file.
+ * Adds edits, page numbers, the watermark and placed signatures. They go on top of each page after
+ * it is built, so they sit above photos and PDF content alike. Numbering counts pages in this file.
  */
 async function applyStamps(lib: typeof import('@cantoo/pdf-lib'), out: LibDocument, pages: PdfPage[], settings: PdfSettings): Promise<void> {
-  const { signature, watermarkLogo } = usePdfStore.getState();
+  const { signature, watermarkLogo, editImages } = usePdfStore.getState();
+  const outPages = out.getPages();
+  // Edits become part of the page, under the watermark, signatures and numbers.
+  const cache = createEditCache();
+  for (let i = 0; i < outPages.length; i++) {
+    const edits = pages[i].edits;
+    if (edits?.length) await drawEdits(lib, out, outPages[i], edits, editImages, cache);
+  }
   const signed = signature && pages.some((p) => p.signatures.length);
   if (!settings.pageNumbers.enabled && !settings.watermark.enabled && !signed) return;
-  const outPages = out.getPages();
   const font = settings.pageNumbers.enabled ? await out.embedFont(lib.StandardFonts.Helvetica) : null;
   const watermark = settings.watermark.enabled ? await embedWatermark(out, settings.watermark, watermarkLogo) : null;
   const signatureImage = signed ? await out.embedPng(new Uint8Array(await signature.blob.arrayBuffer())) : null;
@@ -187,10 +194,13 @@ async function buildPdf(pages: PdfPage[], onProgress: (ratio: number) => void, e
       if (words) drawInvisibleText(lib, pdfPage, font, words);
     });
   }
+  // Pages whose edits cover content are turned into pictures when asked, so what was covered is gone.
+  const covered = settings.flattenCovered ? pages.flatMap((p, i) => (coversContent(p.edits) ? [i] : [])) : [];
+  const final = covered.length ? await flattenPages(await out.save(), covered) : out;
   if (extras.protect) {
     const { protect } = extras;
     // AES-256, which every current PDF reader opens.
-    out.encrypt({
+    final.encrypt({
       userPassword: protect.password,
       ownerPassword: randomOwnerPassword(),
       permissions: {
@@ -204,7 +214,7 @@ async function buildPdf(pages: PdfPage[], onProgress: (ratio: number) => void, e
       },
     });
   }
-  return out.save({ useObjectStreams: true });
+  return final.save({ useObjectStreams: true });
 }
 
 const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as BlobPart], { type: 'application/pdf' });

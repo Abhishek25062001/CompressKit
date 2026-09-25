@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { FieldValue } from '../features/pdf/forms';
 import type { PageRotation, PdfPage, PdfSettings, PdfSource, SignatureAsset, SignaturePlacement } from '../types/pdf';
+import type { DocModel } from '../features/docs/model';
 import { createId } from '../utils/id';
 
 interface PdfState {
@@ -18,6 +19,14 @@ interface PdfState {
   setWatermarkLogo: (logo: SignatureAsset | null) => void;
   /** Page whose signature placement dialog is open. */
   signingPageId: string | null;
+  /** Page whose Edit PDF dialog is open. */
+  editingPageId: string | null;
+  setEditingPage: (id: string | null) => void;
+  /** Pictures placed with Edit PDF, by id. Kept in memory only. */
+  editImages: Record<string, SignatureAsset>;
+  addEditImage: (id: string, image: SignatureAsset) => void;
+  /** Word documents on the board, read into the document model, for merging into one Word file. */
+  wordDocs: Record<string, DocModel>;
   /** Photo page whose scan cleanup dialog is open. */
   scanningPageId: string | null;
   setScanningPage: (id: string | null) => void;
@@ -60,6 +69,11 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   progress: null,
   signature: null,
   signingPageId: null,
+  editingPageId: null,
+  setEditingPage: (editingPageId) => set({ editingPageId }),
+  editImages: {},
+  addEditImage: (id, image) => set((s) => ({ editImages: { ...s.editImages, [id]: image } })),
+  wordDocs: {},
   scanningPageId: null,
   setScanningPage: (scanningPageId) => set({ scanningPageId }),
   passwordPrompt: null,
@@ -117,16 +131,21 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
     const pages = get().pages.filter((p) => p.id !== id);
     const orphaned = pages.some((p) => p.sourceId === page.sourceId) ? [] : [page.sourceId];
     const sources = { ...get().sources };
-    orphaned.forEach((sid) => delete sources[sid]);
-    set({ pages, sources });
+    const wordDocs = { ...get().wordDocs };
+    orphaned.forEach((sid) => {
+      delete sources[sid];
+      delete wordDocs[sid];
+    });
+    set({ pages, sources, wordDocs });
     if (orphaned.length) onRelease(orphaned);
   },
   toggleSelected: (id) => set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, selected: !p.selected } : p)) })),
   setSelection: (ids) => set((s) => ({ pages: s.pages.map((p) => ({ ...p, selected: ids.has(p.id) })) })),
   clear: () => {
-    const { pages, sources } = get();
+    const { pages, sources, editImages } = get();
     pages.forEach((p) => p.thumbUrl && URL.revokeObjectURL(p.thumbUrl));
-    set({ pages: [], sources: {}, busy: null, progress: null, formValues: {}, docInfo: { title: '', author: '' } });
+    Object.values(editImages).forEach((img) => URL.revokeObjectURL(img.url));
+    set({ pages: [], sources: {}, busy: null, progress: null, formValues: {}, docInfo: { title: '', author: '' }, editImages: {}, wordDocs: {} });
     onRelease(Object.keys(sources));
   },
   setBusy: (busy, progress = null) => set({ busy, progress }),
@@ -146,6 +165,7 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   compressTargetKB: null,
   allowFlatten: false,
   removeComments: false,
+  flattenCovered: false,
 };
 
 interface PdfSettingsState extends PdfSettings {
@@ -173,6 +193,7 @@ export const usePdfSettingsStore = create<PdfSettingsState>()(
         compressTargetKB: s.compressTargetKB,
         allowFlatten: s.allowFlatten,
         removeComments: s.removeComments,
+        flattenCovered: s.flattenCovered,
       }),
     },
   ),

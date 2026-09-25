@@ -3,15 +3,23 @@ import { usePdfStore } from '../../store/pdfStore';
 import { useUiStore } from '../../store/uiStore';
 import type { PdfPage, PdfSource } from '../../types/pdf';
 import { createId } from '../../utils/id';
+import { DocxReadError, isDocx, readDocx } from '../docs/docxRead';
 import { PdfOpenError, openPdf } from './documents';
 import { askPassword } from './passwordPrompt';
 import { renderThumbnail } from './render';
 
-const PDF_FORMAT: FormatDef = { kind: 'image', label: 'PDF', mimes: ['application/pdf'], extensions: ['pdf'] };
+export const PDF_FORMAT: FormatDef = { kind: 'image', label: 'PDF', mimes: ['application/pdf'], extensions: ['pdf'] };
+export const DOCX_FORMAT: FormatDef = {
+  kind: 'image',
+  label: 'DOCX',
+  mimes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  extensions: ['docx'],
+};
 /** Photos, including iPhone HEIC, become one page each. */
 const PHOTO_FORMATS = CONVERT_INPUT_FORMATS.filter((f) => f.kind === 'image');
-export const PDF_INPUT_FORMATS: FormatDef[] = [PDF_FORMAT, ...PHOTO_FORMATS];
-export const PDF_BADGES = ['PDF', 'JPG', 'PNG', 'WebP', 'HEIC', 'AVIF', 'BMP'];
+/** Word documents are laid out as PDF pages when they are added. */
+export const PDF_INPUT_FORMATS: FormatDef[] = [PDF_FORMAT, DOCX_FORMAT, ...PHOTO_FORMATS];
+export const PDF_BADGES = ['PDF', 'DOCX', 'JPG', 'PNG', 'WebP', 'HEIC', 'AVIF'];
 
 const THUMB_CONCURRENCY = 2;
 const thumbQueue: PdfPage[] = [];
@@ -54,22 +62,63 @@ function isPdf(file: File): boolean {
   return file.type === 'application/pdf' || getExtension(file.name) === 'pdf';
 }
 
-/** Adds PDFs (every page) and photos (one page each) to the end of the board, in the order given. */
+function addPages(source: PdfSource): void {
+  const pages: PdfPage[] = Array.from({ length: source.pageCount }, (_, index) => ({
+    id: createId(),
+    sourceId: source.id,
+    index,
+    rotation: 0,
+    selected: false,
+    thumbUrl: null,
+    signatures: [],
+  }));
+  usePdfStore.getState().addSource(source, pages);
+  thumbQueue.push(...pages);
+  pumpThumbnails();
+}
+
+/**
+ * Adds PDFs (every page), Word documents (laid out as pages) and photos (one page each) to the end
+ * of the board, in the order given.
+ */
 export async function addPdfFiles(files: Iterable<File>): Promise<void> {
   const notice = useUiStore.getState().pushNotice;
+  const wordWarnings: string[] = [];
   const skipped: string[] = [];
   const locked: string[] = [];
   const broken: string[] = [];
   const unlocked: string[] = [];
 
   for (const file of files) {
+    const word = isDocx(file);
     const pdf = isPdf(file);
-    if (!pdf && !detectFormat(file, PHOTO_FORMATS)) {
+    if (!pdf && !word && !detectFormat(file, PHOTO_FORMATS)) {
       skipped.push(file.name);
       continue;
     }
     const sourceId = createId();
     let pageCount = 1;
+    if (word) {
+      usePdfStore.getState().setBusy(`Reading ${file.name}`);
+      try {
+        const { doc, warnings } = await readDocx(file);
+        const { layoutPdf } = await import('../docs/pdfLayout');
+        const { bytes } = await layoutPdf(doc);
+        // The board works on PDF pages, so the Word file is kept as the PDF it was laid out as.
+        const laidOut = new File([bytes as BlobPart], file.name, { type: 'application/pdf' });
+        pageCount = (await openPdf(sourceId, laidOut)).view.numPages;
+        usePdfStore.setState((s) => ({ wordDocs: { ...s.wordDocs, [sourceId]: doc } }));
+        const source: PdfSource = { id: sourceId, name: file.name, kind: 'pdf', file: laidOut, pageCount };
+        addPages(source);
+        if (warnings.length) wordWarnings.push(`${file.name}: ${warnings.join(', ')}`);
+      } catch (e) {
+        broken.push(file.name);
+        if (!(e instanceof DocxReadError)) console.warn('[CompressKit] could not read Word file:', e);
+      } finally {
+        usePdfStore.getState().setBusy(null);
+      }
+      continue;
+    }
     if (pdf) {
       let password: string | undefined;
       let opened = false;
@@ -101,23 +150,18 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
       }
       if (!opened) continue;
     }
-    const source: PdfSource = { id: sourceId, name: file.name, kind: pdf ? 'pdf' : 'image', file, pageCount };
-    const pages: PdfPage[] = Array.from({ length: pageCount }, (_, index) => ({
-      id: createId(),
-      sourceId,
-      index,
-      rotation: 0,
-      selected: false,
-      thumbUrl: null,
-      signatures: [],
-    }));
-    usePdfStore.getState().addSource(source, pages);
-    thumbQueue.push(...pages);
-    pumpThumbnails();
+    addPages({ id: sourceId, name: file.name, kind: pdf ? 'pdf' : 'image', file, pageCount });
   }
 
   if (skipped.length) {
-    notice({ tone: 'warning', title: `${skipped.length === 1 ? '1 file was' : `${skipped.length} files were`} skipped`, message: `Not a PDF or photo: ${skipped.slice(0, 3).join(', ')}` });
+    notice({
+      tone: 'warning',
+      title: `${skipped.length === 1 ? '1 file was' : `${skipped.length} files were`} skipped`,
+      message: `Not a PDF, Word document or photo: ${skipped.slice(0, 3).join(', ')}${skipped.some((n) => /\.doc$/i.test(n)) ? '. Old .doc files need saving as .docx in Word first.' : ''}`,
+    });
+  }
+  if (wordWarnings.length) {
+    notice({ tone: 'info', title: 'Some Word content was left out', message: `${wordWarnings.slice(0, 2).join('; ')}.` });
   }
   if (locked.length) {
     notice({
@@ -134,6 +178,6 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
     });
   }
   if (broken.length) {
-    notice({ tone: 'error', title: "We couldn't read this PDF", message: `The file may be damaged: ${broken.slice(0, 3).join(', ')}` });
+    notice({ tone: 'error', title: "We couldn't read this file", message: `It may be damaged: ${broken.slice(0, 3).join(', ')}` });
   }
 }

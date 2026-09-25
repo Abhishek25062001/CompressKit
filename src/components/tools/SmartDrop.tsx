@@ -8,7 +8,7 @@ import { useRouteStore } from '../../store/routeStore';
 import { Button } from '../common/Button';
 import { FileDropZone } from '../upload/DropZone';
 
-const BADGES = ['JPG', 'PNG', 'HEIC', 'WebP', 'MP4', 'MOV', 'PDF'];
+const BADGES = ['JPG', 'PNG', 'HEIC', 'WebP', 'MP4', 'MOV', 'PDF', 'DOCX'];
 
 function describe(files: File[]): string {
   if (files.length === 1) return files[0].name;
@@ -16,10 +16,12 @@ function describe(files: File[]): string {
   const photos = count((f) => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp|avif|bmp)$/i.test(f.name));
   const videos = count((f) => f.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|m4v|avi|3gp)$/i.test(f.name));
   const pdfs = count((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  const docs = count((f) => /\.docx$/i.test(f.name));
   const parts = [
     photos && `${photos} photo${photos === 1 ? '' : 's'}`,
     videos && `${videos} video${videos === 1 ? '' : 's'}`,
     pdfs && `${pdfs} PDF${pdfs === 1 ? '' : 's'}`,
+    docs && `${docs} Word document${docs === 1 ? '' : 's'}`,
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : `${files.length} files`;
 }
@@ -89,7 +91,7 @@ export function SmartDrop() {
             accept={ANY_TOOL_ACCEPT}
             badges={BADGES}
             onFiles={(list) => setFiles(Array.from(list))}
-            title="Drop a photo, video or PDF"
+            title="Drop a photo, video, PDF or Word file"
             short
           />
           <p className="mt-3 text-sm text-muted">We&apos;ll show you what you can do with it. Nothing is uploaded.</p>
@@ -125,7 +127,8 @@ export function SmartDrop() {
           ) : (
             <p className="flex items-start gap-2 rounded-xl bg-surface-2/60 p-3 text-sm text-muted">
               <FileQuestion className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              CompressKit works with photos (JPG, PNG, HEIC, WebP, AVIF, BMP), videos (MP4, MOV, WebM, MKV and more) and PDFs.
+              CompressKit works with photos (JPG, PNG, HEIC, WebP, AVIF, BMP), videos (MP4, MOV, WebM, MKV and more), PDFs and Word
+              documents (DOCX).
             </p>
           )}
         </motion.section>

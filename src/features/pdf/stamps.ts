@@ -9,7 +9,7 @@ type Lib = typeof import('@cantoo/pdf-lib');
  * everything here is positioned in displayed coordinates (origin bottom-left, y up) and converted
  * back to the page's own, unrotated coordinates when drawn.
  */
-interface View {
+export interface View {
   width: number;
   height: number;
   /** Page rotation, clockwise, in degrees. */
@@ -17,7 +17,7 @@ interface View {
   toPage: (x: number, y: number) => { x: number; y: number };
 }
 
-function viewOf(page: PDFPage): View {
+export function viewOf(page: PDFPage): View {
   const box = page.getCropBox();
   const rotation = ((((page.getRotation().angle % 360) + 360) % 360) as View['rotation']);
   const { x: bx, y: by, width: w, height: h } = box;
@@ -41,7 +41,7 @@ function viewOf(page: PDFPage): View {
  * bottom-left corner at a displayed point. Counter-rotating by the page's rotation cancels the
  * viewer's rotation.
  */
-function drawBox(
+export function drawBox(
   lib: Lib,
   view: View,
   corner: { x: number; y: number },

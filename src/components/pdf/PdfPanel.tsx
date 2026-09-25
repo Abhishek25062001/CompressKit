@@ -1,4 +1,4 @@
-import { ClipboardList, Download, EyeOff, FileDown, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, Trash2, type LucideIcon } from 'lucide-react';
+import { ClipboardList, Download, EyeOff, FileDown, FilePen, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, Trash2, type LucideIcon } from 'lucide-react';
 import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
@@ -15,10 +15,12 @@ import { CleanTab, FormsTab, OcrTab, ProtectTab, ScanTab } from './PdfExtraTabs'
 import { SignatureMaker } from './SignatureMaker';
 import { StampSettings } from './StampSettings';
 
-type Tab = 'save' | 'split' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
+export type PdfTab = 'save' | 'edit' | 'split' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
+type Tab = PdfTab;
 
 const TOOLS: { value: Tab; label: string; icon: LucideIcon }[] = [
   { value: 'save', label: 'Save', icon: FileDown },
+  { value: 'edit', label: 'Edit', icon: FilePen },
   { value: 'split', label: 'Split', icon: Scissors },
   { value: 'images', label: 'Images', icon: Images },
   { value: 'compress', label: 'Compress', icon: Minimize2 },
@@ -30,10 +32,10 @@ const TOOLS: { value: Tab; label: string; icon: LucideIcon }[] = [
   { value: 'ocr', label: 'OCR', icon: ScanText },
 ];
 
-/** Ten tools do not fit a row of tabs: a two-row grid of buttons, one pressed at a time. */
+/** Eleven tools do not fit a row of tabs: a grid of buttons, one pressed at a time. */
 function ToolGrid({ value, onChange }: { value: Tab; onChange: (tab: Tab) => void }) {
   return (
-    <div role="group" aria-label="PDF tool" className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-surface-2 p-1">
+    <div role="group" aria-label="PDF tool" className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface-2 p-1">
       {TOOLS.map(({ value: tool, label, icon: Icon }) => {
         const active = tool === value;
         return (
@@ -195,8 +197,74 @@ function SignTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
   );
 }
 
-export function PdfPanel() {
-  const [tab, setTab] = useState<Tab>('save');
+/** Lists the pages with edits, opens the editor, and downloads the edited PDF. */
+function EditTab({ target, count, busy }: { target: PdfPage[]; count: string; busy: boolean }) {
+  // Plain strings ("id:number"), so the shallow comparison sees an unchanged list as equal.
+  const edited = usePdfStore(useShallow((s) => s.pages.flatMap((p, i) => (p.edits?.length ? [`${p.id}:${i + 1}`] : [])))).map((entry) => {
+    const [id, n] = entry.split(':');
+    return { id, n };
+  });
+  const first = usePdfStore((s) => (s.pages.find((p) => p.selected) ?? s.pages[0])?.id);
+  const firstNumber = usePdfStore((s) => Math.max(1, s.pages.findIndex((p) => p.id === first) + 1));
+  const { setEditingPage, pages } = usePdfStore.getState();
+  const flattenCovered = usePdfSettingsStore((s) => s.flattenCovered);
+  return (
+    <>
+      <p className="flex gap-2 text-xs text-muted">
+        <FilePen className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+        Press Edit on a page to change its text, add text boxes and pictures, white out, highlight or draw.
+      </p>
+      <Button onClick={() => first && setEditingPage(first)} disabled={busy || !first} icon={<FilePen className="h-4 w-4" aria-hidden />}>
+        Edit page {firstNumber}
+      </Button>
+      {edited.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-fg">
+            Edited pages:{' '}
+            {edited.map((e, i) => (
+              <span key={e.id}>
+                {i > 0 && ', '}
+                <button type="button" className="font-medium text-accent-text underline-offset-2 hover:underline" onClick={() => setEditingPage(e.id)}>
+                  {e.n}
+                </button>
+              </span>
+            ))}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => pages.forEach((p) => p.edits?.length && usePdfStore.getState().updatePage(p.id, { edits: [] }))}
+            icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}
+          >
+            Undo all edits
+          </Button>
+        </div>
+      )}
+      <Button
+        variant="primary"
+        className="w-full"
+        disabled={busy || !target.length}
+        onClick={() => void savePdf(target)}
+        icon={<Download className="h-4 w-4" aria-hidden />}
+      >
+        Download edited PDF ({count})
+      </Button>
+      <Switch
+        label="Remove covered text for good"
+        description={
+          flattenCovered
+            ? 'Pages with white-out or retyped text are saved as pictures, so nothing underneath can be recovered. Their text is no longer selectable.'
+            : 'White-out and retyped text only cover the original: it is still in the file and can be copied or found by search. Turn this on for private details.'
+        }
+        checked={flattenCovered}
+        onChange={(v) => usePdfSettingsStore.getState().update({ flattenCovered: v })}
+      />
+    </>
+  );
+}
+
+export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [scope, setScope] = useState<Scope>('all');
   const settings = usePdfSettingsStore();
   const { pages, busy, hasPhotos } = usePdfStore(
@@ -414,6 +482,7 @@ export function PdfPanel() {
           </>
         )}
 
+        {tab === 'edit' && <EditTab target={target} count={count} busy={busy} />}
         {tab === 'sign' && <SignTab target={target} count={count} busy={busy} />}
         {tab === 'scan' && <ScanTab target={target} count={count} busy={busy} />}
         {tab === 'forms' && <FormsTab target={target} count={count} busy={busy} />}
