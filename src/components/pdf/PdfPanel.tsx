@@ -1,4 +1,4 @@
-import { ClipboardList, Download, EyeOff, FileDown, FilePen, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, Trash2, type LucideIcon } from 'lucide-react';
+import { Download, FilePen, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
@@ -13,30 +13,16 @@ import { Switch } from '../common/Switch';
 import { TargetSizeField } from '../settings/TargetSizeField';
 import { CleanTab, FormsTab, OcrTab, ProtectTab, ScanTab } from './PdfExtraTabs';
 import { SignatureMaker } from './SignatureMaker';
+import { PDF_TOOLS, type PdfTab } from './pdfTools';
 import { StampSettings } from './StampSettings';
 
-export type PdfTab = 'save' | 'edit' | 'split' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
 type Tab = PdfTab;
-
-const TOOLS: { value: Tab; label: string; icon: LucideIcon }[] = [
-  { value: 'save', label: 'Save', icon: FileDown },
-  { value: 'edit', label: 'Edit', icon: FilePen },
-  { value: 'split', label: 'Split', icon: Scissors },
-  { value: 'images', label: 'Images', icon: Images },
-  { value: 'compress', label: 'Compress', icon: Minimize2 },
-  { value: 'sign', label: 'Sign', icon: PenLine },
-  { value: 'scan', label: 'Scan', icon: ScanLine },
-  { value: 'forms', label: 'Forms', icon: ClipboardList },
-  { value: 'protect', label: 'Protect', icon: Lock },
-  { value: 'clean', label: 'Clean', icon: EyeOff },
-  { value: 'ocr', label: 'OCR', icon: ScanText },
-];
 
 /** Eleven tools do not fit a row of tabs: a grid of buttons, one pressed at a time. */
 function ToolGrid({ value, onChange }: { value: Tab; onChange: (tab: Tab) => void }) {
   return (
     <div role="group" aria-label="PDF tool" className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface-2 p-1">
-      {TOOLS.map(({ value: tool, label, icon: Icon }) => {
+      {PDF_TOOLS.map(({ value: tool, label, icon: Icon }) => {
         const active = tool === value;
         return (
           <button
