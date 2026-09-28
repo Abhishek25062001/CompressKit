@@ -22,6 +22,7 @@ import {
   Palette as PaletteIcon,
   Pilcrow,
   Presentation,
+  Sheet,
   Printer,
   Crop,
   Eye,
@@ -324,6 +325,20 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: Images, title: 'Looks the same', body: 'Photos, charts, shapes and backgrounds stay exactly as they were, behind the text.' },
       { icon: Layers, title: 'One slide per page', body: 'Slides take the size of your PDF pages, so nothing is squeezed or cropped.' },
       { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
+    ],
+  },
+  'excel-to-pdf': {
+    icon: Sheet,
+    steps: [
+      ['Add workbooks', 'Drop Excel (.xlsx) or CSV files, one or many.'],
+      ['Choose the page', 'A4 or Letter, orientation, fit to width and gridlines.'],
+      ['Download', 'Save each PDF, or all of them as a ZIP.'],
+    ],
+    highlights: [
+      { icon: PaletteIcon, title: 'Formatting kept', body: 'Fonts, fill colours, borders, merged cells, alignment and wrapped text, as in Excel.' },
+      { icon: Table2, title: 'Numbers as shown', body: 'Dates, times, currency, percentages and thousands separators appear exactly as Excel formats them.' },
+      { icon: Maximize, title: 'Fits the page', body: 'Wide sheets fit across one page, or continue over several; title rows repeat on each page.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your spreadsheet is never uploaded.' },
     ],
   },
 };

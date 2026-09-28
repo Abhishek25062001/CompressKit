@@ -11,7 +11,7 @@ import {
 import { CATALOG, type ToolId } from './catalog';
 import { isConvertKind } from '../store/docsStore';
 import { addToConverter, openInEditor } from './docs/actions';
-import { HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, TEXT_FORMAT } from './docs/formats';
+import { CSV_FORMAT, HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, SHEET_FORMAT, TEXT_FORMAT } from './docs/formats';
 import { DOCX_FORMAT, PDF_FORMAT, PDF_INPUT_FORMATS, addPdfFiles } from './pdf/intake';
 import { TOOLS } from './tools';
 import { TRIM_INPUT_FORMATS, loadTrimFile } from './trim/trimJob';
@@ -36,6 +36,7 @@ const FORMATS: Record<ToolId, FormatDef[]> = {
   'pdf-to-text': [PDF_FORMAT],
   'pdf-to-html': [PDF_FORMAT],
   'pdf-to-pptx': [PDF_FORMAT],
+  'excel-to-pdf': [SHEET_FORMAT, CSV_FORMAT],
 };
 
 /** Accept list for a file picker that offers every format some tool can open. */

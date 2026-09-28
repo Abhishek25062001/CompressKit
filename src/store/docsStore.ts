@@ -42,7 +42,7 @@ export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
 /** Every document converter, each with a list of its own. */
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx';
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx' | 'excel-to-pdf';
 
 export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
   'docx-to-pdf': useDocxToPdfStore,
@@ -53,6 +53,7 @@ export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueStat
   'pdf-to-text': createQueue(),
   'pdf-to-html': createQueue(),
   'pdf-to-pptx': createQueue(),
+  'excel-to-pdf': createQueue(),
 };
 
 export function isConvertKind(id: string): id is ConvertKind {
@@ -176,5 +177,22 @@ export const usePdfToPptxSettings = create<PdfToPptxSettings>()(
     version: 1,
     storage: createJSONStorage(() => localStorage),
     partialize: (s) => ({ mode: s.mode, quality: s.quality }),
+  }),
+);
+
+export interface ExcelToPdfSettings {
+  page: DocPageSize;
+  orientation: 'auto' | 'portrait' | 'landscape';
+  fitWidth: boolean;
+  gridlines: boolean;
+  update: (patch: Partial<Omit<ExcelToPdfSettings, 'update'>>) => void;
+}
+
+export const useExcelToPdfSettings = create<ExcelToPdfSettings>()(
+  persist((set) => ({ page: 'a4', orientation: 'auto', fitWidth: true, gridlines: true, update: (patch) => set(patch) }), {
+    name: 'compresskit-excel-to-pdf',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ page: s.page, orientation: s.orientation, fitWidth: s.fitWidth, gridlines: s.gridlines }),
   }),
 );

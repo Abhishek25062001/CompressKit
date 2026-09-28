@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Download, FileCode, FileText, FileType, FileType2, Loader2, PenSquare, Pilcrow, Presentation, Printer, RotateCcw, Trash2, X, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileCode, FileText, FileType, FileType2, Loader2, PenSquare, Pilcrow, Presentation, Printer, Sheet, RotateCcw, Trash2, X, type LucideIcon } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { acceptAttribute, type FormatDef } from '../../constants/formats';
 import { TOOL_BY_ID } from '../../features/catalog';
 import { addToConverter, downloadAllJobs, openInEditor, retryJob } from '../../features/docs/actions';
-import { HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, TEXT_FORMAT } from '../../features/docs/formats';
+import { CSV_FORMAT, HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, SHEET_FORMAT, TEXT_FORMAT } from '../../features/docs/formats';
 import { DOCX_FORMAT, PDF_FORMAT } from '../../features/pdf/intake';
 import {
   DOC_QUEUES,
@@ -13,6 +13,7 @@ import {
   usePdfToHtmlSettings,
   usePdfToPptxSettings,
   usePdfToTextSettings,
+  useExcelToPdfSettings,
   useTextToPdfSettings,
   type ConvertKind,
   type DocJob,
@@ -48,6 +49,7 @@ const UI: Record<ConvertKind, KindUi> = {
   'pdf-to-text': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'text', icon: FileText },
   'pdf-to-html': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'HTML', icon: FileCode },
   'pdf-to-pptx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'PowerPoint', icon: Presentation },
+  'excel-to-pdf': { formats: [SHEET_FORMAT, CSV_FORMAT], badges: ['XLSX', 'CSV'], title: 'Drop Excel workbooks here', to: 'PDF', icon: Sheet },
 };
 
 /** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
@@ -177,7 +179,48 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
   const toText = usePdfToTextSettings();
   const toHtml = usePdfToHtmlSettings();
   const toPptx = usePdfToPptxSettings();
+  const excel = useExcelToPdfSettings();
   switch (kind) {
+    case 'excel-to-pdf':
+      return (
+        <>
+          <PageSizeRow value={excel.page} onChange={(page) => excel.update({ page })} />
+          <Row label="Orientation">
+            <SegmentedControl
+              label="Orientation"
+              size="sm"
+              value={excel.orientation}
+              onChange={(orientation) => excel.update({ orientation })}
+              segments={[
+                { value: 'auto', label: 'Auto' },
+                { value: 'portrait', label: 'Portrait' },
+                { value: 'landscape', label: 'Landscape' },
+              ]}
+            />
+          </Row>
+          <Switch
+            label="Fit all columns on one page"
+            description={
+              excel.fitWidth
+                ? 'Wide sheets are scaled down so every column fits across the page.'
+                : 'Columns keep their size; columns that do not fit continue on the next pages, as Excel prints them.'
+            }
+            checked={excel.fitWidth}
+            onChange={(fitWidth) => excel.update({ fitWidth })}
+          />
+          <Switch
+            label="Gridlines"
+            description="Light lines between cells, for sheets without borders of their own."
+            checked={excel.gridlines}
+            onChange={(gridlines) => excel.update({ gridlines })}
+          />
+          {reconvert}
+          <p className="text-xs text-muted">
+            Every visible sheet is printed with its fonts, colours, borders, merged cells, number formats (dates, currency,
+            percentages) and pictures. Print areas and repeated title rows set in Excel are followed. Charts are not included.
+          </p>
+        </>
+      );
     case 'pdf-to-pptx':
       return (
         <>

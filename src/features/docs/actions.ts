@@ -6,6 +6,7 @@ import {
   usePdfToDocxSettings,
   usePdfToHtmlSettings,
   usePdfToPptxSettings,
+  useExcelToPdfSettings,
   usePdfToTextSettings,
   useTextToPdfSettings,
   type ConvertKind,
@@ -20,7 +21,7 @@ import { PdfOpenError } from '../pdf/documents';
 import { askPassword } from '../pdf/passwordPrompt';
 import { DocxReadError, isDocx, readDocx } from './docxRead';
 import { writeDocx } from './docxWrite';
-import { isHtml, isPlainText, isRtf } from './formats';
+import { isCsv, isHtml, isPlainText, isRtf, isSpreadsheet } from './formats';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -234,6 +235,36 @@ export const CONVERTERS: Record<ConvertKind, Converter> = {
         notes.push(`${result.pictureOnly} page${result.pictureOnly === 1 ? ' has' : 's have'} no text to edit (a scan or drawing) and ${result.pictureOnly === 1 ? 'is a picture' : 'are pictures'} on ${result.pictureOnly === 1 ? 'its slide' : 'their slides'}.`);
       }
       return { blob: result.blob, name: `${sanitizeBaseName(file.name)}.pptx`, pages: result.pages, notes };
+    },
+  },
+  'excel-to-pdf': {
+    accepts: (f) => isSpreadsheet(f) || /\.(xls|numbers|ods)$/i.test(f.name),
+    takes: 'Excel to PDF takes Excel workbooks (.xlsx) and CSV files.',
+    failure: 'The workbook could not be converted. It may be too large for this browser.',
+    async convert(file, progress) {
+      if (/\.xls$/i.test(file.name)) throw new ConvertError('This is an old .xls file. Open it in Excel or Google Sheets and save it as .xlsx first.');
+      if (/\.(numbers|ods)$/i.test(file.name)) throw new ConvertError('Export this spreadsheet as Excel (.xlsx) from Numbers or LibreOffice first.');
+      progress(0.05, 'Reading workbook');
+      const { readXlsx, csvToWorkbook, XlsxReadError } = await import('../office/xlsxRead');
+      const { workbookToPdf } = await import('../office/xlsxPdf');
+      const base = sanitizeBaseName(file.name);
+      let workbook;
+      try {
+        if (isCsv(file)) {
+          const { decodeText } = await import('./textRead');
+          workbook = csvToWorkbook(decodeText(new Uint8Array(await file.arrayBuffer())), base);
+        } else workbook = readXlsx(new Uint8Array(await file.arrayBuffer()));
+      } catch (e) {
+        if (e instanceof XlsxReadError) throw new ConvertError("This isn't an Excel (.xlsx) workbook, or it is damaged.");
+        throw e;
+      }
+      progress(0.25, 'Laying out pages');
+      const settings = useExcelToPdfSettings.getState();
+      const result = await workbookToPdf(workbook, { ...settings, onProgress: (r) => progress(0.25 + r * 0.72) });
+      const notes: string[] = [];
+      if (workbook.warnings.includes('charts')) notes.push('Charts are not included; the cells and pictures are.');
+      if (result.rasterized) notes.push(RASTER_NOTE);
+      return { blob: new Blob([result.bytes as BlobPart], { type: 'application/pdf' }), name: `${base}.pdf`, pages: result.pages, notes };
     },
   },
 };

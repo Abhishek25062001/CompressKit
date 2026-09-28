@@ -22,10 +22,11 @@ export type ToolId =
   | 'html-to-pdf'
   | 'pdf-to-text'
   | 'pdf-to-html'
-  | 'pdf-to-pptx';
+  | 'pdf-to-pptx'
+  | 'excel-to-pdf';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
-export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document';
+export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document' | 'sheet' | 'slides';
 
 export interface ToolInfo {
   id: ToolId;
@@ -290,6 +291,20 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
+    secondary: true,
+  },
+  {
+    id: 'excel-to-pdf',
+    path: '/excel-to-pdf',
+    name: 'Excel to PDF',
+    heading: 'Convert Excel to PDF',
+    tagline: 'Print spreadsheets to PDF with their formatting.',
+    description:
+      'Convert Excel workbooks (XLSX) and CSV files to PDF in your browser, with fonts, colours, borders, merged cells, dates and currency formats, fitted to the page. Nothing is uploaded.',
+    title: 'Excel to PDF Converter: XLSX and CSV to PDF, Free | CompressKit',
+    handles: ['sheet'],
+    formats: 'XLSX · CSV',
+    converts: 'to-pdf',
     secondary: true,
   },
 ];
