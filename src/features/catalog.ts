@@ -51,10 +51,7 @@ export interface ToolInfo {
   converts?: 'to-pdf' | 'from-pdf';
   /** What a "from PDF" converter produces, shown in the converter lists. */
   output?: string;
-  /**
-   * Single-format converters: listed with the converters rather than as cards in the main grid
-   * and menu, which would otherwise run to dozens of near-identical entries.
-   */
+  /** Single-format converters: listed under "Converters" in the footer rather than "Tools". */
   secondary?: true;
 }
 

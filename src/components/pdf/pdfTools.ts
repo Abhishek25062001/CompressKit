@@ -1,4 +1,27 @@
-import { ClipboardList, Crop, EyeOff, FileDown, FilePen, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, type LucideIcon } from 'lucide-react';
+import {
+  ClipboardList,
+  Crop,
+  EyeOff,
+  FileDown,
+  FileImage,
+  FilePen,
+  Image,
+  Images,
+  Layers,
+  LayoutGrid,
+  ListOrdered,
+  Lock,
+  LockOpen,
+  Minimize2,
+  PenLine,
+  ScanLine,
+  ScanText,
+  Scissors,
+  Stamp,
+  type LucideIcon,
+} from 'lucide-react';
+import { usePdfSettingsStore } from '../../store/pdfStore';
+import type { PdfImageFormat } from '../../types/pdf';
 
 export type PdfTab = 'save' | 'edit' | 'split' | 'crop' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
 
@@ -133,3 +156,90 @@ export const PDF_TOOLS: PdfToolInfo[] = [
 ];
 
 export const PDF_TOOL_BY_TAB = Object.fromEntries(PDF_TOOLS.map((t) => [t.value, t])) as Record<PdfTab, PdfToolInfo>;
+
+/** Something the PDF page can be opened for: one of its tools, or a job done inside one. */
+export interface PdfJob extends Omit<PdfToolInfo, 'value' | 'label'> {
+  /** The panel tab that does the job. */
+  tab: PdfTab;
+  /** Turns on the setting the job needs, such as page numbers. */
+  apply?: () => void;
+}
+
+const settings = () => usePdfSettingsStore.getState();
+const pagesAs = (imageFormat: PdfImageFormat) => () => settings().update({ imageFormat });
+
+/**
+ * Jobs with links of their own ("/pdf#page-numbers") that are done inside one of the tools
+ * above: the page names the job above the drop zone and opens its tab with the right setting on.
+ */
+const PDF_SHORTCUTS: Record<string, PdfJob> = {
+  organize: {
+    tab: 'save',
+    name: 'Organize pages',
+    description: 'Drag pages to reorder them, and rotate or delete them with the buttons on each page. Then save.',
+    dropTitle: 'Drop a PDF to organize',
+    badges: PDF_ONLY,
+    icon: LayoutGrid,
+  },
+  'page-numbers': {
+    tab: 'save',
+    name: 'Add page numbers',
+    description: 'Page numbers are switched on under "Add to every page", where you can pick their corner and style.',
+    dropTitle: 'Drop a PDF to number its pages',
+    badges: PDF_ONLY,
+    icon: ListOrdered,
+    apply: () => settings().update({ pageNumbers: { ...settings().pageNumbers, enabled: true } }),
+  },
+  watermark: {
+    tab: 'save',
+    name: 'Add watermark',
+    description: 'The watermark is switched on under "Add to every page": type your text or add a logo there.',
+    dropTitle: 'Drop a PDF to watermark',
+    badges: PDF_ONLY,
+    icon: Stamp,
+    apply: () => settings().update({ watermark: { ...settings().watermark, enabled: true } }),
+  },
+  unlock: {
+    tab: 'save',
+    name: 'Unlock PDF',
+    description: 'Add the locked PDF and type its password when asked. The copy you save has no password.',
+    dropTitle: 'Drop a password-protected PDF',
+    badges: PDF_ONLY,
+    icon: LockOpen,
+  },
+  jpg: {
+    tab: 'images',
+    name: 'PDF to JPG',
+    description: 'Save pages as JPG pictures at the resolution you choose.',
+    dropTitle: 'Drop a PDF to turn into JPGs',
+    badges: PDF_ONLY,
+    icon: FileImage,
+    apply: pagesAs('jpeg'),
+  },
+  png: {
+    tab: 'images',
+    name: 'PDF to PNG',
+    description: 'Save pages as lossless PNG pictures at the resolution you choose.',
+    dropTitle: 'Drop a PDF to turn into PNGs',
+    badges: PDF_ONLY,
+    icon: Image,
+    apply: pagesAs('png'),
+  },
+  tiff: {
+    tab: 'images',
+    name: 'PDF to TIFF',
+    description: 'Save pages as one multi-page TIFF or a file per page, in colour or grey.',
+    dropTitle: 'Drop a PDF to turn into TIFF',
+    badges: PDF_ONLY,
+    icon: Layers,
+    apply: pagesAs('tiff'),
+  },
+};
+
+/** Every PDF page hash ("/pdf#split", "/pdf#unlock") and what it opens. */
+export const PDF_JOBS: Record<string, PdfJob> = {
+  ...Object.fromEntries(
+    PDF_TOOLS.map((t) => [t.value, { name: t.name, description: t.description, dropTitle: t.dropTitle, badges: t.badges, icon: t.icon, tab: t.value }]),
+  ),
+  ...PDF_SHORTCUTS,
+};

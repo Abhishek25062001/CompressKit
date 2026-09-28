@@ -19,6 +19,11 @@ interface UiState {
   closeFileSettings: () => void;
   pushNotice: (notice: Omit<Notice, 'id'>) => void;
   dismissNotice: (id: string) => void;
+  /** Whether the full-page tools launcher is open, and whether it opened to type a search. */
+  toolsOpen: boolean;
+  toolsSearch: boolean;
+  openTools: (search?: boolean) => void;
+  closeTools: () => void;
 }
 
 let noticeSeq = 0;
@@ -34,4 +39,8 @@ export const useUiStore = create<UiState>()((set) => ({
   pushNotice: (notice) =>
     set((s) => ({ notices: [...s.notices.slice(-3), { ...notice, id: `n${++noticeSeq}` }] })),
   dismissNotice: (id) => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })),
+  toolsOpen: false,
+  toolsSearch: false,
+  openTools: (search = false) => set({ toolsOpen: true, toolsSearch: search }),
+  closeTools: () => set({ toolsOpen: false }),
 }));

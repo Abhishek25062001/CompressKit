@@ -1,5 +1,5 @@
 import { Link } from '../common/Link';
-import { ToolGrid } from '../tools/ToolGrid';
+import { ToolDirectory } from '../tools/ToolDirectory';
 
 export function NotFoundPage() {
   return (
@@ -15,7 +15,7 @@ export function NotFoundPage() {
           .
         </p>
       </div>
-      <ToolGrid />
+      <ToolDirectory />
     </>
   );
 }

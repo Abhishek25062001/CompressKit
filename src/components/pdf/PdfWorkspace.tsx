@@ -16,7 +16,7 @@ import { MergePanel } from './MergePanel';
 import { PageGrid } from './PageGrid';
 import { PdfPanel } from './PdfPanel';
 import { PdfToolPicker } from './PdfToolPicker';
-import { PDF_TOOL_BY_TAB, type PdfTab } from './pdfTools';
+import { PDF_JOBS, type PdfTab } from './pdfTools';
 import { PasswordDialog } from './PasswordDialog';
 import { ScanDialog } from './ScanDialog';
 import { SignDialog } from './SignDialog';
@@ -90,29 +90,35 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
   const hasPages = usePdfStore((s) => s.pages.length > 0);
   const busy = usePdfStore((s) => s.busy);
   // PDF tools shows its tools first and asks for files once one is picked. Edit PDF and Merge
-  // documents are one tool each, so they ask for files straight away.
-  const [picked, setPicked] = useState<PdfTab | null>(() => {
+  // documents are one tool each, so they ask for files straight away. `picked` is a PDF_JOBS key:
+  // a tool ("split") or a job done inside one ("page-numbers").
+  const [picked, setPicked] = useState<string | null>(() => {
     if (variant !== 'pdf') return variant === 'edit' ? 'edit' : 'save';
     const hash = useRouteStore.getState().hash;
-    return hash in PDF_TOOL_BY_TAB ? (hash as PdfTab) : null;
+    return hash in PDF_JOBS ? hash : null;
   });
-  const tool = picked ? PDF_TOOL_BY_TAB[picked] : null;
+  // Counts links followed while the page is open, so the panel switches tab even to the same job.
+  const [request, setRequest] = useState(0);
+  const tool = picked ? PDF_JOBS[picked] : null;
   const pick = (tab: PdfTab | null) => {
     setPicked(tab);
     requestAnimationFrame(() => document.getElementById('tool')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
   const onFiles = (files: FileList) => void addPdfFiles(Array.from(files));
 
-  // Links such as "/pdf#images" (from the converter lists) open that tool, also when PDF tools is
-  // already on screen.
-  useEffect(
-    () =>
-      useRouteStore.subscribe((route, previous) => {
-        if (variant !== 'pdf' || route.visit === previous.visit || !(route.hash in PDF_TOOL_BY_TAB)) return;
-        if (!usePdfStore.getState().pages.length) setPicked(route.hash as PdfTab);
-      }),
-    [variant],
-  );
+  // Links such as "/pdf#images" or "/pdf#watermark" (from the tools launcher and home page) open
+  // that job with its setting on, also when PDF tools is already on screen with pages in it.
+  useEffect(() => {
+    if (variant !== 'pdf') return;
+    PDF_JOBS[useRouteStore.getState().hash]?.apply?.();
+    return useRouteStore.subscribe((route, previous) => {
+      const job = PDF_JOBS[route.hash];
+      if (route.visit === previous.visit || !job) return;
+      job.apply?.();
+      setPicked(route.hash);
+      setRequest((n) => n + 1);
+    });
+  }, [variant]);
 
   // Paste photos or PDFs anywhere on the page while the PDF tool is open.
   useEffect(() => {
@@ -219,7 +225,7 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
               {dropZone(true)}
             </div>
             <div className="lg:sticky lg:top-20">
-              {variant === 'merge' ? <MergePanel /> : <PdfPanel initialTab={picked ?? 'save'} />}
+              {variant === 'merge' ? <MergePanel /> : <PdfPanel initialTab={tool?.tab ?? 'save'} request={request} />}
             </div>
           </motion.div>
         )}

@@ -350,8 +350,14 @@ function EditTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
   );
 }
 
-export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
+/** `request` changes each time a link asks for a tab, which then replaces the one on screen. */
+export function PdfPanel({ initialTab = 'save', request = 0 }: { initialTab?: PdfTab; request?: number }) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [shownRequest, setShownRequest] = useState(request);
+  if (shownRequest !== request) {
+    setShownRequest(request);
+    setTab(initialTab);
+  }
   const [scope, setScope] = useState<Scope>('all');
   const settings = usePdfSettingsStore();
   const { pages, busy, hasPhotos } = usePdfStore(

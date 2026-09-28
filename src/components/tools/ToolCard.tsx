@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import type { FileKind, ToolInfo } from '../../features/catalog';
 import { TOOL_CONTENT } from '../../features/toolContent';
 import { cn } from '../../utils/cn';
@@ -8,15 +8,10 @@ const KIND_LABEL: Record<FileKind, string> = { image: 'Photos', video: 'Videos',
 
 interface ToolCardProps {
   tool: ToolInfo;
-  /**
-   * Classes that show the tool's main strengths from the breakpoint where the card spans two
-   * columns, e.g. "lg:flex". Without it the list is never shown.
-   */
-  highlightsFrom?: string;
   className?: string;
 }
 
-export function ToolCard({ tool, highlightsFrom, className }: ToolCardProps) {
+export function ToolCard({ tool, className }: ToolCardProps) {
   const Icon = TOOL_CONTENT[tool.id].icon;
   return (
     <Link
@@ -34,16 +29,6 @@ export function ToolCard({ tool, highlightsFrom, className }: ToolCardProps) {
       </div>
       <h3 className="mt-4 font-semibold text-fg">{tool.name}</h3>
       <p className="mt-1 text-sm text-muted">{tool.tagline}</p>
-      {highlightsFrom && (
-        <ul className={cn('mt-3 hidden flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-fg/80', highlightsFrom)}>
-          {TOOL_CONTENT[tool.id].highlights.slice(0, 3).map((h) => (
-            <li key={h.title} className="inline-flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 text-accent-text" aria-hidden />
-              {h.title}
-            </li>
-          ))}
-        </ul>
-      )}
       <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-4">
         {tool.handles.map((kind) => (
           <span key={kind} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">

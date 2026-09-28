@@ -4,8 +4,7 @@ import { HighlightGrid } from '../sections/HighlightGrid';
 import { Hero } from '../sections/Hero';
 import { Privacy } from '../sections/Privacy';
 import { StepList } from '../sections/StepList';
-import { ConverterLinks } from '../tools/ConverterLinks';
-import { ToolGrid } from '../tools/ToolGrid';
+import { ToolDirectory } from '../tools/ToolDirectory';
 
 const WHY: Highlight[] = [
   {
@@ -31,7 +30,7 @@ const WHY: Highlight[] = [
 ];
 
 const STEPS: [string, string][] = [
-  ['Choose a tool', 'Pick one below, or drop a file above to see which tools can open it.'],
+  ['Choose a tool', 'Browse the tools above by category, or search for the job you have in mind.'],
   ['Add your files', 'Drop, paste or pick them. They are read by your browser, not sent anywhere.'],
   ['Download', 'Check the result and save it. Close the tab and nothing is left behind.'],
 ];
@@ -40,8 +39,7 @@ export function HomePage() {
   return (
     <>
       <Hero />
-      <ToolGrid />
-      <ConverterLinks />
+      <ToolDirectory />
       <StepList id="how-it-works" eyebrow="How it works" title="Three steps. No uploads." steps={STEPS} />
       <HighlightGrid id="features" eyebrow="Why CompressKit" title="Serious tools, zero setup" items={WHY} />
       <Privacy />

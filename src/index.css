@@ -26,6 +26,14 @@
   --warning-soft: #fdf1dc;
   --ring: #0a8069;
   --shadow-color: 180 10% 20%;
+  /* One hue per tool category (features/directory.ts), for icons in the launcher and home page. */
+  --cat-photos: #0a8069;
+  --cat-resize: #0b7597;
+  --cat-video: #7c3aed;
+  --cat-word: #2361d8;
+  --cat-pdf: #cf3a2c;
+  --cat-to-pdf: #b9540f;
+  --cat-from-pdf: #bf2f78;
   color-scheme: light;
 }
 
@@ -51,6 +59,13 @@
   --warning-soft: #2b2110;
   --ring: #34d6ae;
   --shadow-color: 0 0% 0%;
+  --cat-photos: #34d6ae;
+  --cat-resize: #45c6e6;
+  --cat-video: #ad91ff;
+  --cat-word: #72a8ff;
+  --cat-pdf: #ff8177;
+  --cat-to-pdf: #fb9f55;
+  --cat-from-pdf: #f47bbd;
   color-scheme: dark;
 }
 
@@ -124,6 +139,25 @@
   }
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+  /* An icon square in its category's hue (set --hue on it or a parent); solid inside a hovered .group. */
+  .hue-tile {
+    color: var(--hue);
+    background-color: color-mix(in oklab, var(--hue) 13%, transparent);
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+  .group:hover .hue-tile,
+  .group:focus-visible .hue-tile {
+    color: var(--surface);
+    background-color: var(--hue);
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
   .bg-grid {
     background-image:

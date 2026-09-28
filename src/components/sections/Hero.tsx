@@ -1,6 +1,10 @@
 import { motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Search } from 'lucide-react';
+import { FEATURES, POPULAR_FEATURES } from '../../features/directory';
+import { useUiStore } from '../../store/uiStore';
+import { TOOLS_SHORTCUT } from '../../utils/shortcut';
 import { Link } from '../common/Link';
+import { hue } from '../tools/hue';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -8,6 +12,7 @@ const fadeUp = {
 };
 
 export function Hero() {
+  const openTools = useUiStore((s) => s.openTools);
   return (
     <section id="top" className="relative overflow-hidden">
       <div className="bg-grid pointer-events-none absolute inset-0" aria-hidden />
@@ -25,7 +30,7 @@ export function Hero() {
           className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 px-3 py-1 text-xs font-medium text-muted backdrop-blur"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-          Private file tools · Nothing is uploaded
+          {FEATURES.length} private file tools · Nothing is uploaded
         </motion.p>
         <motion.h1
           custom={1}
@@ -44,18 +49,48 @@ export function Hero() {
           animate="show"
           className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted sm:text-lg"
         >
-          Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, and work with PDFs.
-          Everything runs right here in your browser.
+          Compress, convert, resize and trim photos and videos. Merge, split, sign, edit and convert PDFs, Word, Excel and PowerPoint
+          files. Everything runs right here in your browser.
         </motion.p>
+        <motion.div custom={3} variants={fadeUp} initial="hidden" animate="show" className="mx-auto mt-8 max-w-3xl">
+          <button
+            type="button"
+            onClick={() => openTools(true)}
+            aria-haspopup="dialog"
+            className="group mx-auto flex h-13 w-full max-w-xl items-center gap-3 rounded-2xl border border-border bg-surface px-4 text-left shadow-[var(--shadow-soft)] transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-[var(--shadow-lift)]"
+          >
+            <Search className="h-5 w-5 shrink-0 text-muted transition-colors group-hover:text-accent-text" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[15px] text-subtle">
+              Search {FEATURES.length} tools<span className="hidden sm:inline">, like “PDF to Word” or “passport”</span>
+            </span>
+            <kbd className="hidden shrink-0 rounded-md border border-border bg-surface-2 px-2 py-0.5 font-sans text-xs text-muted sm:inline" aria-hidden>
+              {TOOLS_SHORTCUT}
+            </kbd>
+          </button>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs font-medium tracking-wide text-subtle uppercase">Popular</span>
+            {POPULAR_FEATURES.map((f) => (
+              <Link
+                key={f.key}
+                to={f.to}
+                style={hue(f.category)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/80 px-3 py-1 text-[13px] text-muted backdrop-blur transition-colors hover:border-(color:--hue)/60 hover:text-fg"
+              >
+                <f.icon className="h-3.5 w-3.5 text-(color:--hue)" aria-hidden />
+                {f.name}
+              </Link>
+            ))}
+          </div>
+        </motion.div>
         <motion.div
           custom={4}
           variants={fadeUp}
           initial="hidden"
           animate="show"
-          className="mt-6 flex flex-col items-center gap-2 text-sm text-muted sm:flex-row sm:justify-center sm:gap-2"
+          className="mt-7 flex flex-col items-center gap-2 text-sm text-muted sm:flex-row sm:justify-center sm:gap-2"
         >
           <Link to="/#tools" className="inline-flex items-center gap-1.5 rounded-lg font-medium text-accent-text hover:underline">
-            Choose tools <ArrowDown className="h-4 w-4" aria-hidden />
+            Browse all tools by category <ArrowDown className="h-4 w-4" aria-hidden />
           </Link>
           <span className="hidden text-subtle sm:inline" aria-hidden>
             ·
