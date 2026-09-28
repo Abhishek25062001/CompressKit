@@ -850,3 +850,307 @@ export async function pageTextBlocks(page: PDFPageProxy, viewport: ReturnType<PD
   page.cleanup();
   return blocks;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Tables, for PDF to Excel.
+
+export interface SheetCell {
+  value: string | number;
+  bold?: boolean;
+  format?: string;
+}
+
+export interface TablesResult {
+  sheets: { name: string; rows: (SheetCell | null)[][] }[];
+  pages: number;
+  scannedPages: number;
+  ocrPages: number;
+}
+
+interface TextCell {
+  text: string;
+  left: number;
+  right: number;
+  bold: boolean;
+}
+
+/**
+ * Reads a table cell's text as a number where it clearly is one, with the Excel format that
+ * shows it the same way: "1,234.56", "(1,234)", "-12.5%", "$1,200.00", "1.234,56", "2026-01-15".
+ * Codes such as "00123", phone numbers and long account numbers stay text.
+ */
+export function cellValue(text: string, bold: boolean): SheetCell {
+  const t = text.trim();
+  const plain = { value: t, bold: bold || undefined };
+  if (!t || t.length > 24) return plain;
+  const date = (y: number, m: number, d: number, format: string): SheetCell | null => {
+    const year = y < 100 ? 2000 + y - (y > 50 ? 100 : 0) : y;
+    const ms = Date.UTC(year, m, d);
+    const check = new Date(ms);
+    // Rejects days a month does not have, such as 31 April.
+    if (Number.isNaN(ms) || check.getUTCMonth() !== m || check.getUTCDate() !== d) return null;
+    return { value: ms / 86400000 + 25569, format, bold: bold || undefined };
+  };
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (iso) return date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 'yyyy-mm-dd') ?? plain;
+  // Dates with the month's name are unambiguous: 15-Jan-2026, 15 January 2026, Jan 15, 2026.
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const monthOf = (name: string) => MONTHS.indexOf(name.slice(0, 3).toLowerCase());
+  const dmy = /^(\d{1,2})[-\s]([A-Za-z]{3,9})\.?[-\s,]+(\d{2}|\d{4})$/.exec(t);
+  if (dmy && monthOf(dmy[2]) >= 0) {
+    const long = dmy[2].length > 3;
+    const sep = t.includes('-') ? '-' : ' ';
+    return date(Number(dmy[3]), monthOf(dmy[2]), Number(dmy[1]), `d${sep}${long ? 'mmmm' : 'mmm'}${sep}${dmy[3].length === 2 ? 'yy' : 'yyyy'}`) ?? plain;
+  }
+  const mdy = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(t);
+  if (mdy && monthOf(mdy[1]) >= 0) return date(Number(mdy[3]), monthOf(mdy[1]), Number(mdy[2]), `${mdy[1].length > 3 ? 'mmmm' : 'mmm'} d, yyyy`) ?? plain;
+  const m = /^([-−(]?)\s*([$€£₹¥]|USD|EUR|GBP|INR|Rs\.?)?\s*([-−]?)\s*((?:\d{1,2}(?:,\d{2})+,\d{3}|\d{1,3}(?:[,\u00a0 ]\d{3})+|\d+)(?:\.\d+)?|(?:\d{1,3}(?:\.\d{3})+|\d+),\d+)\s*([$€£₹¥]|USD|EUR|GBP|INR)?\s*(%?)\s*(\)?)\s*([-−]?)$/.exec(t);
+  if (!m) return plain;
+  const [, lead, pre, sign, digits, post, pct, close, trail] = m;
+  if (lead === '(' && close !== ')') return plain;
+  if (/^0\d/.test(digits) && !digits.includes('.') && !digits.includes(',')) return plain;
+  const europe = /,\d+$/.test(digits) && !/\.\d+$/.test(digits) && (/\.\d{3}/.test(digits) || !/,\d{3}$/.test(digits));
+  const normalized = europe ? digits.replace(/\./g, '').replace(',', '.') : digits.replace(/[,\u00a0 ]/g, '');
+  if (normalized.replace('.', '').length > 15) return plain;
+  let value = Number(normalized);
+  if (!Number.isFinite(value)) return plain;
+  const negative = lead === '(' || lead === '-' || lead === '−' || sign === '-' || sign === '−' || trail === '-' || trail === '−';
+  if (negative) value = -value;
+  // Decimals are what follows the decimal separator: "," in European numbers, "." otherwise.
+  const decimals = (europe ? digits.split(',')[1] : digits.split('.')[1])?.length ?? 0;
+  const grouped = europe ? /\.\d{3}/.test(digits) : /\d[,\u00a0 ]\d{2,3}/.test(digits);
+  // Indian grouping (2,50,000) keeps its look with Excel's usual lakh and crore format.
+  const indian = /^\d{1,2}(,\d{2})+,\d{3}/.test(digits);
+  const tail = decimals ? `.${'0'.repeat(decimals)}` : '';
+  let format = indian
+    ? `[>=10000000]##\\,##\\,##\\,##0${tail};[>=100000]##\\,##\\,##0${tail};##,##0${tail}`
+    : `${grouped ? '#,##0' : '0'}${tail}`;
+  if (pct) {
+    value /= 100;
+    format += '%';
+  }
+  const currency = pre ?? post;
+  if (currency) {
+    // The symbol goes in every section, after any condition such as [>=100000].
+    const symbol = `"${currency.replace(/\.$/, '')}"`;
+    format = format
+      .split(';')
+      .map((section) => {
+        const cond = /^(\[[^\]]*\])*/.exec(section)![0];
+        const body = section.slice(cond.length);
+        return pre ? `${cond}${symbol}${body}` : `${cond}${body} ${symbol}`;
+      })
+      .join(';');
+  }
+  if (lead === '(' && !format.includes(';')) format = `${format};(${format})`;
+  return { value, format, bold: bold || undefined };
+}
+
+/** Splits a line into chunks wherever a gap is wider than a space between words. */
+function lineChunks(line: TextLine): TextCell[] {
+  const chunks: TextCell[] = [];
+  let current: Piece[] = [];
+  const flush = () => {
+    if (!current.length) return;
+    const text = current
+      .map((p, i) => (i && current[i - 1].x + current[i - 1].width < p.x - p.size * 0.18 && !/\s$/.test(current[i - 1].text) ? ' ' : '') + p.text)
+      .join('')
+      .trim();
+    if (text) {
+      chunks.push({
+        text,
+        left: current[0].x,
+        right: Math.max(...current.map((p) => p.x + p.width)),
+        bold: current.every((p) => p.bold || !p.text.trim()),
+      });
+    }
+    current = [];
+  };
+  for (const p of line.pieces) {
+    const prev = current[current.length - 1];
+    if (prev && p.x - (prev.x + prev.width) > Math.max(p.size, prev.size) * 0.3) flush();
+    current.push(p);
+  }
+  flush();
+  return chunks;
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+
+/**
+ * Splits a chunk at the space nearest each column corridor it crosses. Positions inside a chunk
+ * are estimated from the glyph widths of a similar font, scaled to the chunk's measured width.
+ */
+function splitAtCorridors(chunk: TextCell, corridors: [number, number][], size: number): TextCell[] {
+  const crossing = corridors.filter(([from, to]) => chunk.left < from && chunk.right > to);
+  if (!crossing.length || !chunk.text.includes(' ')) return [chunk];
+  measureCtx ??= document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return [chunk];
+  measureCtx.font = `${chunk.bold ? 'bold ' : ''}${size}px Helvetica, Arial, sans-serif`;
+  const total = measureCtx.measureText(chunk.text).width || 1;
+  const scale = (chunk.right - chunk.left) / total;
+  const cuts: number[] = [];
+  for (const [from, to] of crossing) {
+    const centre = (from + to) / 2;
+    // The space inside the corridor, or nearest to it within one character; ties go to the centre.
+    let best = -1;
+    let bestDist = size;
+    let bestX = 0;
+    for (let k = chunk.text.indexOf(' '); k >= 0; k = chunk.text.indexOf(' ', k + 1)) {
+      const x = chunk.left + measureCtx.measureText(chunk.text.slice(0, k)).width * scale;
+      const d = x < from ? from - x : x > to ? x - to : 0;
+      if (d < bestDist || (d === bestDist && best >= 0 && Math.abs(x - centre) < Math.abs(bestX - centre))) {
+        bestDist = d;
+        best = k;
+        bestX = x;
+      }
+    }
+    if (best > 0 && !cuts.includes(best)) cuts.push(best);
+  }
+  if (!cuts.length) return [chunk];
+  cuts.sort((a, b) => a - b);
+  const pieces: TextCell[] = [];
+  let start = 0;
+  for (const cut of [...cuts, chunk.text.length]) {
+    const text = chunk.text.slice(start, cut).trim();
+    const left = chunk.left + measureCtx.measureText(chunk.text.slice(0, start)).width * scale;
+    const right = chunk.left + measureCtx.measureText(chunk.text.slice(0, cut)).width * scale;
+    if (text) pieces.push({ text, left, right, bold: chunk.bold });
+    start = cut + 1;
+  }
+  return pieces;
+}
+
+const joinCells = (a: TextCell, b: TextCell): TextCell => ({ text: `${a.text} ${b.text}`, left: a.left, right: b.right, bold: a.bold && b.bold });
+
+/**
+ * Lines of one page as spreadsheet rows. Runs of lines made of several chunks are candidate
+ * tables; their column boundaries are the vertical corridors that (almost) no line's text crosses,
+ * the way table extractors read tables drawn without lines. Chunks with no corridor between them
+ * are one cell. Everything else becomes a row with its text in the first column.
+ */
+function pageTable(lines: TextLine[]): (TextCell | null)[][] {
+  const rows = lines.map((line) => ({ line, chunks: lineChunks(line) })).filter((r) => r.chunks.length);
+  const out: (TextCell | null)[][] = [];
+  const lone = (r: (typeof rows)[number]) => {
+    // A line on its own: its chunks are cells only where they are well apart ("Total      €25.00").
+    const cells: TextCell[] = [];
+    for (const c of r.chunks) {
+      const last = cells[cells.length - 1];
+      if (last && c.left - last.right < r.line.size * 1.2) cells[cells.length - 1] = joinCells(last, c);
+      else cells.push(c);
+    }
+    out.push(cells);
+  };
+  let i = 0;
+  while (i < rows.length) {
+    // Lines close together form a group; its table runs from the first to the last line with
+    // several chunks, so a wrapped line inside a table (one chunk) stays part of it.
+    let end = i + 1;
+    while (end < rows.length && rows[end].line.y - rows[end - 1].line.y < Math.max(rows[end].line.size, rows[end - 1].line.size) * 2.6) end++;
+    const group = rows.slice(i, end);
+    const multi = group.map((r, k) => (r.chunks.length >= 2 ? k : -1)).filter((k) => k >= 0);
+    if (multi.length < 2) {
+      group.forEach((r) => (r.chunks.length >= 2 ? lone(r) : out.push([r.chunks[0]])));
+      i = end;
+      continue;
+    }
+    group.slice(0, multi[0]).forEach((r) => out.push([r.chunks[0]]));
+    const region = group.slice(multi[0], multi[multi.length - 1] + 1);
+    const after = group.slice(multi[multi.length - 1] + 1);
+    i = end;
+
+    // Coverage across the region, in half-point steps: how many lines have text at each x.
+    const left = Math.min(...region.flatMap((r) => r.chunks.map((c) => c.left)));
+    const right = Math.max(...region.flatMap((r) => r.chunks.map((c) => c.right)));
+    const bins = new Uint16Array(Math.max(1, Math.ceil((right - left) * 2)) + 1);
+    for (const r of region) {
+      for (const c of r.chunks) {
+        for (let b = Math.floor((c.left - left) * 2); b <= Math.ceil((c.right - left) * 2) && b < bins.length; b++) bins[b]++;
+      }
+    }
+    // A title spanning columns, or a line pdf.js merged across two cells, may cross a corridor.
+    const allowed = region.length >= 4 ? Math.max(1, Math.floor(region.length * 0.15)) : 0;
+    const corridors: [number, number][] = [];
+    for (let b = 0; b < bins.length; ) {
+      if (bins[b] > allowed) {
+        b++;
+        continue;
+      }
+      let e = b;
+      while (e + 1 < bins.length && bins[e + 1] <= allowed) e++;
+      const from = left + b / 2;
+      const to = left + (e + 1) / 2;
+      if (to - from >= 1.5 && from > left && to < right) corridors.push([from, to]);
+      b = e + 1;
+    }
+    // pdf.js joins text runs less than about half a character apart into one item, with a space;
+    // a chunk crossing a corridor is split at the space that falls in it.
+    for (const r of region) {
+      r.chunks = r.chunks.flatMap((c) => splitAtCorridors(c, corridors, r.line.size));
+    }
+    const crosses = (a: TextCell, b: TextCell) => corridors.some(([from, to]) => from < b.left && to > a.right);
+    const bandOf = (c: TextCell) => {
+      const centre = (c.left + c.right) / 2;
+      let k = 0;
+      while (k < corridors.length && corridors[k][1] <= centre) k++;
+      return k;
+    };
+    for (const r of region) {
+      const cells: TextCell[] = [];
+      for (const c of r.chunks) {
+        const last = cells[cells.length - 1];
+        if (last && !crosses(last, c)) cells[cells.length - 1] = joinCells(last, c);
+        else cells.push(c);
+      }
+      const row: (TextCell | null)[] = new Array(corridors.length + 1).fill(null);
+      for (const c of cells) {
+        const k = bandOf(c);
+        row[k] = row[k] ? joinCells(row[k]!, c) : c;
+      }
+      out.push(row);
+    }
+    after.forEach((r) => out.push([r.chunks[0]]));
+  }
+  return out;
+}
+
+export async function pdfToTables(
+  file: File,
+  options: { ocr: boolean; oneSheet: boolean; password?: string; onProgress?: (ratio: number, stage?: string) => void },
+): Promise<TablesResult> {
+  const progress = options.onProgress ?? (() => undefined);
+  const sourceId = createId();
+  const opened = await openPdf(sourceId, file, options.password);
+  const source: PdfSource = { id: sourceId, name: file.name, kind: 'pdf', file, pageCount: opened.view.numPages };
+  try {
+    const numPages = opened.view.numPages;
+    const pages: (SheetCell | null)[][][] = [];
+    let scannedPages = 0;
+    let ocrPages = 0;
+    for (let n = 1; n <= numPages; n++) {
+      progress((n - 1) / numPages, `Reading page ${n} of ${numPages}`);
+      const page = await opened.view.getPage(n);
+      const viewport = page.getViewport({ scale: 1 });
+      const drawn = await pageImages(page, viewport.transform, viewport.width * viewport.height);
+      const pieces = (await readPieces(page, viewport)).filter((p) => !p.angle || Math.abs(p.angle) <= 1);
+      page.cleanup();
+      const chars = pieces.reduce((c, p) => c + p.text.trim().length, 0);
+      let lines = buildLines(pieces);
+      if (chars < 20 && (drawn.found.some((img) => img.area > 0.3) || drawn.ops > 12)) {
+        scannedPages++;
+        lines = options.ocr
+          ? await ocrLines(source, n - 1, viewport.width, viewport.height, (r) => progress((n - 1 + r) / numPages, `Reading scanned page ${n} with OCR`))
+          : [];
+        if (lines.length) ocrPages++;
+      }
+      pages.push(pageTable(lines).map((row) => row.map((c) => (c ? cellValue(c.text, c.bold) : null))));
+    }
+    const sheets = options.oneSheet
+      ? [{ name: 'Sheet1', rows: pages.flatMap((rows, i) => (i > 0 && rows.length ? [[] as (SheetCell | null)[], ...rows] : rows)) }]
+      : pages.map((rows, i) => ({ name: `Page ${i + 1}`, rows }));
+    return { sheets, pages: numPages, scannedPages, ocrPages };
+  } finally {
+    closePdf(sourceId);
+  }
+}

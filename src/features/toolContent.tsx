@@ -341,4 +341,18 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your spreadsheet is never uploaded.' },
     ],
   },
+  'pdf-to-xlsx': {
+    icon: Sheet,
+    steps: [
+      ['Add PDFs', 'Drop statements, invoices, reports or scanned tables.'],
+      ['Choose options', 'One sheet for all pages or a sheet per page, and OCR for scans.'],
+      ['Download', 'Open the .xlsx in Excel, Google Sheets or Numbers.'],
+    ],
+    highlights: [
+      { icon: Table2, title: 'Real columns', body: 'Tables are rebuilt into rows and columns from where the text sits on the page.' },
+      { icon: Target, title: 'Numbers stay numbers', body: 'Amounts, negatives in brackets, percentages, currencies and dates are ready to sum and sort.' },
+      { icon: ScanText, title: 'Scans too', body: 'Scanned statements are read with OCR.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
+    ],
+  },
 };

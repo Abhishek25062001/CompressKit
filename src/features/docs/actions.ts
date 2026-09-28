@@ -7,6 +7,7 @@ import {
   usePdfToHtmlSettings,
   usePdfToPptxSettings,
   useExcelToPdfSettings,
+  usePdfToXlsxSettings,
   usePdfToTextSettings,
   useTextToPdfSettings,
   type ConvertKind,
@@ -265,6 +266,25 @@ export const CONVERTERS: Record<ConvertKind, Converter> = {
       if (workbook.warnings.includes('charts')) notes.push('Charts are not included; the cells and pictures are.');
       if (result.rasterized) notes.push(RASTER_NOTE);
       return { blob: new Blob([result.bytes as BlobPart], { type: 'application/pdf' }), name: `${base}.pdf`, pages: result.pages, notes };
+    },
+  },
+  'pdf-to-xlsx': {
+    accepts: isPdfFile,
+    takes: 'PDF to Excel takes PDF files.',
+    failure: 'The PDF could not be converted. It may be too large for this browser.',
+    async convert(file, progress) {
+      const { oneSheet, ocr } = usePdfToXlsxSettings.getState();
+      progress(0.02, 'Opening PDF');
+      const { pdfToTables } = await import('./pdfExtract');
+      const result = await withPdfPassword(file, progress, (password) =>
+        pdfToTables(file, { oneSheet, ocr, password, onProgress: (r, stage) => progress(0.02 + r * 0.93, stage) }),
+      );
+      progress(0.96, 'Writing workbook');
+      const { writeXlsx } = await import('../office/xlsxWrite');
+      const base = sanitizeBaseName(file.name);
+      const notes = scanNotes(result.scannedPages, result.ocrPages, ocr ? 'unreadable' : 'ocr-off');
+      if (!result.sheets.some((s) => s.rows.some((r) => r.some(Boolean)))) notes.unshift('No text was found in this PDF.');
+      return { blob: writeXlsx(result.sheets, base), name: `${base}.xlsx`, pages: result.pages, notes };
     },
   },
 };

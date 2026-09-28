@@ -398,6 +398,52 @@ function formatNumber(v: number, body: string): string {
   // Scaling: each comma right after the last digit placeholder divides by 1,000.
   const scale = /[0#?](,+)(?![0#?])/.exec(code);
   if (scale) value /= 1000 ** scale[1].length;
+
+  // Literal characters between digit placeholders ("000-00-0000", or Indian "##\,##\,##0"):
+  // Excel fills the placeholders with digits from the right and keeps the characters in place.
+  const tokens: ({ ph: string } | { lit: string } | { dot: true })[] = [];
+  for (const p of parts) {
+    if (p.lit) {
+      tokens.push({ lit: p.v });
+      continue;
+    }
+    for (let k = 0; k < p.v.length; k++) {
+      const ch = p.v[k];
+      if (ch === '0' || ch === '#' || ch === '?') tokens.push({ ph: ch });
+      else if (ch === '.') tokens.push({ dot: true });
+      else if (ch === ',') continue;
+      else tokens.push({ lit: ch });
+    }
+  }
+  const dotAt = tokens.findIndex((t) => 'dot' in t);
+  const intTokens = dotAt < 0 ? tokens : tokens.slice(0, dotAt);
+  const firstPh = intTokens.findIndex((t) => 'ph' in t);
+  let lastPh = -1;
+  intTokens.forEach((t, k) => {
+    if ('ph' in t) lastPh = k;
+  });
+  if (firstPh >= 0 && intTokens.slice(firstPh, lastPh).some((t) => 'lit' in t && t.lit !== ' ')) {
+    const decTokens = dotAt < 0 ? [] : tokens.slice(dotAt + 1);
+    const places = decTokens.filter((t) => 'ph' in t).length;
+    const [intDigits, decDigits = ''] = Math.abs(value).toFixed(places).split('.');
+    const digits = intDigits === '0' ? '' : intDigits;
+    const out: string[] = intTokens.map(() => '');
+    let d = digits.length - 1;
+    for (let k = intTokens.length - 1; k >= 0; k--) {
+      const t = intTokens[k];
+      if ('ph' in t) out[k] = d >= 0 ? digits[d--] : t.ph === '0' ? '0' : t.ph === '?' ? ' ' : '';
+      else out[k] = 'lit' in t ? t.lit : '';
+    }
+    // Digits beyond the placeholders go in front of the first one.
+    if (d >= 0) out[firstPh] = digits.slice(0, d + 1) + out[firstPh];
+    let dec = '';
+    let di = 0;
+    for (const t of decTokens) {
+      if ('ph' in t) dec += decDigits[di++] ?? '';
+      else if ('lit' in t) dec += t.lit;
+    }
+    return out.join('') + (dotAt >= 0 ? `.${dec}` : '');
+  }
   const [intPat, decPat = ''] = code.split('.');
   const thousands = /[0#?],[0#?]/.test(intPat);
   const decimals = (decPat.match(/[0#?]/g) ?? []).length;

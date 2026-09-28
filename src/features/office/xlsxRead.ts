@@ -1,4 +1,5 @@
 import { strFromU8, unzipSync } from 'fflate';
+import { evaluate, type Value } from './formula';
 import { builtinFormat, formatValue } from './numFmt';
 
 /**
@@ -426,6 +427,9 @@ export function readXlsx(bytes: Uint8Array): Workbook {
     }
 
     const rows = new Map<number, Map<number, Cell>>();
+    // Raw values, for formulas saved without their result; and those formulas, to work out after reading.
+    const raw = new Map<string, Value>();
+    const pending = new Map<string, { formula: string; style: number; row: number; col: number }>();
     const rowHeights = new Map<number, number>();
     const hiddenRows = new Set<number>();
     let nextRow = 0;
@@ -457,11 +461,17 @@ export function readXlsx(bytes: Uint8Array): Workbook {
           const ms = Date.parse(v);
           const serial = Number.isNaN(ms) ? NaN : ms / 86400000 + 25569;
           cell = Number.isNaN(serial) ? { text: v, kind: 'text', style } : { ...formatValue(serial, st.numFmt === 'General' ? 'yyyy-mm-dd' : st.numFmt, date1904), kind: 'number', style };
-        } else if (v === '') cell = { text: '', kind: 'empty', style };
-        else {
+        } else if (v === '') {
+          const formula = child(c, 'f')?.textContent;
+          if (formula) pending.set(`${r}:${col}`, { formula, style, row: r, col });
+          cell = { text: '', kind: 'empty', style };
+        } else {
           const f = formatValue(Number(v), st.numFmt, date1904);
           cell = { text: f.text, color: f.color, kind: 'number', style };
+          raw.set(`${r}:${col}`, Number(v));
         }
+        if (cell.kind === 'text') raw.set(`${r}:${col}`, cell.text);
+        else if (cell.kind === 'bool') raw.set(`${r}:${col}`, cell.text === 'TRUE');
         // Text cells with a text section in their format ("@" with extra words) show it.
         if (cell.kind === 'text' && st.numFmt.includes('@')) {
           const f = formatValue(cell.text, st.numFmt, date1904);
@@ -470,6 +480,29 @@ export function readXlsx(bytes: Uint8Array): Workbook {
         cells.set(col, cell);
       }
       if (cells.size) rows.set(r, cells);
+    }
+
+    // Formulas without saved results, worked out now (each once, and never in a loop).
+    const evaluating = new Set<string>();
+    const valueAt = (row: number, col: number): Value => {
+      const key = `${row}:${col}`;
+      if (raw.has(key)) return raw.get(key)!;
+      const p = pending.get(key);
+      if (!p || evaluating.has(key)) return null;
+      evaluating.add(key);
+      const result = evaluate(p.formula, valueAt);
+      evaluating.delete(key);
+      raw.set(key, result);
+      return result;
+    };
+    for (const p of pending.values()) {
+      const result = valueAt(p.row, p.col);
+      if (result === null) continue;
+      const st = styles[p.style] ?? DEFAULT_STYLE;
+      const f: { text: string; color?: string } = typeof result === 'string' ? { text: result } : formatValue(result, st.numFmt, date1904);
+      const cells = rows.get(p.row) ?? new Map<number, Cell>();
+      cells.set(p.col, { text: f.text, color: f.color, kind: typeof result === 'number' ? 'number' : typeof result === 'boolean' ? 'bool' : 'text', style: p.style });
+      rows.set(p.row, cells);
     }
 
     const merges = all(doc, 'mergeCell').flatMap((m) => {

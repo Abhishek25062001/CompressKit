@@ -203,7 +203,9 @@ export async function workbookToPdf(workbook: Workbook, options: SheetPdfOptions
       for (let pi = 0; pi < rowPages.length; pi++) {
         const rows = pi > 0 && titles.length ? [...titles, ...rowPages[pi].filter((r) => !titles.includes(r))] : rowPages[pi];
         const page = out.addPage([pageW, pageH]);
-        await drawPage(lib, page, painter, sheet, styles, geo, merges, cols, rows, scale, pageH, options.gridlines && sheet.showGrid);
+        // Title rows count as titles only when repeated; on their own first page they are ordinary rows.
+        const repeated = new Set(pi > 0 ? titles : []);
+        await drawPage(lib, page, painter, sheet, styles, geo, merges, cols, rows, scale, pageH, options.gridlines && sheet.showGrid, repeated);
         pageNo++;
         options.onProgress?.((si + pageNo / totalPages) / workbook.sheets.length);
         await tick();
@@ -228,6 +230,7 @@ async function drawPage(
   scale: number,
   pageH: number,
   gridlines: boolean,
+  titleRows: Set<number>,
 ): Promise<void> {
   const { pushGraphicsState, popGraphicsState, rectangle, clip, endPath } = lib;
   // Page positions for the columns and rows on this page (rows may skip, when title rows repeat).
@@ -420,10 +423,13 @@ async function drawPage(
     const base = geo.colX.get(col) ?? 0;
     return base - (geo.colX.get(cols[0]) ?? 0) + off;
   };
+  // Repeated title rows sit at the top of the page but are not where the page's own rows start;
+  // pictures are placed relative to the first of the page's own rows.
+  const bodyStart = rows.find((r) => !titleRows.has(r)) ?? rows[0];
   const posY = (row: number, off: number) => {
     const at = y.get(row);
-    if (at !== undefined) return at + off;
-    return (geo.rowY.get(row) ?? 0) - (geo.rowY.get(rows[0]) ?? 0) + off;
+    if (at !== undefined && !titleRows.has(row)) return at + off;
+    return (y.get(bodyStart) ?? 0) + (geo.rowY.get(row) ?? 0) - (geo.rowY.get(bodyStart) ?? 0) + off;
   };
   for (const img of sheet.images) {
     const left = posX(img.from.col, img.from.colOff);

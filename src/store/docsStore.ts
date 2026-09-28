@@ -42,7 +42,7 @@ export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
 /** Every document converter, each with a list of its own. */
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx' | 'excel-to-pdf';
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx' | 'excel-to-pdf' | 'pdf-to-xlsx';
 
 export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
   'docx-to-pdf': useDocxToPdfStore,
@@ -54,6 +54,7 @@ export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueStat
   'pdf-to-html': createQueue(),
   'pdf-to-pptx': createQueue(),
   'excel-to-pdf': createQueue(),
+  'pdf-to-xlsx': createQueue(),
 };
 
 export function isConvertKind(id: string): id is ConvertKind {
@@ -194,5 +195,21 @@ export const useExcelToPdfSettings = create<ExcelToPdfSettings>()(
     version: 1,
     storage: createJSONStorage(() => localStorage),
     partialize: (s) => ({ page: s.page, orientation: s.orientation, fitWidth: s.fitWidth, gridlines: s.gridlines }),
+  }),
+);
+
+export interface PdfToXlsxSettings {
+  /** All pages in one sheet (one long table), or a sheet per page. */
+  oneSheet: boolean;
+  ocr: boolean;
+  update: (patch: Partial<Omit<PdfToXlsxSettings, 'update'>>) => void;
+}
+
+export const usePdfToXlsxSettings = create<PdfToXlsxSettings>()(
+  persist((set) => ({ oneSheet: true, ocr: true, update: (patch) => set(patch) }), {
+    name: 'compresskit-pdf-to-xlsx',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ oneSheet: s.oneSheet, ocr: s.ocr }),
   }),
 );

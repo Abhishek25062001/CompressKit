@@ -14,6 +14,7 @@ import {
   usePdfToPptxSettings,
   usePdfToTextSettings,
   useExcelToPdfSettings,
+  usePdfToXlsxSettings,
   useTextToPdfSettings,
   type ConvertKind,
   type DocJob,
@@ -50,6 +51,7 @@ const UI: Record<ConvertKind, KindUi> = {
   'pdf-to-html': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'HTML', icon: FileCode },
   'pdf-to-pptx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'PowerPoint', icon: Presentation },
   'excel-to-pdf': { formats: [SHEET_FORMAT, CSV_FORMAT], badges: ['XLSX', 'CSV'], title: 'Drop Excel workbooks here', to: 'PDF', icon: Sheet },
+  'pdf-to-xlsx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'Excel', icon: Sheet },
 };
 
 /** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
@@ -180,7 +182,34 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
   const toHtml = usePdfToHtmlSettings();
   const toPptx = usePdfToPptxSettings();
   const excel = useExcelToPdfSettings();
+  const toXlsx = usePdfToXlsxSettings();
   switch (kind) {
+    case 'pdf-to-xlsx':
+      return (
+        <>
+          <Switch
+            label="All pages on one sheet"
+            description={
+              toXlsx.oneSheet
+                ? 'Pages follow each other on one sheet, so a table running over several pages stays one table.'
+                : 'Each page gets a sheet of its own.'
+            }
+            checked={toXlsx.oneSheet}
+            onChange={(oneSheet) => toXlsx.update({ oneSheet })}
+          />
+          <Switch
+            label="Read scanned pages (OCR)"
+            description="Scanned tables are read into cells (English). Off skips scanned pages."
+            checked={toXlsx.ocr}
+            onChange={(ocr) => toXlsx.update({ ocr })}
+          />
+          {reconvert}
+          <p className="text-xs text-muted">
+            Tables are rebuilt into rows and columns from where the text sits. Amounts, percentages and dates become real numbers
+            (1,234.56, (500), 12%, ₹2,50,000) that you can sum and sort. Text outside tables goes in the first column.
+          </p>
+        </>
+      );
     case 'excel-to-pdf':
       return (
         <>

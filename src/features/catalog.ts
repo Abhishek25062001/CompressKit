@@ -23,7 +23,8 @@ export type ToolId =
   | 'pdf-to-text'
   | 'pdf-to-html'
   | 'pdf-to-pptx'
-  | 'excel-to-pdf';
+  | 'excel-to-pdf'
+  | 'pdf-to-xlsx';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
 export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document' | 'sheet' | 'slides';
@@ -305,6 +306,20 @@ export const CATALOG: ToolInfo[] = [
     handles: ['sheet'],
     formats: 'XLSX · CSV',
     converts: 'to-pdf',
+    secondary: true,
+  },
+  {
+    id: 'pdf-to-xlsx',
+    path: '/pdf-to-excel',
+    name: 'PDF to Excel',
+    heading: 'Convert PDF to Excel',
+    tagline: 'Pull tables out of PDFs into spreadsheet rows and columns.',
+    description:
+      'Convert PDF tables to Excel (XLSX) in your browser. Rows and columns are rebuilt, and amounts, percentages and dates become numbers you can sum. Scans are read with OCR. Nothing is uploaded.',
+    title: 'PDF to Excel Converter: PDF Tables to XLSX, Free | CompressKit',
+    handles: ['pdf', 'sheet'],
+    formats: 'PDF',
+    converts: 'from-pdf',
     secondary: true,
   },
 ];

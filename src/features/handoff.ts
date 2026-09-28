@@ -37,6 +37,7 @@ const FORMATS: Record<ToolId, FormatDef[]> = {
   'pdf-to-html': [PDF_FORMAT],
   'pdf-to-pptx': [PDF_FORMAT],
   'excel-to-pdf': [SHEET_FORMAT, CSV_FORMAT],
+  'pdf-to-xlsx': [PDF_FORMAT],
 };
 
 /** Accept list for a file picker that offers every format some tool can open. */
