@@ -15,13 +15,13 @@ interface ConverterLink {
 
 /** Picture conversions live in PDF tools; these links open it with the right tool picked. */
 const PICTURES_TO_PDF: ConverterLink = { key: 'images-to-pdf', name: 'Images to PDF', formats: 'JPG · PNG · HEIC · TIFF · GIF · BMP', to: '/pdf#save', icon: Images };
-const PDF_TO_PICTURES: ConverterLink = { key: 'pdf-to-images', name: 'PDF to images', formats: 'JPG · PNG · BMP · TIFF', to: '/pdf#images', icon: FileImage };
+const PDF_TO_PICTURES: ConverterLink = { key: 'pdf-to-images', name: 'PDF to images', formats: 'PDF → JPG · PNG · BMP · TIFF', to: '/pdf#images', icon: FileImage };
 
 function linksFor(direction: 'to-pdf' | 'from-pdf'): ConverterLink[] {
   const tools = CATALOG.filter((t) => t.converts === direction).map((t) => ({
     key: t.id,
     name: t.name,
-    formats: t.formats,
+    formats: t.output ? `PDF → ${t.output}` : t.formats,
     to: t.path,
     icon: TOOL_CONTENT[t.id].icon,
   }));

@@ -46,7 +46,21 @@ Static `dist/`. No server code, database, or API.
 | 🪄 Remove Background | `/remove-background` | Cut out a subject with IS-Net on your device. Model is 88 MB and self-hosted. |
 | 🎬 Trim & Split | `/trim-video` | Trim one clip, or split it into WhatsApp Status parts. |
 | 📍 Remove Location | `/remove-location` | Strip GPS and other hidden metadata. Picture and sound are not re-encoded. |
-| 📄 PDF | `/pdf` | Merge, split, compress, sign, scan, fill forms, protect, clean, or OCR. |
+| 📄 PDF | `/pdf` | Merge, split, crop, compress, sign, scan, fill forms, protect, clean, OCR, or save pages as JPG, PNG, BMP or TIFF. |
+| ✏️ Edit PDF | `/edit-pdf` | Change text, add text and pictures, white out, highlight, draw. |
+| 🧩 Merge Documents | `/merge-documents` | PDFs, Word files and pictures (JPG, PNG, HEIC, TIFF, GIF) into one PDF. |
+| 📝 Edit Word Document | `/edit-docx` | Open, edit and save DOCX, or open a PDF as editable text. |
+
+### Converters
+
+| To PDF | Address | | From PDF | Address |
+| --- | --- | --- | --- | --- |
+| Word (DOCX) | `/docx-to-pdf` | | Word (DOCX) | `/pdf-to-docx` |
+| Text and Markdown | `/text-to-pdf` | | Text (reading order or layout) | `/pdf-to-text` |
+| RTF | `/rtf-to-pdf` | | HTML (one self-contained page) | `/pdf-to-html` |
+| HTML | `/html-to-pdf` | | PowerPoint (editable text boxes) | `/pdf-to-powerpoint` |
+| Excel (XLSX, CSV) | `/excel-to-pdf` | | Excel (tables as rows and columns) | `/pdf-to-excel` |
+| PowerPoint (PPTX) | `/powerpoint-to-pdf` | | | |
 
 ## ⚡ How It Works
 
@@ -82,6 +96,8 @@ flowchart TD
 <tr><td><strong>Images</strong></td><td>JPG, PNG, WebP, AVIF, BMP, HEIC / HEIF</td><td>JPG, PNG, WebP, AVIF</td></tr>
 <tr><td><strong>Video</strong></td><td>MP4, MOV, WebM, MKV, AVI, WMV, FLV, 3GP, animated GIF</td><td>MP4 (H.264), WebM (VP9 or VP8), animated GIF</td></tr>
 <tr><td><strong>Audio</strong></td><td>Soundtrack of a video</td><td>MP3, M4A, WAV</td></tr>
+<tr><td><strong>Documents</strong></td><td>PDF, DOCX, XLSX, CSV, PPTX, RTF, HTML, TXT, Markdown</td><td>PDF, DOCX, XLSX, PPTX, HTML, TXT</td></tr>
+<tr><td><strong>Pages as pictures</strong></td><td>JPG, PNG, WebP, AVIF, BMP, HEIC, TIFF (every page), GIF</td><td>JPG, PNG, BMP, TIFF (single or multi-page)</td></tr>
 </tbody>
 </table>
 
@@ -122,6 +138,8 @@ flowchart TD
 | Images | Canvas, UPNG.js, `@jsquash/avif` |
 | Video | WebCodecs, Mediabunny, `@ffmpeg/core` 0.12 |
 | Cut-out | ONNX Runtime Web, IS-Net (88 MB, self-hosted) |
+| PDF | pdf.js (reading, rendering), pdf-lib (writing), Tesseract.js (OCR) |
+| Documents | Own readers and writers for DOCX, XLSX, PPTX, RTF, HTML and Markdown; UTIF.js for TIFF |
 | ZIP | fflate, in the browser |
 | Backend | None |
 
@@ -172,6 +190,11 @@ Serve `dist/` over HTTPS. One HTML file per tool. No functions, env file, or dat
 - 👁️ Some MKV and HEVC files cannot be previewed. FFmpeg can still compress them.
 - 🧭 Safari cannot encode WebP.
 - 🧠 Without WebGPU, background removal runs on the CPU: about a minute per photo.
+- 🔤 PDFs made from documents use the fonts every PDF reader has built in (Helvetica, Times, Courier). Letters those fonts lack (Hindi, Chinese, ₹, emoji) are drawn as small pictures, visible but not selectable.
+- 📊 Charts and SmartArt in Excel and PowerPoint files are not drawn; cells, shapes, pictures and tables are.
+- 🌐 HTML to PDF lays the page out as a document with selectable text; for an exact copy of a web page's layout, use its print view. Pictures the page links to on the web are not fetched.
+- 📑 PDF to Excel rebuilds tables from where the text sits, which suits tables with columns of aligned text; heavily nested layouts may need tidying.
+- 🗂️ Old binary Office files (.doc, .xls, .ppt) need saving as .docx, .xlsx or .pptx first.
 
 ## 📜 License
 

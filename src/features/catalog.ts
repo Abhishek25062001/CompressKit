@@ -49,6 +49,8 @@ export interface ToolInfo {
   formats: string;
   /** Listed under "Convert to PDF" or "Convert from PDF". */
   converts?: 'to-pdf' | 'from-pdf';
+  /** What a "from PDF" converter produces, shown in the converter lists. */
+  output?: string;
   /**
    * Single-format converters: listed with the converters rather than as cards in the main grid
    * and menu, which would otherwise run to dozens of near-identical entries.
@@ -198,6 +200,7 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
+    output: 'DOCX',
   },
   {
     id: 'edit-docx',
@@ -265,6 +268,7 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
+    output: 'TXT',
     secondary: true,
   },
   {
@@ -279,6 +283,7 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
+    output: 'HTML',
     secondary: true,
   },
   {
@@ -293,6 +298,7 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
+    output: 'PPTX',
     secondary: true,
   },
   {
@@ -321,6 +327,7 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf', 'sheet'],
     formats: 'PDF',
     converts: 'from-pdf',
+    output: 'XLSX',
     secondary: true,
   },
   {
