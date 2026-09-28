@@ -120,8 +120,21 @@ const PageCard = memo(function PageCard({ id, position, total, dropTarget, onDra
           <FileText className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate">{origin}</span>
         </span>
-        {page.signatures.length > 0 && (
-          <span className="ml-auto shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text">Signed</span>
+        {(page.signatures.length > 0 || page.crop) && (
+          <span className="ml-auto flex shrink-0 gap-1">
+            {page.crop && (
+              <button
+                type="button"
+                onClick={() => usePdfStore.getState().setCroppingPage(id)}
+                disabled={busy}
+                aria-label={`${label} is cropped. Change the crop`}
+                className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text hover:underline"
+              >
+                Cropped
+              </button>
+            )}
+            {page.signatures.length > 0 && <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text">Signed</span>}
+          </span>
         )}
       </div>
       <div className="flex items-center justify-between px-1 pt-1 pb-1.5">

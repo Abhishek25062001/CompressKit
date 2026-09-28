@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Download, FileCode, FileText, FileType, FileType2, Loader2, PenSquare, Pilcrow, Printer, RotateCcw, Trash2, X, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileCode, FileText, FileType, FileType2, Loader2, PenSquare, Pilcrow, Presentation, Printer, RotateCcw, Trash2, X, type LucideIcon } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { acceptAttribute, type FormatDef } from '../../constants/formats';
 import { TOOL_BY_ID } from '../../features/catalog';
@@ -11,6 +11,7 @@ import {
   useHtmlToPdfSettings,
   usePdfToDocxSettings,
   usePdfToHtmlSettings,
+  usePdfToPptxSettings,
   usePdfToTextSettings,
   useTextToPdfSettings,
   type ConvertKind,
@@ -46,6 +47,7 @@ const UI: Record<ConvertKind, KindUi> = {
   'html-to-pdf': { formats: [HTML_FORMAT], badges: ['HTML', 'HTM'], title: 'Drop HTML files here', to: 'PDF', icon: FileCode },
   'pdf-to-text': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'text', icon: FileText },
   'pdf-to-html': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'HTML', icon: FileCode },
+  'pdf-to-pptx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'PowerPoint', icon: Presentation },
 };
 
 /** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
@@ -174,7 +176,47 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
   const html = useHtmlToPdfSettings();
   const toText = usePdfToTextSettings();
   const toHtml = usePdfToHtmlSettings();
+  const toPptx = usePdfToPptxSettings();
   switch (kind) {
+    case 'pdf-to-pptx':
+      return (
+        <>
+          <Row label="Slides">
+            <SegmentedControl
+              label="Slide content"
+              size="sm"
+              value={toPptx.mode}
+              onChange={(mode) => toPptx.update({ mode })}
+              segments={[
+                { value: 'editable', label: 'Editable text' },
+                { value: 'pictures', label: 'Pictures' },
+              ]}
+            />
+          </Row>
+          <p className="text-xs text-muted">
+            {toPptx.mode === 'editable'
+              ? 'Text becomes real PowerPoint text boxes you can change, in the same place, font, size and colour. Photos, drawings and backgrounds stay exactly as in the PDF, behind the text.'
+              : 'Each slide is a sharp picture of the page: it looks exactly like the PDF, but the text cannot be edited.'}
+          </p>
+          <Row label="Picture quality">
+            <SegmentedControl
+              label="Picture quality"
+              size="sm"
+              value={toPptx.quality}
+              onChange={(quality) => toPptx.update({ quality })}
+              segments={[
+                { value: 'standard', label: 'Standard' },
+                { value: 'high', label: 'High' },
+              ]}
+            />
+          </Row>
+          {reconvert}
+          <p className="text-xs text-muted">
+            Slides take the size of the PDF's first page. Opens in PowerPoint, Keynote, Google Slides and LibreOffice. Fonts that are
+            not on your computer are replaced by similar ones.
+          </p>
+        </>
+      );
     case 'pdf-to-text':
       return (
         <>

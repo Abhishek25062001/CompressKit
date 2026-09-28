@@ -1,4 +1,4 @@
-import { Download, FilePen, Minimize2, PenLine, Trash2 } from 'lucide-react';
+import { Crop, Download, FilePen, Minimize2, PenLine, ScanSearch, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
@@ -18,7 +18,7 @@ import { StampSettings } from './StampSettings';
 
 type Tab = PdfTab;
 
-/** Eleven tools do not fit a row of tabs: a grid of buttons, one pressed at a time. */
+/** Twelve tools do not fit a row of tabs: a grid of buttons, one pressed at a time. */
 function ToolGrid({ value, onChange }: { value: Tab; onChange: (tab: Tab) => void }) {
   return (
     <div role="group" aria-label="PDF tool" className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface-2 p-1">
@@ -186,6 +186,100 @@ function SignTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
       <p className="text-xs text-muted">
         This is a picture of your signature, not a certified digital signature. Page numbers and the watermark from Save are added too.
       </p>
+    </>
+  );
+}
+
+/** Removes white margins or opens the crop box, lists cropped pages, and downloads the cropped PDF. */
+function CropTab({ target, count, busy }: { target: PdfPage[]; count: string; busy: boolean }) {
+  const settings = usePdfSettingsStore();
+  const cropped = usePdfStore(useShallow((s) => s.pages.flatMap((p, i) => (p.crop ? [`${p.id}:${i + 1}`] : [])))).map((entry) => {
+    const [id, n] = entry.split(':');
+    return { id, n };
+  });
+  const first = target[0]?.id;
+  const firstNumber = usePdfStore((s) => Math.max(1, s.pages.findIndex((p) => p.id === first) + 1));
+  const [result, setResult] = useState<string | null>(null);
+  const hasPdfPages = usePdfStore((s) => target.some((p) => s.sources[p.sourceId]?.kind === 'pdf'));
+  const removeMargins = async () => {
+    setResult(null);
+    const { autoCropPages } = await import('../../features/pdf/crop');
+    const n = await autoCropPages(target, settings.cropPadding);
+    setResult(n ? `Margins removed on ${n} page${n === 1 ? '' : 's'}.` : 'No white margins were found to remove.');
+  };
+  const reset = async () => {
+    const { refreshThumbnail } = await import('../../features/pdf/intake');
+    for (const { id } of cropped) {
+      usePdfStore.getState().updatePage(id, { crop: undefined });
+      refreshThumbnail(id);
+    }
+    setResult(null);
+  };
+  return (
+    <>
+      <div className="space-y-3 rounded-xl border border-border bg-surface-2/40 p-3">
+        <p className="text-xs font-medium text-fg">Remove white margins</p>
+        <Row label="Space around content">
+          <SegmentedControl
+            label="Space left around the content"
+            size="sm"
+            value={String(settings.cropPadding) as '0' | '6' | '18'}
+            onChange={(v) => settings.update({ cropPadding: Number(v) })}
+            segments={[
+              { value: '0', label: 'None' },
+              { value: '6', label: 'Small' },
+              { value: '18', label: 'Wide' },
+            ]}
+          />
+        </Row>
+        <Button className="w-full" onClick={() => void removeMargins()} disabled={busy || !target.length} icon={<ScanSearch className="h-4 w-4" aria-hidden />}>
+          Remove margins on {count}
+        </Button>
+        {result && <p className="text-xs text-muted" aria-live="polite">{result}</p>}
+        <p className="text-xs text-muted">Each page is measured on its own, so pages with different margins are all trimmed to their content.</p>
+      </div>
+      <Button onClick={() => first && usePdfStore.getState().setCroppingPage(first)} disabled={busy || !first} icon={<Crop className="h-4 w-4" aria-hidden />}>
+        Draw a crop box on page {firstNumber}
+      </Button>
+      {cropped.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-fg">
+            Cropped pages:{' '}
+            {cropped.map((c, i) => (
+              <span key={c.id}>
+                {i > 0 && ', '}
+                <button type="button" className="font-medium text-accent-text underline-offset-2 hover:underline" onClick={() => usePdfStore.getState().setCroppingPage(c.id)}>
+                  {c.n}
+                </button>
+              </span>
+            ))}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => void reset()} icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}>
+            Undo all crops
+          </Button>
+        </div>
+      )}
+      <Button
+        variant="primary"
+        className="w-full"
+        disabled={busy || !target.length}
+        onClick={() => void savePdf(target)}
+        icon={<Download className="h-4 w-4" aria-hidden />}
+      >
+        Download cropped PDF ({count})
+      </Button>
+      {hasPdfPages && (
+        <Switch
+          label="Remove the cut-off parts for good"
+          description={
+            settings.flattenCropped
+              ? 'Cropped pages are saved as pictures, so nothing outside the box can be recovered. Their text is no longer selectable.'
+              : 'Like every PDF editor, cropping hides what is outside the box; text stays selectable. Turn this on if the cut-off part is private.'
+          }
+          checked={settings.flattenCropped}
+          onChange={(flattenCropped) => settings.update({ flattenCropped })}
+        />
+      )}
     </>
   );
 }
@@ -507,6 +601,7 @@ export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
         )}
 
         {tab === 'edit' && <EditTab target={target} count={count} busy={busy} />}
+        {tab === 'crop' && <CropTab target={target} count={count} busy={busy} />}
         {tab === 'sign' && <SignTab target={target} count={count} busy={busy} />}
         {tab === 'scan' && <ScanTab target={target} count={count} busy={busy} />}
         {tab === 'forms' && <FormsTab target={target} count={count} busy={busy} />}

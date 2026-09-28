@@ -42,7 +42,7 @@ export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
 /** Every document converter, each with a list of its own. */
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html';
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx';
 
 export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
   'docx-to-pdf': useDocxToPdfStore,
@@ -52,6 +52,7 @@ export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueStat
   'html-to-pdf': createQueue(),
   'pdf-to-text': createQueue(),
   'pdf-to-html': createQueue(),
+  'pdf-to-pptx': createQueue(),
 };
 
 export function isConvertKind(id: string): id is ConvertKind {
@@ -160,5 +161,20 @@ export const usePdfToHtmlSettings = create<PdfToHtmlSettings>()(
     version: 1,
     storage: createJSONStorage(() => localStorage),
     partialize: (s) => ({ images: s.images, ocr: s.ocr }),
+  }),
+);
+
+export interface PdfToPptxSettings {
+  mode: 'editable' | 'pictures';
+  quality: 'standard' | 'high';
+  update: (patch: Partial<Omit<PdfToPptxSettings, 'update'>>) => void;
+}
+
+export const usePdfToPptxSettings = create<PdfToPptxSettings>()(
+  persist((set) => ({ mode: 'editable', quality: 'standard', update: (patch) => set(patch) }), {
+    name: 'compresskit-pdf-to-pptx',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ mode: s.mode, quality: s.quality }),
   }),
 );

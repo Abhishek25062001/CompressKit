@@ -10,6 +10,7 @@ import { useRouteStore } from '../../store/routeStore';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
+import { CropDialog } from './CropDialog';
 import { EditDialog } from './EditDialog';
 import { MergePanel } from './MergePanel';
 import { PageGrid } from './PageGrid';
@@ -145,6 +146,7 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
     <>
       <SignDialog />
       <EditDialog />
+      <CropDialog />
       <ScanDialog />
       <PasswordDialog />
       <AnimatePresence mode="popLayout" initial={false}>

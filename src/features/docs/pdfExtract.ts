@@ -49,6 +49,10 @@ interface Piece {
   italic: boolean;
   mono: boolean;
   serif: boolean;
+  /** Font family name, cleaned of subset prefixes and style suffixes ("Times New Roman"). */
+  font?: string;
+  /** Clockwise angle of the text on the page, in degrees; 0 for ordinary horizontal text. */
+  angle?: number;
 }
 
 interface TextLine {
@@ -63,6 +67,23 @@ type FlowItem = { kind: 'line'; line: TextLine; top: number } | { kind: 'image';
 
 const BULLET = /^([*\u2022\u25cf\u25aa\u25e6\u25cb\u25a0\u25a1\u25ba\u25b8\u2023\u2043\u2219\u00b7\u2013\u2014-]|\uf0b7|\uf0a7|\uf076|\uf0d8)\s*/;
 const NUMBERED = /^(\(?(\d{1,3}|[a-z]|[ivx]{1,4})[.)])\s+/i;
+
+/** Names PDF viewers use for the standard fonts, mapped to fonts every computer has. */
+const FONT_ALIASES: Record<string, string> = {
+  Times: 'Times New Roman',
+  'Times Roman': 'Times New Roman',
+  Helvetica: 'Arial',
+  Courier: 'Courier New',
+  'Arial Unicode': 'Arial',
+};
+
+/** "BAAAAA+TimesNewRomanPS-BoldMT" → "Times New Roman". */
+export function cleanFontName(raw: string): string | undefined {
+  let n = raw.replace(/^[A-Z]{6}\+/, '').split(/[,-]/)[0];
+  n = n.replace(/(PSMT|MT|PS)$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+  if (!n || /^(g_d\d|f\d|sans-serif|serif|monospace)/i.test(n)) return undefined;
+  return FONT_ALIASES[n] ?? n;
+}
 
 function fontFlags(page: PDFPageProxy, fontName: string, family: string | undefined) {
   let name = family ?? '';
@@ -83,6 +104,7 @@ function fontFlags(page: PDFPageProxy, fontName: string, family: string | undefi
     italic: italic || /italic|oblique/i.test(name),
     mono: /mono|courier|consol/i.test(name),
     serif: /times|serif|georgia|garamond|cambria|book/i.test(name) && !/sans/i.test(name),
+    font: cleanFontName(name.trim().split(' ')[0] ?? ''),
   };
 }
 
@@ -99,7 +121,8 @@ async function readPieces(page: PDFPageProxy, viewport: ReturnType<PDFPageProxy[
     const size = Math.hypot(tx[2], tx[3]);
     if (size < 1) continue;
     const flags = fontFlags(page, item.fontName, content.styles[item.fontName]?.fontFamily);
-    pieces.push({ text: item.str, x: tx[4], y: tx[5], width: item.width * (viewport.scale || 1), size, ...flags });
+    const angle = Math.round((Math.atan2(tx[1], tx[0]) * 180) / Math.PI);
+    pieces.push({ text: item.str, x: tx[4], y: tx[5], width: item.width * (viewport.scale || 1), size, ...flags, angle });
   }
   return pieces;
 }
@@ -720,4 +743,110 @@ export async function pdfToText(file: File, options: TextExtractOptions): Promis
   } finally {
     closePdf(sourceId);
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Positioned text blocks, for PDF to PowerPoint.
+
+export interface BlockPiece {
+  text: string;
+  x: number;
+  width: number;
+  size: number;
+  bold: boolean;
+  italic: boolean;
+  font?: string;
+  /** Baseline, from the top of the page, in points. */
+  y: number;
+}
+
+export interface TextBlock {
+  /** Lines top to bottom, each its pieces left to right with spaces already in their text. */
+  lines: BlockPiece[][];
+  left: number;
+  right: number;
+  /** Baseline of the first line. */
+  firstBaseline: number;
+  /** Distance between baselines. */
+  lineSpacing: number;
+  /** Clockwise rotation in degrees; blocks of rotated text hold one line. */
+  angle: number;
+}
+
+/**
+ * The page's text as blocks that can be placed as text boxes: lines are split where a wide gap
+ * separates columns or table cells, and lines that follow each other closely, at the same size and
+ * lined up, form one block. Positions are in points on the page as displayed.
+ */
+export async function pageTextBlocks(page: PDFPageProxy, viewport: ReturnType<PDFPageProxy['getViewport']>): Promise<TextBlock[]> {
+  await page.getOperatorList();
+  const all = await readPieces(page, viewport);
+  const blocks: TextBlock[] = [];
+  const toBlockPiece = (p: Piece): BlockPiece => ({ text: p.text, x: p.x, width: p.width, size: p.size, bold: p.bold, italic: p.italic, font: p.font, y: p.y });
+
+  // Rotated text keeps its own boxes, turned to match.
+  for (const p of all.filter((pc) => pc.angle && Math.abs(pc.angle) > 1)) {
+    blocks.push({ lines: [[toBlockPiece(p)]], left: p.x, right: p.x + p.width, firstBaseline: p.y, lineSpacing: p.size * 1.2, angle: p.angle! });
+  }
+
+  type Segment = { pieces: Piece[]; left: number; right: number; y: number; size: number };
+  const segments: Segment[] = [];
+  for (const line of buildLines(all.filter((pc) => !pc.angle || Math.abs(pc.angle) <= 1))) {
+    let current: Piece[] = [];
+    const flush = () => {
+      if (!current.length) return;
+      const size = Math.max(...current.map((p) => p.size));
+      segments.push({ pieces: current, left: current[0].x, right: Math.max(...current.map((p) => p.x + p.width)), y: line.y, size });
+      current = [];
+    };
+    for (const p of line.pieces) {
+      const prev = current[current.length - 1];
+      if (prev && p.x - (prev.x + prev.width) > Math.max(p.size, prev.size) * 2) flush();
+      current.push(p);
+    }
+    flush();
+  }
+
+  type Open = { segs: Segment[]; closed: boolean };
+  const open: Open[] = [];
+  for (const seg of segments.sort((a, b) => a.y - b.y || a.left - b.left)) {
+    const target = open.find((b) => {
+      if (b.closed) return false;
+      const last = b.segs[b.segs.length - 1];
+      const gap = seg.y - last.y;
+      const sameSize = Math.abs(seg.size - last.size) <= Math.max(last.size, seg.size) * 0.2;
+      const lined = Math.abs(seg.left - last.left) < seg.size * 1.5 || (seg.left < last.right && seg.right > last.left && Math.abs(seg.left - last.left) < (last.right - last.left) * 0.3);
+      return sameSize && lined && gap > seg.size * 0.5 && gap < Math.max(seg.size, last.size) * 1.7;
+    });
+    if (target) target.segs.push(seg);
+    else open.push({ segs: [seg], closed: false });
+    // Blocks whose last line is far above can take no more lines.
+    for (const b of open) if (seg.y - b.segs[b.segs.length - 1].y > seg.size * 3) b.closed = true;
+  }
+
+  for (const b of open) {
+    const lines = b.segs.map((seg) => {
+      const out: BlockPiece[] = [];
+      seg.pieces.forEach((p, i) => {
+        const prev = seg.pieces[i - 1];
+        let text = i === 0 ? p.text.trimStart() : p.text;
+        if (prev && p.x - (prev.x + prev.width) > p.size * 0.18 && !/\s$/.test(prev.text) && !/^\s/.test(text)) text = ` ${text}`;
+        out.push({ ...toBlockPiece(p), text });
+      });
+      if (out.length) out[out.length - 1].text = out[out.length - 1].text.trimEnd();
+      return out;
+    });
+    const gaps = b.segs.slice(1).map((s, i) => s.y - b.segs[i].y).sort((x, y) => x - y);
+    const lineSpacing = gaps.length ? gaps[Math.floor(gaps.length / 2)] : b.segs[0].size * 1.2;
+    blocks.push({
+      lines,
+      left: Math.min(...b.segs.map((s) => s.left)),
+      right: Math.max(...b.segs.map((s) => s.right)),
+      firstBaseline: b.segs[0].y,
+      lineSpacing,
+      angle: 0,
+    });
+  }
+  page.cleanup();
+  return blocks;
 }

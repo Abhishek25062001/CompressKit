@@ -21,7 +21,8 @@ export type ToolId =
   | 'rtf-to-pdf'
   | 'html-to-pdf'
   | 'pdf-to-text'
-  | 'pdf-to-html';
+  | 'pdf-to-html'
+  | 'pdf-to-pptx';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
 export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document';
@@ -140,7 +141,7 @@ export const CATALOG: ToolInfo[] = [
     heading: 'PDF tools',
     tagline: 'Photos to PDF, merge, split, sign, compress, OCR and more.',
     description:
-      'Turn photos into a PDF, merge, split and reorder pages, sign, fill forms, compress, protect with a password or make scans searchable. All in your browser.',
+      'Turn photos into a PDF, merge, split, crop and reorder pages, sign, fill forms, compress, protect with a password or make scans searchable. All in your browser.',
     title: 'Free PDF Tools: Merge, Split, Sign, Compress, OCR | CompressKit',
     handles: ['pdf', 'image', 'word'],
     formats: 'PDF · DOCX · JPG · PNG · HEIC · TIFF · GIF',
@@ -272,6 +273,20 @@ export const CATALOG: ToolInfo[] = [
     description:
       'Convert PDF files into a single, self-contained HTML page with real headings, paragraphs, lists, tables, links and pictures that reflows on any screen. Nothing is uploaded.',
     title: 'PDF to HTML Converter: Free and Private | CompressKit',
+    handles: ['pdf'],
+    formats: 'PDF',
+    converts: 'from-pdf',
+    secondary: true,
+  },
+  {
+    id: 'pdf-to-pptx',
+    path: '/pdf-to-powerpoint',
+    name: 'PDF to PowerPoint',
+    heading: 'Convert PDF to PowerPoint',
+    tagline: 'Turn PDF pages into slides with editable text.',
+    description:
+      'Convert PDF files to PowerPoint (PPTX) in your browser. Each page becomes a slide with its text as editable text boxes, and pictures and backgrounds kept exactly. Nothing is uploaded.',
+    title: 'PDF to PowerPoint Converter: PDF to PPTX, Free | CompressKit',
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',

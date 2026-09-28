@@ -21,6 +21,7 @@ import {
   Link,
   Palette as PaletteIcon,
   Pilcrow,
+  Presentation,
   Printer,
   Crop,
   Eye,
@@ -308,6 +309,20 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: Heading, title: 'Real structure', body: 'Headings, paragraphs, bulleted and numbered lists, tables and links, not positioned boxes.' },
       { icon: Smartphone, title: 'Reflows on phones', body: 'The page adapts to any screen size, and prints with page breaks where the PDF had them.' },
       { icon: Images, title: 'One file', body: 'Pictures are embedded, so there is no folder of images to keep with it.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
+    ],
+  },
+  'pdf-to-pptx': {
+    icon: Presentation,
+    steps: [
+      ['Add PDFs', 'Drop one or many PDFs: reports, handouts or exported decks.'],
+      ['Choose slides', 'Editable text boxes, or exact pictures of the pages.'],
+      ['Download', 'Open the .pptx in PowerPoint, Keynote or Google Slides.'],
+    ],
+    highlights: [
+      { icon: TextCursorInput, title: 'Editable text', body: 'Text becomes PowerPoint text boxes in the same place, with its font, size, bold, italic and colour.' },
+      { icon: Images, title: 'Looks the same', body: 'Photos, charts, shapes and backgrounds stay exactly as they were, behind the text.' },
+      { icon: Layers, title: 'One slide per page', body: 'Slides take the size of your PDF pages, so nothing is squeezed or cropped.' },
       { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
     ],
   },

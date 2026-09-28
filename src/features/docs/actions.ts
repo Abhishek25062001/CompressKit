@@ -5,6 +5,7 @@ import {
   useHtmlToPdfSettings,
   usePdfToDocxSettings,
   usePdfToHtmlSettings,
+  usePdfToPptxSettings,
   usePdfToTextSettings,
   useTextToPdfSettings,
   type ConvertKind,
@@ -215,6 +216,24 @@ export const CONVERTERS: Record<ConvertKind, Converter> = {
         pages: result.pages,
         notes: scanNotes(result.scannedPages, result.ocrPages, 'picture'),
       };
+    },
+  },
+  'pdf-to-pptx': {
+    accepts: isPdfFile,
+    takes: 'PDF to PowerPoint takes PDF files.',
+    failure: 'The PDF could not be converted. It may be too large for this browser.',
+    async convert(file, progress) {
+      const { mode, quality } = usePdfToPptxSettings.getState();
+      progress(0.02, 'Opening PDF');
+      const { pdfToPptx } = await import('./pdfToPptx');
+      const result = await withPdfPassword(file, progress, (password) =>
+        pdfToPptx(file, { mode, dpi: quality === 'high' ? 250 : 170, password, onProgress: (r, stage) => progress(0.02 + r * 0.96, stage) }),
+      );
+      const notes: string[] = [];
+      if (mode === 'editable' && result.pictureOnly) {
+        notes.push(`${result.pictureOnly} page${result.pictureOnly === 1 ? ' has' : 's have'} no text to edit (a scan or drawing) and ${result.pictureOnly === 1 ? 'is a picture' : 'are pictures'} on ${result.pictureOnly === 1 ? 'its slide' : 'their slides'}.`);
+      }
+      return { blob: result.blob, name: `${sanitizeBaseName(file.name)}.pptx`, pages: result.pages, notes };
     },
   },
 };

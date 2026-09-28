@@ -26,7 +26,7 @@ export function PdfToolPicker({ onPick }: { onPick: (tab: PdfTab) => void }) {
                 />
               </span>
               <span className="mt-3 text-sm font-semibold text-fg">{tool.name}</span>
-              {/* Phones show names only, so all eleven tools fit on about one screen. */}
+              {/* Phones show names only, so all twelve tools fit on about one screen. */}
               <span className="mt-1 hidden text-[13px] text-muted sm:block">{tool.description}</span>
             </button>
           </li>
