@@ -31,7 +31,7 @@ function CompactLink({ feature, current, onPick }: { feature: Feature; current: 
       aria-current={current ? 'page' : undefined}
       data-launcher-item=""
       className={cn(
-        'flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm outline-offset-0 transition-colors',
+        'flex items-center gap-2.5 rounded-lg px-2 py-2.5 text-sm outline-offset-0 transition-colors sm:py-1.5',
         current ? 'bg-accent-soft font-medium text-fg' : 'text-fg/90 hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2',
       )}
     >

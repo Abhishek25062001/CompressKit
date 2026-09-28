@@ -38,6 +38,8 @@ Static `dist/`. No server code, database, or API.
 
 ## 🛠️ Tools
 
+Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…), 62 in all, is listed by category on the home page and in the header's **All tools** launcher, which also opens with <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> or <kbd>/</kbd>. Links such as `/convert#gif`, `/resize#passport` or `/pdf#page-numbers` open a tool with that option already chosen. The list lives in `src/features/directory.ts`.
+
 | Tool | Address | What it does |
 | --- | --- | --- |
 | 🗜️ Compress | `/compress` | Shrink images and videos. Keep the original when it would not get smaller. |
