@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { acceptAttribute, type FormatDef } from '../../constants/formats';
 import { TOOL_BY_ID } from '../../features/catalog';
 import { addToConverter, downloadAllJobs, openInEditor, retryJob } from '../../features/docs/actions';
-import { CSV_FORMAT, HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, SHEET_FORMAT, TEXT_FORMAT } from '../../features/docs/formats';
+import { CSV_FORMAT, HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, SHEET_FORMAT, SLIDES_FORMAT, TEXT_FORMAT } from '../../features/docs/formats';
 import { DOCX_FORMAT, PDF_FORMAT } from '../../features/pdf/intake';
 import {
   DOC_QUEUES,
@@ -52,6 +52,7 @@ const UI: Record<ConvertKind, KindUi> = {
   'pdf-to-pptx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'PowerPoint', icon: Presentation },
   'excel-to-pdf': { formats: [SHEET_FORMAT, CSV_FORMAT], badges: ['XLSX', 'CSV'], title: 'Drop Excel workbooks here', to: 'PDF', icon: Sheet },
   'pdf-to-xlsx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'Excel', icon: Sheet },
+  'pptx-to-pdf': { formats: [SLIDES_FORMAT], badges: ['PPTX'], title: 'Drop PowerPoint presentations here', to: 'PDF', icon: Presentation },
 };
 
 /** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
@@ -429,6 +430,14 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
             fetched.
           </p>
         </>
+      );
+    case 'pptx-to-pdf':
+      return (
+        <p className="text-xs text-muted">
+          Each slide becomes a page at the slide's size, with its background, shapes, pictures, tables and text, following the
+          slide layout, master and theme. Text stays selectable. Hidden slides, speaker notes, animations and video are left out,
+          and charts and SmartArt are not drawn.
+        </p>
       );
     case 'rtf-to-pdf':
       return (

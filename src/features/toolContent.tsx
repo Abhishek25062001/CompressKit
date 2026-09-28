@@ -355,4 +355,18 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
     ],
   },
+  'pptx-to-pdf': {
+    icon: Presentation,
+    steps: [
+      ['Add presentations', 'Drop one or many PowerPoint (.pptx) files.'],
+      ['Wait a moment', 'Each slide is drawn as a PDF page on your device.'],
+      ['Download', 'Save each PDF, or all of them as a ZIP.'],
+    ],
+    highlights: [
+      { icon: PaletteIcon, title: 'Design kept', body: 'Backgrounds, theme colours, shapes, gradients and pictures from the slides, layouts and master.' },
+      { icon: ListOrdered, title: 'Text as on the slide', body: 'Bullets, numbering, indents, alignment and autofit, with text that stays selectable.' },
+      { icon: Table2, title: 'Tables included', body: 'Tables keep their cell colours, borders and merged cells.' },
+      { icon: WifiOff, title: 'No Office needed', body: 'Works in any modern browser, offline after your first visit, without uploading the file.' },
+    ],
+  },
 };

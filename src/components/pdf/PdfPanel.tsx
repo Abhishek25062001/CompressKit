@@ -3,6 +3,8 @@ import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
 import { compressPdf, exportImages, IMAGE_TYPES, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
+import { autoCropPages } from '../../features/pdf/crop';
+import { refreshThumbnail } from '../../features/pdf/intake';
 import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
 import type { PdfImageFormat, PdfPage } from '../../types/pdf';
 import { Button } from '../common/Button';
@@ -203,12 +205,10 @@ function CropTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
   const hasPdfPages = usePdfStore((s) => target.some((p) => s.sources[p.sourceId]?.kind === 'pdf'));
   const removeMargins = async () => {
     setResult(null);
-    const { autoCropPages } = await import('../../features/pdf/crop');
     const n = await autoCropPages(target, settings.cropPadding);
     setResult(n ? `Margins removed on ${n} page${n === 1 ? '' : 's'}.` : 'No white margins were found to remove.');
   };
-  const reset = async () => {
-    const { refreshThumbnail } = await import('../../features/pdf/intake');
+  const reset = () => {
     for (const { id } of cropped) {
       usePdfStore.getState().updatePage(id, { crop: undefined });
       refreshThumbnail(id);
@@ -254,7 +254,7 @@ function CropTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
               </span>
             ))}
           </p>
-          <Button variant="ghost" size="sm" onClick={() => void reset()} icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}>
+          <Button variant="ghost" size="sm" onClick={reset} icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}>
             Undo all crops
           </Button>
         </div>

@@ -42,7 +42,7 @@ export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
 /** Every document converter, each with a list of its own. */
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx' | 'excel-to-pdf' | 'pdf-to-xlsx';
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html' | 'pdf-to-pptx' | 'excel-to-pdf' | 'pdf-to-xlsx' | 'pptx-to-pdf';
 
 export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
   'docx-to-pdf': useDocxToPdfStore,
@@ -55,6 +55,7 @@ export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueStat
   'pdf-to-pptx': createQueue(),
   'excel-to-pdf': createQueue(),
   'pdf-to-xlsx': createQueue(),
+  'pptx-to-pdf': createQueue(),
 };
 
 export function isConvertKind(id: string): id is ConvertKind {

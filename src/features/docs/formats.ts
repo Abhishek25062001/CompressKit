@@ -21,6 +21,12 @@ export const SHEET_FORMAT: FormatDef = {
   mimes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
   extensions: ['xlsx', 'xlsm'],
 };
+export const SLIDES_FORMAT: FormatDef = {
+  kind: 'image',
+  label: 'PPTX',
+  mimes: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.presentationml.slideshow'],
+  extensions: ['pptx', 'ppsx'],
+};
 export const CSV_FORMAT: FormatDef = { kind: 'image', label: 'CSV', mimes: ['text/csv'], extensions: ['csv'] };
 
 const matches = (file: File, format: FormatDef) =>
@@ -32,3 +38,4 @@ export const isRtf = (file: File) => matches(file, RTF_FORMAT);
 export const isHtml = (file: File) => matches(file, HTML_FORMAT);
 export const isSpreadsheet = (file: File) => matches(file, SHEET_FORMAT) || matches(file, CSV_FORMAT);
 export const isCsv = (file: File) => matches(file, CSV_FORMAT);
+export const isSlides = (file: File) => matches(file, SLIDES_FORMAT);

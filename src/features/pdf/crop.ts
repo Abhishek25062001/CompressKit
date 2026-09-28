@@ -2,7 +2,9 @@ import type { PDFPage } from '@cantoo/pdf-lib';
 import type { CropBox, PageRotation, PdfPage, PdfSource } from '../../types/pdf';
 import { createCanvas, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
 export { cropCanvas } from '../image/canvas';
+import { usePdfStore } from '../../store/pdfStore';
 import { getOpenPdf } from './documents';
+import { refreshThumbnail } from './intake';
 import { renderPage } from './render';
 import { viewOf } from './stamps';
 
@@ -174,8 +176,6 @@ export async function detectMargins(page: PdfPage, source: PdfSource, padding: n
  * are left whole. Returns how many pages were cropped.
  */
 export async function autoCropPages(pages: PdfPage[], padding: number): Promise<number> {
-  const { usePdfStore } = await import('../../store/pdfStore');
-  const { refreshThumbnail } = await import('./intake');
   const store = usePdfStore.getState();
   if (store.busy) return 0;
   let cropped = 0;

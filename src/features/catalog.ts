@@ -24,7 +24,8 @@ export type ToolId =
   | 'pdf-to-html'
   | 'pdf-to-pptx'
   | 'excel-to-pdf'
-  | 'pdf-to-xlsx';
+  | 'pdf-to-xlsx'
+  | 'pptx-to-pdf';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
 export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document' | 'sheet' | 'slides';
@@ -60,7 +61,7 @@ export const SITE_NAME = 'CompressKit';
 export const HOME_META = {
   title: 'CompressKit: Private File Tools That Run in Your Browser',
   description:
-    'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert between them. Everything runs in your browser. No uploads, no account.',
+    'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
 };
 
 export const CATALOG: ToolInfo[] = [
@@ -320,6 +321,20 @@ export const CATALOG: ToolInfo[] = [
     handles: ['pdf', 'sheet'],
     formats: 'PDF',
     converts: 'from-pdf',
+    secondary: true,
+  },
+  {
+    id: 'pptx-to-pdf',
+    path: '/powerpoint-to-pdf',
+    name: 'PowerPoint to PDF',
+    heading: 'Convert PowerPoint to PDF',
+    tagline: 'Slides to PDF pages, with their design kept.',
+    description:
+      'Convert PowerPoint presentations (PPTX) to PDF in your browser, with backgrounds, shapes, pictures, tables and text from the slide layouts and theme. Nothing is uploaded.',
+    title: 'PowerPoint to PDF Converter: PPTX to PDF, Free | CompressKit',
+    handles: ['slides'],
+    formats: 'PPTX',
+    converts: 'to-pdf',
     secondary: true,
   },
 ];

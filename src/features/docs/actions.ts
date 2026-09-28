@@ -22,7 +22,7 @@ import { PdfOpenError } from '../pdf/documents';
 import { askPassword } from '../pdf/passwordPrompt';
 import { DocxReadError, isDocx, readDocx } from './docxRead';
 import { writeDocx } from './docxWrite';
-import { isCsv, isHtml, isPlainText, isRtf, isSpreadsheet } from './formats';
+import { isCsv, isHtml, isPlainText, isRtf, isSlides, isSpreadsheet } from './formats';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -285,6 +285,30 @@ export const CONVERTERS: Record<ConvertKind, Converter> = {
       const notes = scanNotes(result.scannedPages, result.ocrPages, ocr ? 'unreadable' : 'ocr-off');
       if (!result.sheets.some((s) => s.rows.some((r) => r.some(Boolean)))) notes.unshift('No text was found in this PDF.');
       return { blob: writeXlsx(result.sheets, base), name: `${base}.xlsx`, pages: result.pages, notes };
+    },
+  },
+  'pptx-to-pdf': {
+    accepts: (f) => isSlides(f) || /\.(ppt|pps|key|odp)$/i.test(f.name),
+    takes: 'PowerPoint to PDF takes PowerPoint presentations (.pptx).',
+    failure: 'The presentation could not be converted. It may be too large for this browser.',
+    async convert(file, progress) {
+      if (/\.(ppt|pps)$/i.test(file.name)) throw new ConvertError('This is an old .ppt file. Open it in PowerPoint or Google Slides and save it as .pptx first.');
+      if (/\.(key|odp)$/i.test(file.name)) throw new ConvertError('Export this presentation as PowerPoint (.pptx) from Keynote or LibreOffice first.');
+      progress(0.05, 'Reading presentation');
+      const { readPptx, PptxReadError } = await import('../office/pptxRead');
+      const { slidesToPdf } = await import('../office/pptxPdf');
+      let pres;
+      try {
+        pres = readPptx(new Uint8Array(await file.arrayBuffer()));
+      } catch (e) {
+        if (e instanceof PptxReadError) throw new ConvertError("This isn't a PowerPoint (.pptx) presentation, or it is damaged.");
+        throw e;
+      }
+      progress(0.2, 'Drawing slides');
+      const result = await slidesToPdf(pres, (r) => progress(0.2 + r * 0.77));
+      const notes = pres.warnings.length ? [WARNING_TEXT(pres.warnings)] : [];
+      if (result.rasterized) notes.push(RASTER_NOTE);
+      return { blob: new Blob([result.bytes as BlobPart], { type: 'application/pdf' }), name: `${sanitizeBaseName(file.name)}.pdf`, pages: result.pages, notes };
     },
   },
 };
