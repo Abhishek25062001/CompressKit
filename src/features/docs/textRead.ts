@@ -1,3 +1,4 @@
+import { isMarkdown } from './formats';
 import { A4, paragraph, text, type Block, type DocModel, type FontFamily, type PageSetup, type Paragraph, type ParagraphStyle, type Run, type TableCell, type TextRun } from './model';
 
 /**
@@ -17,11 +18,8 @@ const LETTER: PageSetup = { width: 612, height: 792, margin: { top: 72, right: 7
 /** Plain text uses narrower margins than a letter: 0.75 inch, so 80-column files fit at 10 pt. */
 const TEXT_MARGIN = { top: 54, right: 54, bottom: 54, left: 54 };
 const TAB_WIDTH = 8;
-const NBSP = ' ';
+const NBSP = '\u00a0';
 
-export function isMarkdown(file: File): boolean {
-  return /\.(md|markdown|mdown|mkd)$/i.test(file.name) || file.type === 'text/markdown';
-}
 
 /**
  * Decodes a text file. A byte-order mark decides when present; otherwise the file is read as UTF-8,
@@ -35,7 +33,11 @@ export function decodeText(bytes: Uint8Array): string {
   const sample = bytes.subarray(0, 4096);
   let evenZeros = 0;
   let oddZeros = 0;
-  for (let i = 0; i < sample.length; i++) if (sample[i] === 0) (i % 2 ? oddZeros++ : evenZeros++);
+  for (let i = 0; i < sample.length; i++) {
+    if (sample[i] !== 0) continue;
+    if (i % 2) oddZeros++;
+    else evenZeros++;
+  }
   if (sample.length >= 8 && oddZeros > sample.length / 4 && evenZeros < sample.length / 50) return new TextDecoder('utf-16le').decode(bytes);
   if (sample.length >= 8 && evenZeros > sample.length / 4 && oddZeros < sample.length / 50) return new TextDecoder('utf-16be').decode(bytes);
   try {
@@ -66,6 +68,8 @@ function expandTabs(line: string): string {
  * ordinary spaces at the start of a line, and indentation matters in text files.
  */
 function textLine(line: string, props: Omit<TextRun, 'type' | 'text'>): Paragraph {
+  // Control characters other than tabs have no printed form (and no glyph in PDF fonts).
+  // eslint-disable-next-line no-control-regex
   const expanded = expandTabs(line.replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/g, ''));
   const indent = /^ */.exec(expanded)![0].length;
   const value = NBSP.repeat(indent) + expanded.slice(indent);

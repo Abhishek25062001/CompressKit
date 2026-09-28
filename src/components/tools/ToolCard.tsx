@@ -4,7 +4,7 @@ import { TOOL_CONTENT } from '../../features/toolContent';
 import { cn } from '../../utils/cn';
 import { Link } from '../common/Link';
 
-const KIND_LABEL: Record<FileKind, string> = { image: 'Photos', video: 'Videos', pdf: 'PDFs', word: 'Word' };
+const KIND_LABEL: Record<FileKind, string> = { image: 'Photos', video: 'Videos', pdf: 'PDFs', word: 'Word', document: 'Documents' };
 
 interface ToolCardProps {
   tool: ToolInfo;

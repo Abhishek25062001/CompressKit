@@ -9,7 +9,9 @@ import {
   type FormatDef,
 } from '../constants/formats';
 import { CATALOG, type ToolId } from './catalog';
-import { addDocxToPdf, addPdfToDocx, openInEditor } from './docs/actions';
+import { isConvertKind } from '../store/docsStore';
+import { addToConverter, openInEditor } from './docs/actions';
+import { HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, TEXT_FORMAT } from './docs/formats';
 import { DOCX_FORMAT, PDF_FORMAT, PDF_INPUT_FORMATS, addPdfFiles } from './pdf/intake';
 import { TOOLS } from './tools';
 import { TRIM_INPUT_FORMATS, loadTrimFile } from './trim/trimJob';
@@ -28,6 +30,9 @@ const FORMATS: Record<ToolId, FormatDef[]> = {
   'docx-to-pdf': [DOCX_FORMAT],
   'pdf-to-docx': [PDF_FORMAT],
   'edit-docx': [DOCX_FORMAT, PDF_FORMAT],
+  'text-to-pdf': [TEXT_FORMAT, MARKDOWN_FORMAT],
+  'rtf-to-pdf': [RTF_FORMAT],
+  'html-to-pdf': [HTML_FORMAT],
 };
 
 /** Accept list for a file picker that offers every format some tool can open. */
@@ -54,8 +59,7 @@ export function matchTools(files: File[]): ToolMatch[] {
 export function openToolWith(id: ToolId, files: File[]): void {
   if (id === 'trim') void loadTrimFile(files);
   else if (id === 'pdf' || id === 'edit-pdf' || id === 'merge') void addPdfFiles(files);
-  else if (id === 'docx-to-pdf') addDocxToPdf(files);
-  else if (id === 'pdf-to-docx') addPdfToDocx(files);
+  else if (isConvertKind(id)) addToConverter(id, files);
   else if (id === 'edit-docx') void openInEditor(files[0]);
   else TOOLS[id].addFiles(files);
 }

@@ -6,6 +6,7 @@ import { TOOL_CONTENT } from '../../features/toolContent';
 import { useRouteStore } from '../../store/routeStore';
 import { cn } from '../../utils/cn';
 import { Link } from '../common/Link';
+import { ConverterLinks } from './ConverterLinks';
 
 /** The header's list of every tool: a disclosure with links, closed by Escape, a click outside or navigating. */
 export function ToolsMenu() {
@@ -62,7 +63,7 @@ export function ToolsMenu() {
             className="card fixed inset-x-3 top-[4.25rem] z-50 max-h-[calc(100dvh-5.5rem)] origin-top-right overflow-y-auto p-2 shadow-xl sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-[34rem]"
           >
             <ul className="grid gap-1 sm:grid-cols-2">
-              {CATALOG.map((tool) => {
+              {CATALOG.filter((tool) => !tool.secondary).map((tool) => {
                 const Icon = TOOL_CONTENT[tool.id].icon;
                 const current = path === tool.path;
                 return (
@@ -88,6 +89,9 @@ export function ToolsMenu() {
                 );
               })}
             </ul>
+            <div className="mt-1 border-t border-border pt-2">
+              <ConverterLinks compact onNavigate={() => setOpen(false)} />
+            </div>
             <div className="mt-1 border-t border-border px-2.5 pt-2 pb-1">
               <Link
                 to="/#tools"

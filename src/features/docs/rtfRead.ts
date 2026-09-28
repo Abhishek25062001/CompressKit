@@ -103,7 +103,7 @@ const SKIPPED = new Set([
 
 const SYMBOLS: Record<string, string> = {
   emdash: '—', endash: '–', bullet: '•', lquote: '‘', rquote: '’', ldblquote: '“', rdblquote: '”',
-  emspace: ' ', enspace: ' ', qmspace: ' ', zwj: '‍', zwnj: '‌', ltrmark: '', rtlmark: '',
+  emspace: '\u2003', enspace: '\u2002', qmspace: '\u2005', zwj: '\u200d', zwnj: '\u200c', ltrmark: '', rtlmark: '',
 };
 
 function familyFor(kind: string, name: string): FontFamily {
@@ -246,7 +246,8 @@ export function readRtf(bytes: Uint8Array): RtfResult {
     const p: Paragraph = { type: 'paragraph', style: pStyle, align: para.align, runs };
     if (para.listed || listText) {
       const marker = listText.replace(/\t/g, '').trim();
-      p.list = { ordered: /^[(]?[0-9a-zA-Z]{1,4}[.)]$/.test(marker), level: Math.min(4, para.level) };
+      // Numbered markers read "1.", "a)", "iv" or, from TextEdit, a bare "1"; bullets are symbols.
+      p.list = { ordered: marker.length <= 6 && /[0-9a-zA-Z]/.test(marker), level: Math.min(4, para.level) };
     }
     runs = [];
     listText = '';
@@ -666,8 +667,8 @@ export function readRtf(bytes: Uint8Array): RtfResult {
       }
       flushBytes();
       if (next === '\\' || next === '{' || next === '}') addText(next);
-      else if (next === '~') addText(' ');
-      else if (next === '_') addText('‑');
+      else if (next === '~') addText('\u00a0');
+      else if (next === '_') addText('\u2011');
       else if (next === '\n' || next === '\r') control('par', null);
       else if (next === '|' || next === ':') addText(next);
       // \- (optional hyphen) and anything else adds nothing.
@@ -711,6 +712,3 @@ export function readRtf(bytes: Uint8Array): RtfResult {
   return { doc: { page, blocks }, warnings: [...warnings] };
 }
 
-export function isRtf(file: File): boolean {
-  return /\.rtf$/i.test(file.name) || file.type === 'application/rtf' || file.type === 'text/rtf';
-}

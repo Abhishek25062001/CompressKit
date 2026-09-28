@@ -23,7 +23,7 @@ export function ToolGrid() {
         description="Each one runs entirely in your browser, works offline after your first visit, and never uploads your files."
       />
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CATALOG.map((tool) => (
+        {CATALOG.filter((tool) => !tool.secondary).map((tool) => (
           <li key={tool.id} className={WIDE[tool.id]?.span}>
             <ToolCard tool={tool} highlightsFrom={WIDE[tool.id]?.highlights} />
           </li>

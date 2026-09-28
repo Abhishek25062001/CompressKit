@@ -6,6 +6,7 @@ import { acceptAttribute } from '../../constants/formats';
 import { addPdfFiles, PDF_BADGES, PDF_INPUT_FORMATS } from '../../features/pdf/intake';
 import { fileInputId } from '../../features/tools';
 import { usePdfStore } from '../../store/pdfStore';
+import { useRouteStore } from '../../store/routeStore';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
@@ -89,13 +90,28 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
   const busy = usePdfStore((s) => s.busy);
   // PDF tools shows its tools first and asks for files once one is picked. Edit PDF and Merge
   // documents are one tool each, so they ask for files straight away.
-  const [picked, setPicked] = useState<PdfTab | null>(variant === 'edit' ? 'edit' : variant === 'merge' ? 'save' : null);
+  const [picked, setPicked] = useState<PdfTab | null>(() => {
+    if (variant !== 'pdf') return variant === 'edit' ? 'edit' : 'save';
+    const hash = useRouteStore.getState().hash;
+    return hash in PDF_TOOL_BY_TAB ? (hash as PdfTab) : null;
+  });
   const tool = picked ? PDF_TOOL_BY_TAB[picked] : null;
   const pick = (tab: PdfTab | null) => {
     setPicked(tab);
     requestAnimationFrame(() => document.getElementById('tool')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
   const onFiles = (files: FileList) => void addPdfFiles(Array.from(files));
+
+  // Links such as "/pdf#images" (from the converter lists) open that tool, also when PDF tools is
+  // already on screen.
+  useEffect(
+    () =>
+      useRouteStore.subscribe((route, previous) => {
+        if (variant !== 'pdf' || route.visit === previous.visit || !(route.hash in PDF_TOOL_BY_TAB)) return;
+        if (!usePdfStore.getState().pages.length) setPicked(route.hash as PdfTab);
+      }),
+    [variant],
+  );
 
   // Paste photos or PDFs anywhere on the page while the PDF tool is open.
   useEffect(() => {

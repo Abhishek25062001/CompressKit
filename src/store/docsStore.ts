@@ -41,6 +41,54 @@ function createQueue(): UseBoundStore<StoreApi<DocQueueState>> {
 export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
+/** Every document converter, each with a list of its own. */
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf';
+
+export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
+  'docx-to-pdf': useDocxToPdfStore,
+  'pdf-to-docx': usePdfToDocxStore,
+  'text-to-pdf': createQueue(),
+  'rtf-to-pdf': createQueue(),
+  'html-to-pdf': createQueue(),
+};
+
+export function isConvertKind(id: string): id is ConvertKind {
+  return id in DOC_QUEUES;
+}
+
+export type DocPageSize = 'a4' | 'letter';
+
+export interface TextToPdfSettings {
+  font: 'mono' | 'sans' | 'serif';
+  /** Points. */
+  size: number;
+  page: DocPageSize;
+  update: (patch: Partial<Omit<TextToPdfSettings, 'update'>>) => void;
+}
+
+export const useTextToPdfSettings = create<TextToPdfSettings>()(
+  persist((set) => ({ font: 'mono', size: 10, page: 'a4', update: (patch) => set(patch) }), {
+    name: 'compresskit-text-to-pdf',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ font: s.font, size: s.size, page: s.page }),
+  }),
+);
+
+export interface HtmlToPdfSettings {
+  page: DocPageSize;
+  update: (patch: Partial<Omit<HtmlToPdfSettings, 'update'>>) => void;
+}
+
+export const useHtmlToPdfSettings = create<HtmlToPdfSettings>()(
+  persist((set) => ({ page: 'a4', update: (patch) => set(patch) }), {
+    name: 'compresskit-html-to-pdf',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ page: s.page }),
+  }),
+);
+
 export interface PdfToDocxSettings {
   /** Pull pictures out of the PDF into the document. */
   images: boolean;

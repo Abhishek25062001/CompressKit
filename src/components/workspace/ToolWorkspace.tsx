@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { TOOL_BY_ID, type ToolId } from '../../features/catalog';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
+import { isConvertKind } from '../../store/docsStore';
 import type { ToolMode } from '../../types/media';
 import { ConvertWorkspace } from '../docs/ConvertWorkspace';
 import { DocxEditor } from '../docs/DocxEditor';
@@ -97,7 +98,7 @@ export function ToolWorkspace({ id }: { id: ToolId }) {
     <section id="tool" aria-label={TOOL_BY_ID[id].name} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
       {id === 'pdf' || id === 'edit-pdf' || id === 'merge' ? (
         <PdfWorkspace variant={id === 'pdf' ? 'pdf' : id === 'edit-pdf' ? 'edit' : 'merge'} />
-      ) : id === 'docx-to-pdf' || id === 'pdf-to-docx' ? (
+      ) : isConvertKind(id) ? (
         <ConvertWorkspace kind={id} />
       ) : id === 'edit-docx' ? (
         <DocxEditor />

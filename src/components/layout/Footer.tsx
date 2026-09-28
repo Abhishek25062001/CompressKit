@@ -22,20 +22,36 @@ export function Footer() {
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-[2fr_1fr]">
-          <nav aria-labelledby="footer-tools">
-            <h2 id="footer-tools" className="text-xs font-semibold tracking-wide text-fg uppercase">
-              Tools
-            </h2>
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
-              {CATALOG.map((tool) => (
-                <li key={tool.id}>
-                  <Link to={tool.path} className="hover:text-fg hover:underline">
-                    {tool.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <div className="space-y-8">
+            <nav aria-labelledby="footer-tools">
+              <h2 id="footer-tools" className="text-xs font-semibold tracking-wide text-fg uppercase">
+                Tools
+              </h2>
+              <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                {CATALOG.filter((tool) => !tool.secondary).map((tool) => (
+                  <li key={tool.id}>
+                    <Link to={tool.path} className="hover:text-fg hover:underline">
+                      {tool.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <nav aria-labelledby="footer-converters">
+              <h2 id="footer-converters" className="text-xs font-semibold tracking-wide text-fg uppercase">
+                Converters
+              </h2>
+              <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                {CATALOG.filter((tool) => tool.converts).map((tool) => (
+                  <li key={tool.id}>
+                    <Link to={tool.path} className="hover:text-fg hover:underline">
+                      {tool.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
           <nav aria-labelledby="footer-about">
             <h2 id="footer-about" className="text-xs font-semibold tracking-wide text-fg uppercase">
               About

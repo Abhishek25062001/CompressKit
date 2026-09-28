@@ -1,51 +1,66 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Download, FileText, FileType2, Loader2, PenSquare, RotateCcw, Trash2, X } from 'lucide-react';
-import { useEffect } from 'react';
-import { addDocxToPdf, addPdfToDocx, downloadAllJobs, openInEditor, retryJob } from '../../features/docs/actions';
-import { useDocxToPdfStore, usePdfToDocxSettings, usePdfToDocxStore, type DocJob } from '../../store/docsStore';
+import { AlertTriangle, CheckCircle2, Download, FileCode, FileText, FileType, FileType2, Loader2, PenSquare, Pilcrow, Printer, RotateCcw, Trash2, X, type LucideIcon } from 'lucide-react';
+import { useEffect, type ReactNode } from 'react';
+import { acceptAttribute, type FormatDef } from '../../constants/formats';
+import { TOOL_BY_ID } from '../../features/catalog';
+import { addToConverter, downloadAllJobs, openInEditor, retryJob } from '../../features/docs/actions';
+import { HTML_FORMAT, MARKDOWN_FORMAT, RTF_FORMAT, TEXT_FORMAT } from '../../features/docs/formats';
+import { DOCX_FORMAT, PDF_FORMAT } from '../../features/pdf/intake';
+import {
+  DOC_QUEUES,
+  useHtmlToPdfSettings,
+  usePdfToDocxSettings,
+  useTextToPdfSettings,
+  type ConvertKind,
+  type DocJob,
+  type DocPageSize,
+} from '../../store/docsStore';
 import { useRouteStore } from '../../store/routeStore';
 import { downloadBlob } from '../../utils/download';
 import { formatBytes } from '../../utils/format';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
+import { SegmentedControl } from '../common/SegmentedControl';
 import { Switch } from '../common/Switch';
 import { PasswordDialog } from '../pdf/PasswordDialog';
 import { FileDropZone } from '../upload/DropZone';
 
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx';
+interface KindUi {
+  formats: FormatDef[];
+  badges: string[];
+  title: string;
+  /** Name of the output format on download buttons. */
+  to: string;
+  icon: LucideIcon;
+  /** Opens the original (source) or the converted file (result) in the Word editor. */
+  edit?: 'source' | 'result';
+}
 
-const CONFIG = {
-  'docx-to-pdf': {
-    store: useDocxToPdfStore,
-    add: addDocxToPdf,
-    accept: '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    badges: ['DOCX'],
-    title: 'Drop Word documents here',
-    from: 'Word',
-    to: 'PDF',
-  },
-  'pdf-to-docx': {
-    store: usePdfToDocxStore,
-    add: addPdfToDocx,
-    accept: '.pdf,application/pdf',
-    badges: ['PDF'],
-    title: 'Drop PDFs here',
-    from: 'PDF',
-    to: 'Word',
-  },
-} as const;
+const UI: Record<ConvertKind, KindUi> = {
+  'docx-to-pdf': { formats: [DOCX_FORMAT], badges: ['DOCX'], title: 'Drop Word documents here', to: 'PDF', icon: FileType2, edit: 'source' },
+  'pdf-to-docx': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'Word', icon: FileText, edit: 'result' },
+  'text-to-pdf': { formats: [TEXT_FORMAT, MARKDOWN_FORMAT], badges: ['TXT', 'MD'], title: 'Drop text or Markdown files here', to: 'PDF', icon: FileType },
+  'rtf-to-pdf': { formats: [RTF_FORMAT], badges: ['RTF'], title: 'Drop RTF documents here', to: 'PDF', icon: Pilcrow },
+  'html-to-pdf': { formats: [HTML_FORMAT], badges: ['HTML', 'HTM'], title: 'Drop HTML files here', to: 'PDF', icon: FileCode },
+};
+
+/** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
+async function printExact(file: File): Promise<void> {
+  const { decodeHtml, printHtml } = await import('../../features/docs/htmlRead');
+  await printHtml(decodeHtml(new Uint8Array(await file.arrayBuffer())));
+}
 
 function JobCard({ kind, job }: { kind: ConvertKind; job: DocJob }) {
-  const { store } = CONFIG[kind];
+  const store = DOC_QUEUES[kind];
+  const ui = UI[kind];
   const navigate = useRouteStore((s) => s.navigate);
   const edit = () => {
-    // Word to PDF edits the original; PDF to Word edits the converted document.
-    const file = kind === 'docx-to-pdf' ? job.file : job.result && new File([job.result.blob], job.result.name, { type: job.result.blob.type });
+    const file = ui.edit === 'source' ? job.file : job.result && new File([job.result.blob], job.result.name, { type: job.result.blob.type });
     if (!file) return;
     void openInEditor(file);
     navigate('/edit-docx');
   };
-  const Icon = kind === 'docx-to-pdf' ? FileType2 : FileText;
+  const Icon = ui.icon;
   return (
     <li className="card p-4">
       <div className="flex items-start gap-3">
@@ -100,12 +115,17 @@ function JobCard({ kind, job }: { kind: ConvertKind; job: DocJob }) {
         <div className="mt-3 flex flex-wrap gap-2">
           {job.result && (
             <Button variant="primary" size="sm" onClick={() => downloadBlob(job.result!.blob, job.result!.name)} icon={<Download className="h-3.5 w-3.5" aria-hidden />}>
-              Download {CONFIG[kind].to}
+              Download {ui.to}
             </Button>
           )}
-          {(kind === 'docx-to-pdf' || job.result) && job.status === 'done' && (
+          {ui.edit && job.status === 'done' && (ui.edit === 'source' || job.result) && (
             <Button size="sm" onClick={edit} icon={<PenSquare className="h-3.5 w-3.5" aria-hidden />}>
-              {kind === 'docx-to-pdf' ? 'Edit document' : 'Edit in browser'}
+              {ui.edit === 'source' ? 'Edit document' : 'Edit in browser'}
+            </Button>
+          )}
+          {kind === 'html-to-pdf' && (
+            <Button size="sm" onClick={() => void printExact(job.file)} icon={<Printer className="h-3.5 w-3.5" aria-hidden />}>
+              Exact layout (print)
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => retryJob(kind, job.id)} icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}>
@@ -117,53 +137,162 @@ function JobCard({ kind, job }: { kind: ConvertKind; job: DocJob }) {
   );
 }
 
-function SidePanel({ kind }: { kind: ConvertKind }) {
-  const { store } = CONFIG[kind];
-  const jobs = store((s) => s.jobs);
-  const settings = usePdfToDocxSettings();
-  const done = jobs.filter((j) => j.status === 'done').length;
-  const busy = jobs.some((j) => j.status === 'working' || j.status === 'waiting');
-  const reconvert = () => jobs.forEach((j) => j.status !== 'working' && retryJob(kind, j.id));
-
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section aria-labelledby="convert-panel-title" className="card space-y-5 p-5">
-      <h2 id="convert-panel-title" className="text-sm font-semibold text-fg">
-        {CONFIG[kind].from} to {CONFIG[kind].to}
-      </h2>
-      {kind === 'pdf-to-docx' ? (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span className="text-xs font-medium tracking-wide text-muted uppercase">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function PageSizeRow({ value, onChange }: { value: DocPageSize; onChange: (v: DocPageSize) => void }) {
+  return (
+    <Row label="Page size">
+      <SegmentedControl
+        label="Page size"
+        size="sm"
+        value={value}
+        onChange={onChange}
+        segments={[
+          { value: 'a4', label: 'A4' },
+          { value: 'letter', label: 'Letter' },
+        ]}
+      />
+    </Row>
+  );
+}
+
+/** Options that apply to every file on the list; changing them offers to convert everything again. */
+function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode }) {
+  const pdfToDocx = usePdfToDocxSettings();
+  const text = useTextToPdfSettings();
+  const html = useHtmlToPdfSettings();
+  switch (kind) {
+    case 'pdf-to-docx':
+      return (
         <>
           <Switch
             label="Include pictures"
             description="Photos and logos in the PDF are placed in the document where they appear."
-            checked={settings.images}
-            onChange={(images) => settings.update({ images })}
+            checked={pdfToDocx.images}
+            onChange={(images) => pdfToDocx.update({ images })}
           />
           <Switch
             label="Read scanned pages (OCR)"
             description="Pages that are photos or scans are read into editable text (English). Off keeps them as pictures."
-            checked={settings.ocr}
-            onChange={(ocr) => settings.update({ ocr })}
+            checked={pdfToDocx.ocr}
+            onChange={(ocr) => pdfToDocx.update({ ocr })}
           />
           <Switch
             label="Keep page breaks"
             description="Each PDF page starts a new page in Word. Off lets the text flow freely."
-            checked={settings.keepPages}
-            onChange={(keepPages) => settings.update({ keepPages })}
+            checked={pdfToDocx.keepPages}
+            onChange={(keepPages) => pdfToDocx.update({ keepPages })}
           />
-          <Button className="w-full" onClick={reconvert} disabled={busy || !jobs.length} icon={<RotateCcw className="h-4 w-4" aria-hidden />}>
-            Convert again with these options
-          </Button>
+          {reconvert}
           <p className="text-xs text-muted">
             Text, headings, bold and italic, lists and pictures come across. Complex layouts (columns, text boxes, forms) are simplified
             into plain paragraphs you can edit.
           </p>
         </>
-      ) : (
+      );
+    case 'text-to-pdf':
+      return (
+        <>
+          <Row label="Font">
+            <SegmentedControl
+              label="Font"
+              size="sm"
+              value={text.font}
+              onChange={(font) => text.update({ font })}
+              segments={[
+                { value: 'mono', label: 'Monospace' },
+                { value: 'sans', label: 'Sans' },
+                { value: 'serif', label: 'Serif' },
+              ]}
+            />
+          </Row>
+          <Row label="Text size">
+            <SegmentedControl
+              label="Text size"
+              size="sm"
+              value={String(text.size) as '9' | '10' | '11' | '12'}
+              onChange={(v) => text.update({ size: Number(v) })}
+              segments={[
+                { value: '9', label: '9 pt' },
+                { value: '10', label: '10' },
+                { value: '11', label: '11' },
+                { value: '12', label: '12' },
+              ]}
+            />
+          </Row>
+          <PageSizeRow value={text.page} onChange={(page) => text.update({ page })} />
+          {reconvert}
+          <p className="text-xs text-muted">
+            {text.font === 'mono'
+              ? 'Monospace keeps columns, tables drawn with spaces and code lined up exactly. At 10 pt, 80 characters fit on a line.'
+              : 'A proportional font reads more like a letter; columns lined up with spaces will not stay straight.'}{' '}
+            Markdown files are formatted with headings, lists and tables, and code blocks stay in monospace.
+          </p>
+        </>
+      );
+    case 'html-to-pdf':
+      return (
+        <>
+          <PageSizeRow value={html.page} onChange={(page) => html.update({ page })} />
+          {reconvert}
+          <p className="text-xs text-muted">
+            The page is read with its stylesheets, and laid out as a document with selectable text: headings, fonts, colours, tables,
+            lists, links and embedded pictures come across, while side-by-side columns are placed one after another. For a PDF that
+            looks exactly like the page, use <span className="font-medium text-fg">Exact layout (print)</span> and choose Save as PDF.
+          </p>
+          <p className="text-xs text-muted">
+            Scripts never run. Pictures inside the file are included; pictures it links to on the web or in a folder next to it are not
+            fetched.
+          </p>
+        </>
+      );
+    case 'rtf-to-pdf':
+      return (
+        <p className="text-xs text-muted">
+          Fonts, sizes, bold, italic, underline, colours, highlighting, headings, lists, tables, links and PNG or JPEG pictures are
+          kept, and text stays selectable. Page size and margins follow the document. Headers, footers, footnotes and drawings are not
+          included.
+        </p>
+      );
+    default:
+      return (
         <p className="text-xs text-muted">
           Headings, bold, italic, underline, colours, lists, tables, links and pictures are kept, and text stays selectable and
           searchable. Page size and margins follow the document. Headers, footers, footnotes and text boxes are not included.
         </p>
-      )}
+      );
+  }
+}
+
+function SidePanel({ kind }: { kind: ConvertKind }) {
+  const store = DOC_QUEUES[kind];
+  const jobs = store((s) => s.jobs);
+  const done = jobs.filter((j) => j.status === 'done').length;
+  const busy = jobs.some((j) => j.status === 'working' || j.status === 'waiting');
+  const reconvert = (
+    <Button
+      className="w-full"
+      onClick={() => jobs.forEach((j) => j.status !== 'working' && retryJob(kind, j.id))}
+      disabled={busy || !jobs.length}
+      icon={<RotateCcw className="h-4 w-4" aria-hidden />}
+    >
+      Convert again with these options
+    </Button>
+  );
+
+  return (
+    <section aria-labelledby="convert-panel-title" className="card space-y-5 p-5">
+      <h2 id="convert-panel-title" className="text-sm font-semibold text-fg">
+        {TOOL_BY_ID[kind].name}
+      </h2>
+      <Options kind={kind} reconvert={reconvert} />
       <div className="h-px bg-border" />
       <Button
         variant="primary"
@@ -181,11 +310,12 @@ function SidePanel({ kind }: { kind: ConvertKind }) {
   );
 }
 
-/** Word to PDF and PDF to Word: a list of files converted one after another, each downloaded on its own. */
+/** Every document converter: a list of files converted one after another, each downloaded on its own. */
 export function ConvertWorkspace({ kind }: { kind: ConvertKind }) {
-  const { store, add, accept, badges, title } = CONFIG[kind];
+  const store = DOC_QUEUES[kind];
+  const { formats, badges, title } = UI[kind];
   const jobs = store((s) => s.jobs);
-  const onFiles = (files: FileList) => add(Array.from(files));
+  const onFiles = (files: FileList) => addToConverter(kind, Array.from(files));
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -193,15 +323,15 @@ export function ConvertWorkspace({ kind }: { kind: ConvertKind }) {
       if (target?.closest('input, textarea, [contenteditable="true"]')) return;
       if (e.clipboardData?.files.length) {
         e.preventDefault();
-        add(Array.from(e.clipboardData.files));
+        addToConverter(kind, Array.from(e.clipboardData.files));
       }
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [add]);
+  }, [kind]);
 
   const dropZone = (compact: boolean) => (
-    <FileDropZone inputId={`ck-file-input-${kind}`} accept={accept} badges={[...badges]} onFiles={onFiles} compact={compact} title={title} />
+    <FileDropZone inputId={`ck-file-input-${kind}`} accept={acceptAttribute(formats)} badges={badges} onFiles={onFiles} compact={compact} title={title} />
   );
 
   return (

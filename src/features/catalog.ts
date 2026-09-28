@@ -16,10 +16,13 @@ export type ToolId =
   | 'merge'
   | 'docx-to-pdf'
   | 'pdf-to-docx'
-  | 'edit-docx';
+  | 'edit-docx'
+  | 'text-to-pdf'
+  | 'rtf-to-pdf'
+  | 'html-to-pdf';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
-export type FileKind = 'image' | 'video' | 'pdf' | 'word';
+export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document';
 
 export interface ToolInfo {
   id: ToolId;
@@ -38,6 +41,13 @@ export interface ToolInfo {
   handles: FileKind[];
   /** Formats listed on the card. */
   formats: string;
+  /** Listed under "Convert to PDF" or "Convert from PDF". */
+  converts?: 'to-pdf' | 'from-pdf';
+  /**
+   * Single-format converters: listed with the converters rather than as cards in the main grid
+   * and menu, which would otherwise run to dozens of near-identical entries.
+   */
+  secondary?: true;
 }
 
 export const SITE_NAME = 'CompressKit';
@@ -168,6 +178,7 @@ export const CATALOG: ToolInfo[] = [
     title: 'Word to PDF Converter: DOCX to PDF, Free and Private | CompressKit',
     handles: ['word'],
     formats: 'DOCX',
+    converts: 'to-pdf',
   },
   {
     id: 'pdf-to-docx',
@@ -180,6 +191,7 @@ export const CATALOG: ToolInfo[] = [
     title: 'PDF to Word Converter: PDF to DOCX, Free and Private | CompressKit',
     handles: ['pdf'],
     formats: 'PDF',
+    converts: 'from-pdf',
   },
   {
     id: 'edit-docx',
@@ -192,6 +204,48 @@ export const CATALOG: ToolInfo[] = [
     title: 'Edit Word Documents Online: Free DOCX Editor | CompressKit',
     handles: ['word', 'pdf'],
     formats: 'DOCX · PDF',
+  },
+  {
+    id: 'text-to-pdf',
+    path: '/text-to-pdf',
+    name: 'Text to PDF',
+    heading: 'Convert text files to PDF',
+    tagline: 'Turn TXT and Markdown files into clean, searchable PDFs.',
+    description:
+      'Convert plain text (.txt) and Markdown (.md) files to PDF in your browser. Lines, indentation and columns stay exactly as typed; Markdown becomes formatted headings, lists and tables.',
+    title: 'Text to PDF Converter: TXT and Markdown to PDF, Free | CompressKit',
+    handles: ['document'],
+    formats: 'TXT · MD',
+    converts: 'to-pdf',
+    secondary: true,
+  },
+  {
+    id: 'rtf-to-pdf',
+    path: '/rtf-to-pdf',
+    name: 'RTF to PDF',
+    heading: 'Convert RTF to PDF',
+    tagline: 'Rich Text from WordPad, TextEdit or Word, as a PDF.',
+    description:
+      'Convert Rich Text Format (.rtf) documents to PDF in your browser, with fonts, colours, headings, lists, tables, links and pictures. Text stays selectable. Nothing is uploaded.',
+    title: 'RTF to PDF Converter: Free and Private | CompressKit',
+    handles: ['document'],
+    formats: 'RTF',
+    converts: 'to-pdf',
+    secondary: true,
+  },
+  {
+    id: 'html-to-pdf',
+    path: '/html-to-pdf',
+    name: 'HTML to PDF',
+    heading: 'Convert HTML to PDF',
+    tagline: 'Saved web pages and HTML files, as PDFs.',
+    description:
+      'Convert HTML files to PDF in your browser, with their styles, tables, lists, links and embedded pictures. Scripts never run and nothing is fetched or uploaded.',
+    title: 'HTML to PDF Converter: HTML Files to PDF, Free | CompressKit',
+    handles: ['document'],
+    formats: 'HTML · HTM',
+    converts: 'to-pdf',
+    secondary: true,
   },
 ];
 

@@ -4,6 +4,7 @@ import { HighlightGrid } from '../sections/HighlightGrid';
 import { Hero } from '../sections/Hero';
 import { Privacy } from '../sections/Privacy';
 import { StepList } from '../sections/StepList';
+import { ConverterLinks } from '../tools/ConverterLinks';
 import { ToolGrid } from '../tools/ToolGrid';
 
 const WHY: Highlight[] = [
@@ -40,6 +41,7 @@ export function HomePage() {
     <>
       <Hero />
       <ToolGrid />
+      <ConverterLinks />
       <StepList id="how-it-works" eyebrow="How it works" title="Three steps. No uploads." steps={STEPS} />
       <HighlightGrid id="features" eyebrow="Why CompressKit" title="Serious tools, zero setup" items={WHY} />
       <Privacy />
