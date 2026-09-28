@@ -61,10 +61,7 @@ const INTENTS: Partial<Record<ToolId, Intents>> = {
 
 /** Applies the setting a link's hash names, if the tool has one by that name. */
 export function applyIntent(id: ToolId, hash: string): void {
-  INTENTS[id]?.[hash]?.();
-}
-
-/** Whether "/path#hash" names a setting of that tool, for checking links in development. */
-export function hasIntent(id: ToolId, hash: string): boolean {
-  return !!INTENTS[id]?.[hash];
+  const intents = INTENTS[id];
+  // Own names only: "#constructor" or "#__proto__" must not reach Object.prototype.
+  if (intents && Object.hasOwn(intents, hash)) intents[hash]();
 }

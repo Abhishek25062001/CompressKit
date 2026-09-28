@@ -155,8 +155,6 @@ export const PDF_TOOLS: PdfToolInfo[] = [
   },
 ];
 
-export const PDF_TOOL_BY_TAB = Object.fromEntries(PDF_TOOLS.map((t) => [t.value, t])) as Record<PdfTab, PdfToolInfo>;
-
 /** Something the PDF page can be opened for: one of its tools, or a job done inside one. */
 export interface PdfJob extends Omit<PdfToolInfo, 'value' | 'label'> {
   /** The panel tab that does the job. */
@@ -237,9 +235,14 @@ const PDF_SHORTCUTS: Record<string, PdfJob> = {
 };
 
 /** Every PDF page hash ("/pdf#split", "/pdf#unlock") and what it opens. */
-export const PDF_JOBS: Record<string, PdfJob> = {
+const PDF_JOBS: Record<string, PdfJob> = {
   ...Object.fromEntries(
     PDF_TOOLS.map((t) => [t.value, { name: t.name, description: t.description, dropTitle: t.dropTitle, badges: t.badges, icon: t.icon, tab: t.value }]),
   ),
   ...PDF_SHORTCUTS,
 };
+
+/** The job a PDF page hash names, or undefined. Own names only, so "#constructor" is not a job. */
+export function pdfJob(key: string | null): PdfJob | undefined {
+  return key !== null && Object.hasOwn(PDF_JOBS, key) ? PDF_JOBS[key] : undefined;
+}
