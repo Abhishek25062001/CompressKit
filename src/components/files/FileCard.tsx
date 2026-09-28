@@ -48,7 +48,7 @@ function FileCardImpl({ id }: { id: string }) {
               {item.name}
             </p>
             {mode === 'resize' && item.crop && (
-              <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Cropped</span>
+              <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Edited</span>
             )}
             {item.override && (
               <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Custom</span>

@@ -1,11 +1,12 @@
+import { FlipHorizontal2, RotateCcw, RotateCw } from 'lucide-react';
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
-import { FULL_CROP, centeredCrop, cropFits, outputSize } from '../../features/resize/resizeJob';
+import { FULL_CROP, centeredCrop, cropFits, itemOrientation, orientedSize, outputSize } from '../../features/resize/resizeJob';
 import { useObjectUrl } from '../../hooks/useObjectUrl';
 import { useResizeQueueStore } from '../../store/queueStore';
 import { useResizeSettingsStore } from '../../store/resizeSettingsStore';
 import { useUiStore } from '../../store/uiStore';
 import type { QueueItem } from '../../types/media';
-import type { CropRect } from '../../types/resize';
+import type { CropRect, Orientation, Rotation } from '../../types/resize';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 
@@ -97,6 +98,22 @@ function resizeFree(start: CropRect, handle: Handle, dx: number, dy: number): Cr
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
+/**
+ * Sizes and turns the photo so it fills a frame shaped like the turned photo. CSS applies the
+ * transform list right to left, so this rotates first and mirrors second, like the encoder.
+ */
+function orientedImageStyle(natural: { width: number; height: number }, o: Orientation): CSSProperties {
+  const turned = o.rotate % 180 !== 0;
+  const ratio = natural.width / natural.height;
+  return {
+    left: '50%',
+    top: '50%',
+    width: turned ? `${ratio * 100}%` : '100%',
+    height: turned ? `${100 / ratio}%` : '100%',
+    transform: `translate(-50%, -50%)${o.mirror ? ' scaleX(-1)' : ''} rotate(${o.rotate}deg)`,
+  };
+}
+
 function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void }) {
   const url = useObjectUrl(item.file);
   const settings = useResizeSettingsStore();
@@ -105,12 +122,26 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
   // Null when freehand: the crop can take any shape.
   const aspect = size ? size.width / size.height : null;
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const [orientation, setOrientation] = useState<Orientation>(() => itemOrientation(item));
   const [rect, setRect] = useState<CropRect | null>(cropFits(item.crop, aspect) ? item.crop.rect : null);
   const drag = useRef<Drag | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  const k = natural && aspect ? natural.width / natural.height / aspect : 1;
-  const current = rect ?? (natural ? (aspect ? centeredCrop(natural.width, natural.height, aspect) : FULL_CROP) : null);
+  // The photo as turned: the frame, the crop and its pixel counts all follow this.
+  const shown = natural ? orientedSize(natural, orientation) : null;
+  const k = shown && aspect ? shown.width / shown.height / aspect : 1;
+  const current = rect ?? (shown ? (aspect ? centeredCrop(shown.width, shown.height, aspect) : FULL_CROP) : null);
+
+  // A quarter turn changes the photo's shape, so the crop starts over from the default.
+  const rotate = (by: 90 | -90) => {
+    setOrientation((o) => ({ ...o, rotate: (((o.rotate + by) % 360) + 360) % 360 as Rotation }));
+    setRect(null);
+  };
+  // Mirroring keeps the shape, so the crop is mirrored along with the photo.
+  const mirror = () => {
+    setOrientation((o) => ({ ...o, mirror: !o.mirror }));
+    if (rect) setRect({ ...rect, x: 1 - rect.x - rect.width });
+  };
 
   // The crop box and each corner handle carry data-drag with what dragging them does.
   const onDown = (e: PointerEvent<HTMLElement>) => {
@@ -181,7 +212,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
   const save = () => {
     if (!current) return;
     updateItem(item.id, {
-      crop: { rect: current, aspect },
+      crop: { rect: current, aspect, ...orientation },
       // A finished photo is resized again with its new crop.
       ...(item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'
         ? { status: 'waiting' as const, error: null }
@@ -192,13 +223,13 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
 
   const pct = (n: number) => `${n * 100}%`;
   const cropPixels =
-    current && natural ? `${Math.round(current.width * natural.width)} × ${Math.round(current.height * natural.height)}` : null;
+    current && shown ? `${Math.round(current.width * shown.width)} × ${Math.round(current.height * shown.height)}` : null;
 
   return (
     <Modal
       open
       onClose={onClose}
-      title="Crop photo"
+      title="Crop and turn photo"
       description={item.name}
       footer={
         <>
@@ -213,12 +244,30 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
       }
     >
       <div className="space-y-3">
+        <div className="flex justify-center gap-1" role="group" aria-label="Turn photo">
+          <Button variant="ghost" size="sm" onClick={() => rotate(-90)} disabled={!natural} icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}>
+            Rotate left
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => rotate(90)} disabled={!natural} icon={<RotateCw className="h-3.5 w-3.5" aria-hidden />}>
+            Rotate right
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={mirror}
+            disabled={!natural}
+            aria-pressed={orientation.mirror}
+            icon={<FlipHorizontal2 className="h-3.5 w-3.5" aria-hidden />}
+          >
+            Mirror
+          </Button>
+        </div>
         <div
           ref={boxRef}
           className="relative mx-auto w-full touch-none select-none"
           style={
-            natural
-              ? { aspectRatio: `${natural.width} / ${natural.height}`, maxWidth: `calc(55dvh * ${natural.width / natural.height})` }
+            shown
+              ? { aspectRatio: `${shown.width} / ${shown.height}`, maxWidth: `calc(55dvh * ${shown.width / shown.height})` }
               : { aspectRatio: '4 / 3' }
           }
         >
@@ -230,7 +279,8 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
                 alt=""
                 draggable={false}
                 onLoad={(e) => setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
-                className="absolute inset-0 h-full w-full object-contain"
+                className="absolute max-w-none object-contain"
+                style={natural ? orientedImageStyle(natural, orientation) : { inset: 0, width: '100%', height: '100%' }}
               />
             )}
             {current && (

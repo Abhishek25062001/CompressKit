@@ -1,7 +1,7 @@
 import { DEFAULT_IMAGE_SETTINGS } from '../../constants/presets';
 import { MAX_CUSTOM_SIDE, RESIZE_PRESETS } from '../../constants/resizePresets';
 import type { QueueItem } from '../../types/media';
-import type { CropRect, ImageTransform, ItemCrop, ResizeSettings } from '../../types/resize';
+import { UPRIGHT, type CropRect, type ImageTransform, type ItemCrop, type Orientation, type ResizeSettings } from '../../types/resize';
 import type { ImageSettings } from '../../types/settings';
 
 /** High enough that resizing never visibly degrades the picture; a KB limit overrides it. */
@@ -52,8 +52,18 @@ export function cropFits(crop: ItemCrop | null, aspect: number | null): crop is 
   return crop.aspect !== null && sameAspect(crop.aspect, aspect);
 }
 
+/** The item's rotation and mirroring, kept even when its crop no longer fits the preset. */
+export function itemOrientation(item: QueueItem): Orientation {
+  return item.crop ? { rotate: item.crop.rotate, mirror: item.crop.mirror } : UPRIGHT;
+}
+
+/** Size of an image once rotated: quarter turns swap its sides. */
+export function orientedSize<T extends { width: number; height: number }>(size: T, o: Orientation): { width: number; height: number } {
+  return o.rotate % 180 ? { width: size.height, height: size.width } : { width: size.width, height: size.height };
+}
+
 export function resizeTransform(item: QueueItem, s: ResizeSettings): ImageTransform {
   const size = outputSize(s);
   const crop = cropFits(item.crop, size ? size.width / size.height : null) ? item.crop.rect : null;
-  return { crop, width: size?.width ?? null, height: size?.height ?? null };
+  return { orientation: itemOrientation(item), crop, width: size?.width ?? null, height: size?.height ?? null };
 }

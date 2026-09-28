@@ -53,7 +53,7 @@ export const PDF_TOOLS: PdfToolInfo[] = [
     value: 'images',
     label: 'Images',
     name: 'PDF to images',
-    description: 'Save pages as JPG or PNG at the resolution you choose.',
+    description: 'Save pages as JPG, PNG, BMP or TIFF at the resolution you choose.',
     dropTitle: 'Drop a PDF to turn into images',
     badges: PDF_ONLY,
     icon: Images,

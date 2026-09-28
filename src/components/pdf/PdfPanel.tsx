@@ -2,9 +2,9 @@ import { Download, FilePen, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
-import { compressPdf, exportImages, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
+import { compressPdf, exportImages, IMAGE_TYPES, parsePageRanges, savePdf, splitPdf } from '../../features/pdf/actions';
 import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
-import type { PdfPage } from '../../types/pdf';
+import type { PdfImageFormat, PdfPage } from '../../types/pdf';
 import { Button } from '../common/Button';
 import { NumberField } from '../common/NumberField';
 import { SegmentedControl } from '../common/SegmentedControl';
@@ -44,6 +44,13 @@ function ToolGrid({ value, onChange }: { value: Tab; onChange: (tab: Tab) => voi
   );
 }
 type Scope = 'all' | 'selected';
+
+const IMAGE_FORMAT_HINT: Record<PdfImageFormat, string> = {
+  jpeg: 'JPG files are small and open everywhere.',
+  png: 'PNG is lossless, so text edges stay crisp.',
+  bmp: 'BMP is uncompressed, for older programs that ask for it; files are large.',
+  tiff: 'TIFF is lossless and compressed, for printing, archiving and fax.',
+};
 
 function Label({ children }: { children: string }) {
   return <span className="text-xs font-medium tracking-wide text-muted uppercase">{children}</span>;
@@ -393,6 +400,8 @@ export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
                 segments={[
                   { value: 'jpeg', label: 'JPG' },
                   { value: 'png', label: 'PNG' },
+                  { value: 'bmp', label: 'BMP' },
+                  { value: 'tiff', label: 'TIFF' },
                 ]}
               />
             </Row>
@@ -409,8 +418,37 @@ export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
                 ]}
               />
             </Row>
+            {settings.imageFormat === 'tiff' && (
+              <>
+                <Row label="Colour">
+                  <SegmentedControl
+                    label="TIFF colour"
+                    size="sm"
+                    value={settings.tiffColor}
+                    onChange={(tiffColor) => settings.update({ tiffColor })}
+                    segments={[
+                      { value: 'rgb', label: 'Colour' },
+                      { value: 'gray', label: 'Grayscale' },
+                    ]}
+                  />
+                </Row>
+                {target.length > 1 && (
+                  <Switch
+                    label="One multi-page TIFF"
+                    description={
+                      settings.tiffMultipage
+                        ? `All ${target.length} pages in one .tiff file, the way fax and document-archive systems expect.`
+                        : `One .tiff file per page, downloaded together as a ZIP.`
+                    }
+                    checked={settings.tiffMultipage}
+                    onChange={(tiffMultipage) => settings.update({ tiffMultipage })}
+                  />
+                )}
+              </>
+            )}
             <p className="text-xs text-muted">
-              150 DPI suits screens and uploads; 300 DPI suits printing. Photos keep their own resolution. Several pages download as a ZIP.
+              {IMAGE_FORMAT_HINT[settings.imageFormat]} 150 DPI suits screens and uploads; 300 DPI suits printing. Photos keep their own
+              resolution.{settings.imageFormat === 'tiff' && settings.tiffMultipage ? '' : ' Several pages download as a ZIP.'}
             </p>
             <Button
               variant="primary"
@@ -419,7 +457,7 @@ export function PdfPanel({ initialTab = 'save' }: { initialTab?: PdfTab }) {
               onClick={() => void exportImages(target)}
               icon={<Download className="h-4 w-4" aria-hidden />}
             >
-              Save {count} as {settings.imageFormat === 'png' ? 'PNG' : 'JPG'}
+              Save {count} as {IMAGE_TYPES[settings.imageFormat].label}
             </Button>
           </>
         )}

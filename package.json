@@ -39,6 +39,7 @@
     "react-dom": "^19.3.0",
     "tesseract.js": "^7.0.0",
     "upng-js": "^2.1.0",
+    "utif2": "^4.1.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

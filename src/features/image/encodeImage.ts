@@ -6,8 +6,8 @@ import type { ImageSettings } from '../../types/settings';
 import { CompressionError } from '../../utils/errors';
 import { canvasToBlob, getContext, releaseCanvas, type AnyCanvas } from './canvas';
 import { decodeImage } from './decode';
-import { FULL_CROP, centeredCrop } from '../resize/resizeJob';
-import { computeTargetSize, cropToCanvas, hasTransparency, renderToCanvas, type Size } from './resize';
+import { FULL_CROP, centeredCrop, orientedSize } from '../resize/resizeJob';
+import { computeTargetSize, cropToCanvas, hasTransparency, orientToCanvas, renderToCanvas, type Size } from './resize';
 
 type EncodableFormat = keyof typeof IMAGE_MIME;
 
@@ -193,11 +193,14 @@ export async function encodeImage({ file, settings, mode, transform, support, on
   onStage('Decoding image');
   const bitmap = await decodeImage(file);
 
-  const source = { width: bitmap.width, height: bitmap.height };
-  if (source.width * source.height > MAX_PIXELS) {
+  if (bitmap.width * bitmap.height > MAX_PIXELS) {
     bitmap.close();
     throw new CompressionError('OUT_OF_MEMORY', 'image exceeds canvas pixel limit');
   }
+  // Crop fractions refer to the photo as turned in the crop editor.
+  const orientation = transform?.orientation;
+  const turned = !!orientation && (orientation.rotate !== 0 || orientation.mirror);
+  const source = orientation ? orientedSize(bitmap, orientation) : { width: bitmap.width, height: bitmap.height };
 
   // Freehand transforms have no fixed size: the cropped area keeps its own pixels.
   const cropRect = transform
@@ -217,11 +220,15 @@ export async function encodeImage({ file, settings, mode, transform, support, on
   onStage(resized ? `${transform ? 'Cropping and resizing' : 'Resizing'} to ${target.width} × ${target.height}` : 'Preparing pixels');
 
   let canvas: AnyCanvas;
+  let oriented: AnyCanvas | null = null;
   try {
-    canvas = cropRect ? cropToCanvas(bitmap, cropRect, target) : renderToCanvas(bitmap, target);
+    oriented = turned ? orientToCanvas(bitmap, orientation) : null;
+    const image = oriented ?? bitmap;
+    canvas = cropRect ? cropToCanvas(image, cropRect, target) : renderToCanvas(image, target);
   } catch (e) {
     throw new CompressionError('OUT_OF_MEMORY', `render failed: ${String(e)}`);
   } finally {
+    if (oriented) releaseCanvas(oriented);
     bitmap.close();
   }
 

@@ -114,6 +114,7 @@ export type PdfOrientation = 'auto' | 'portrait' | 'landscape';
 export type PdfMargin = 'none' | 'small' | 'large';
 export type NumberPosition = 'bottom-center' | 'bottom-right' | 'bottom-left' | 'top-center' | 'top-right' | 'top-left';
 export type NumberFormat = 'n' | 'page-n' | 'page-n-of-total' | 'n-slash-total';
+export type PdfImageFormat = 'jpeg' | 'png' | 'bmp' | 'tiff';
 export type CompressLevel = 'light' | 'medium' | 'strong';
 
 export interface PageNumberSettings {
@@ -144,8 +145,12 @@ export interface PdfSettings {
   /** 'standard' scales phone photos to about 200 DPI on the page, which keeps files small. */
   photoQuality: 'standard' | 'original';
   splitEvery: number;
-  imageFormat: 'jpeg' | 'png';
+  imageFormat: PdfImageFormat;
   imageDpi: 72 | 150 | 300;
+  /** TIFF only: every page in one multi-page file rather than a file per page. */
+  tiffMultipage: boolean;
+  /** TIFF only: grayscale files are a third the size and suit text documents. */
+  tiffColor: 'rgb' | 'gray';
   pageNumbers: PageNumberSettings;
   watermark: WatermarkSettings;
   compressLevel: CompressLevel;

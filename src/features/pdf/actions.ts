@@ -1,11 +1,13 @@
 import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
 import { useUiStore } from '../../store/uiStore';
-import type { PdfPage, PdfSettings, PdfSource } from '../../types/pdf';
+import type { PdfImageFormat, PdfPage, PdfSettings, PdfSource } from '../../types/pdf';
 import { downloadBlob } from '../../utils/download';
 import { sanitizeBaseName } from '../../utils/filename';
 import { createZip } from '../../utils/zip';
 import { canvasToBlob, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
+import { encodeBmp } from '../image/bmp';
 import { hasTransparency } from '../image/resize';
+import { TiffWriter } from '../image/tiff';
 import { formatBytes, formatPercent, savedRatio } from '../../utils/format';
 import { compressPdfBytes } from './compress';
 import { getOpenPdf } from './documents';
@@ -272,31 +274,70 @@ export function splitPdf(pages: PdfPage[], every: number): Promise<void> {
   });
 }
 
-/** Saves each page as a JPG or PNG at the chosen DPI. */
+export const IMAGE_TYPES: Record<PdfImageFormat, { mime: string; ext: string; label: string }> = {
+  jpeg: { mime: 'image/jpeg', ext: 'jpg', label: 'JPG' },
+  png: { mime: 'image/png', ext: 'png', label: 'PNG' },
+  bmp: { mime: 'image/bmp', ext: 'bmp', label: 'BMP' },
+  tiff: { mime: 'image/tiff', ext: 'tiff', label: 'TIFF' },
+};
+
+/**
+ * Pixels per inch of a rendered page, written into BMP and TIFF files so they print at the page's
+ * real size. Very large pages are rendered below the chosen DPI to fit the browser's canvas limit.
+ */
+async function renderedDpi(page: PdfPage, source: PdfSource, canvas: AnyCanvas, requested: number): Promise<number> {
+  if (source.kind === 'image') return 72;
+  const pdfPage = await getOpenPdf(page.sourceId).view.getPage(page.index + 1);
+  const width = pdfPage.getViewport({ scale: 1, rotation: (pdfPage.rotate + page.rotation) % 360 }).width;
+  pdfPage.cleanup();
+  const dpi = (canvas.width / width) * 72;
+  // Canvas sizes are whole pixels, so an unscaled render lands a fraction under the chosen DPI.
+  return Math.abs(dpi - requested) < 1 ? requested : Math.round(dpi * 100) / 100;
+}
+
+/** Saves each page as a JPG, PNG, BMP or TIFF at the chosen DPI; TIFF can hold every page in one file. */
 export function exportImages(pages: PdfPage[]): Promise<void> {
   return run('Saving pages as images', async (progress) => {
-    const { imageFormat, imageDpi } = usePdfSettingsStore.getState();
+    const { imageFormat, imageDpi, tiffMultipage, tiffColor } = usePdfSettingsStore.getState();
     const { sources } = usePdfStore.getState();
-    const mime = imageFormat === 'png' ? 'image/png' : 'image/jpeg';
-    const ext = imageFormat === 'png' ? 'png' : 'jpg';
+    const { mime, ext } = IMAGE_TYPES[imageFormat];
     const base = baseName(pages);
     const pad = Math.max(2, String(pages.length).length);
     const files: { name: string; blob: Blob }[] = [];
+    // Only PNG keeps transparency; the other formats get a white page behind see-through photos.
+    const background = imageFormat === 'png' ? null : '#ffffff';
+    const multipage = imageFormat === 'tiff' && tiffMultipage && pages.length > 1 ? new TiffWriter(tiffColor) : null;
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       const source = sources[page.sourceId];
       // Photos export at their own resolution; PDF pages at the chosen DPI.
       const scale = source.kind === 'image' ? 1 : imageDpi / 72;
-      const canvas = await renderPage(page, source, scale, page.rotation, imageFormat === 'jpeg' ? '#ffffff' : null, page.scan);
+      const canvas = await renderPage(page, source, scale, page.rotation, background, page.scan);
       try {
-        files.push({ name: `${base}-page-${String(i + 1).padStart(pad, '0')}.${ext}`, blob: await canvasToBlob(canvas, mime, 0.92) });
+        const name = `${base}-page-${String(i + 1).padStart(pad, '0')}.${ext}`;
+        if (imageFormat === 'jpeg' || imageFormat === 'png') {
+          files.push({ name, blob: await canvasToBlob(canvas, mime, 0.92) });
+        } else {
+          const dpi = await renderedDpi(page, source, canvas, imageDpi);
+          const pixels = getContext(canvas).getImageData(0, 0, canvas.width, canvas.height);
+          if (multipage) {
+            multipage.addPage(pixels, dpi);
+          } else if (imageFormat === 'tiff') {
+            const single = new TiffWriter(tiffColor);
+            single.addPage(pixels, dpi);
+            files.push({ name, blob: single.toBlob() });
+          } else {
+            files.push({ name, blob: encodeBmp(pixels, dpi) });
+          }
+        }
       } finally {
         releaseCanvas(canvas);
       }
       progress((i + 1) / pages.length);
       await tick();
     }
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name);
+    if (multipage) downloadBlob(multipage.toBlob(), `${base}.${ext}`);
+    else if (files.length === 1) downloadBlob(files[0].blob, files[0].name);
     else downloadBlob(await createZip(files), `${base}-images.zip`);
   });
 }

@@ -4,6 +4,7 @@ import { useUiStore } from '../../store/uiStore';
 import type { PdfPage, PdfSource } from '../../types/pdf';
 import { createId } from '../../utils/id';
 import { DocxReadError, isDocx, readDocx } from '../docs/docxRead';
+import { decodeTiff, GIF_FORMAT, isAnimatedGif, isTiff, TIFF_FORMAT } from './imageFormats';
 import { PdfOpenError, openPdf } from './documents';
 import { askPassword } from './passwordPrompt';
 import { renderThumbnail } from './render';
@@ -15,11 +16,11 @@ export const DOCX_FORMAT: FormatDef = {
   mimes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   extensions: ['docx'],
 };
-/** Photos, including iPhone HEIC, become one page each. */
-const PHOTO_FORMATS = CONVERT_INPUT_FORMATS.filter((f) => f.kind === 'image');
+/** Photos, including iPhone HEIC, and GIFs become one page each; TIFFs one page per page in the file. */
+const PHOTO_FORMATS = [...CONVERT_INPUT_FORMATS.filter((f) => f.kind === 'image'), GIF_FORMAT, TIFF_FORMAT];
 /** Word documents are laid out as PDF pages when they are added. */
 export const PDF_INPUT_FORMATS: FormatDef[] = [PDF_FORMAT, DOCX_FORMAT, ...PHOTO_FORMATS];
-export const PDF_BADGES = ['PDF', 'DOCX', 'JPG', 'PNG', 'WebP', 'HEIC', 'AVIF'];
+export const PDF_BADGES = ['PDF', 'DOCX', 'JPG', 'PNG', 'WebP', 'HEIC', 'TIFF', 'GIF'];
 
 const THUMB_CONCURRENCY = 2;
 const thumbQueue: PdfPage[] = [];
@@ -88,6 +89,8 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
   const locked: string[] = [];
   const broken: string[] = [];
   const unlocked: string[] = [];
+  const animated: string[] = [];
+  const partialTiffs: string[] = [];
 
   for (const file of files) {
     const word = isDocx(file);
@@ -98,6 +101,34 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
     }
     const sourceId = createId();
     let pageCount = 1;
+    if (isTiff(file)) {
+      usePdfStore.getState().setBusy(`Reading ${file.name}`);
+      try {
+        const result = await decodeTiff(file);
+        if (!result.ok || !result.pages.length) {
+          if (!result.ok) console.warn('[CompressKit] could not read TIFF:', result.error);
+          broken.push(file.name);
+          continue;
+        }
+        if (result.tooLarge || result.failed) partialTiffs.push(file.name);
+        const base = file.name.replace(/\.tiff?$/i, '');
+        // Each TIFF page becomes a photo source of its own, so it can be moved, rotated or removed alone.
+        result.pages.forEach((page, n) => {
+          const multi = result.pages.length > 1;
+          addPages({
+            id: n === 0 ? sourceId : createId(),
+            name: multi ? `${file.name} · p. ${n + 1}` : file.name,
+            kind: 'image',
+            file: new File([page.blob], `${base}${multi ? `-page-${n + 1}` : ''}.png`, { type: 'image/png' }),
+            pageCount: 1,
+          });
+        });
+      } finally {
+        usePdfStore.getState().setBusy(null);
+      }
+      continue;
+    }
+    if (detectFormat(file, [GIF_FORMAT]) && (await isAnimatedGif(file))) animated.push(file.name);
     if (word) {
       usePdfStore.getState().setBusy(`Reading ${file.name}`);
       try {
@@ -157,7 +188,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
     notice({
       tone: 'warning',
       title: `${skipped.length === 1 ? '1 file was' : `${skipped.length} files were`} skipped`,
-      message: `Not a PDF, Word document or photo: ${skipped.slice(0, 3).join(', ')}${skipped.some((n) => /\.doc$/i.test(n)) ? '. Old .doc files need saving as .docx in Word first.' : ''}`,
+      message: `Not a PDF, Word document or picture: ${skipped.slice(0, 3).join(', ')}${skipped.some((n) => /\.doc$/i.test(n)) ? '. Old .doc files need saving as .docx in Word first.' : ''}`,
     });
   }
   if (wordWarnings.length) {
@@ -175,6 +206,20 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
       tone: 'info',
       title: 'PDF unlocked',
       message: `${unlocked.slice(0, 3).join(', ')}: files you save from it have no password. Add one under Protect if you need it.`,
+    });
+  }
+  if (animated.length) {
+    notice({
+      tone: 'info',
+      title: 'Animated GIF added as one page',
+      message: `${animated.slice(0, 3).join(', ')}: a PDF page can't move, so the first frame was used.`,
+    });
+  }
+  if (partialTiffs.length) {
+    notice({
+      tone: 'warning',
+      title: 'Some TIFF pages were left out',
+      message: `${partialTiffs.slice(0, 3).join(', ')}: a page was too large for this browser or used an unsupported format.`,
     });
   }
   if (broken.length) {

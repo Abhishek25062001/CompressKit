@@ -1,4 +1,4 @@
-import type { CropRect } from '../../types/resize';
+import type { CropRect, Orientation } from '../../types/resize';
 import type { ImageSettings } from '../../types/settings';
 import { createCanvas, getContext, releaseCanvas, type AnyCanvas } from './canvas';
 
@@ -45,6 +45,18 @@ export function renderToCanvas(image: ImageBitmap | AnyCanvas, target: Size): An
   const out = createCanvas(target.width, target.height);
   getContext(out).drawImage(source, 0, 0, target.width, target.height);
   if (intermediate) releaseCanvas(intermediate);
+  return out;
+}
+
+/** Draws the image rotated clockwise and then mirrored, at full resolution. */
+export function orientToCanvas(image: ImageBitmap | AnyCanvas, o: Orientation): AnyCanvas {
+  const turned = o.rotate % 180 !== 0;
+  const out = createCanvas(turned ? image.height : image.width, turned ? image.width : image.height);
+  const ctx = getContext(out);
+  ctx.translate(out.width / 2, out.height / 2);
+  if (o.mirror) ctx.scale(-1, 1);
+  ctx.rotate((o.rotate * Math.PI) / 180);
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
   return out;
 }
 
