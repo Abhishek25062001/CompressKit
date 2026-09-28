@@ -50,6 +50,8 @@ export interface Paragraph {
   style: ParagraphStyle;
   align: Align;
   list?: { ordered: boolean; level: number };
+  /** No space before or after, for lines of plain text and code that follow each other directly. */
+  tight?: boolean;
   runs: Run[];
 }
 

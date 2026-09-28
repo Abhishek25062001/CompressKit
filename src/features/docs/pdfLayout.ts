@@ -439,7 +439,7 @@ class Layout {
     const width = this.contentWidth - indent - (p.style === 'quote' ? 24 : 0);
     const lines = this.lines(p, width, this.bottom - this.m.top);
     const atTop = this.y === this.m.top;
-    if (!atTop) this.y += metrics.before;
+    if (!atTop && !p.tight) this.y += metrics.before;
     // Keep a heading with the first line after it by not starting one in the last few lines of a page.
     if (p.style !== 'normal' && p.style !== 'quote' && this.y + lines[0].ascent + lines[0].descent + 40 > this.bottom) this.newPage();
 
@@ -474,7 +474,7 @@ class Layout {
       }
       this.y += h;
     }
-    this.y += p.list ? 3 : metrics.after;
+    this.y += p.tight ? 0 : p.list ? 3 : metrics.after;
   }
 
   private orderedLabel(n: number, level: number): string {

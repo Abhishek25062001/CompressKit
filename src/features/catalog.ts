@@ -131,7 +131,7 @@ export const CATALOG: ToolInfo[] = [
       'Turn photos into a PDF, merge, split and reorder pages, sign, fill forms, compress, protect with a password or make scans searchable. All in your browser.',
     title: 'Free PDF Tools: Merge, Split, Sign, Compress, OCR | CompressKit',
     handles: ['pdf', 'image', 'word'],
-    formats: 'PDF · DOCX · JPG · PNG · HEIC · WebP',
+    formats: 'PDF · DOCX · JPG · PNG · HEIC · TIFF · GIF',
   },
   {
     id: 'edit-pdf',
@@ -152,10 +152,10 @@ export const CATALOG: ToolInfo[] = [
     heading: 'Merge PDFs, Word files and photos',
     tagline: 'Combine PDFs, Word documents and photos into one file.',
     description:
-      'Merge PDF files, Word documents (DOCX) and photos into one PDF, in the order you choose, or join Word files into one DOCX. Nothing is uploaded.',
+      'Merge PDF files, Word documents (DOCX), photos and scans (JPG, PNG, HEIC, TIFF, GIF) into one PDF, in the order you choose, or join Word files into one DOCX. Nothing is uploaded.',
     title: 'Merge PDF and Word Documents into One File, Free | CompressKit',
     handles: ['pdf', 'word', 'image'],
-    formats: 'PDF · DOCX · JPG · PNG · HEIC',
+    formats: 'PDF · DOCX · JPG · PNG · HEIC · TIFF',
   },
   {
     id: 'docx-to-pdf',

@@ -29,6 +29,13 @@ type Ifd = Record<string, unknown> & { width: number; height: number; data: Uint
 
 const first = (value: unknown): number | undefined => (Array.isArray(value) && typeof value[0] === 'number' ? value[0] : undefined);
 
+/** UTIF gives RATIONAL tags as [numerator, denominator] pairs. */
+function rational(value: unknown): number | undefined {
+  const pair = Array.isArray(value) ? value[0] : undefined;
+  if (Array.isArray(pair) && pair[1]) return pair[0] / pair[1];
+  return typeof pair === 'number' ? pair : undefined;
+}
+
 workerScope.addEventListener('message', (event: MessageEvent<TiffRequest>) => {
   const { buffer, maxPixels } = event.data;
   void (async () => {
@@ -59,8 +66,8 @@ workerScope.addEventListener('message', (event: MessageEvent<TiffRequest>) => {
           canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer as ArrayBuffer, rgba.byteOffset, width * height * 4), width, height), 0, 0);
           // Fax pages are often 204 × 98 DPI: pixels twice as tall as wide. Stretch to square pixels
           // so the page is not squashed.
-          const xRes = first(ifd.t282);
-          const yRes = first(ifd.t283);
+          const xRes = rational(ifd.t282);
+          const yRes = rational(ifd.t283);
           if (xRes && yRes && Math.abs(xRes - yRes) / Math.max(xRes, yRes) > 0.02) {
             const w = xRes < yRes ? Math.round((width * yRes) / xRes) : width;
             const h = yRes < xRes ? Math.round((height * xRes) / yRes) : height;

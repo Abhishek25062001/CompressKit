@@ -16,9 +16,9 @@ export interface PdfToolInfo {
   icon: LucideIcon;
 }
 
-const ANY = ['PDF', 'DOCX', 'JPG', 'PNG', 'HEIC', 'WebP'];
+const ANY = ['PDF', 'DOCX', 'JPG', 'PNG', 'HEIC', 'TIFF', 'GIF'];
 const PDF_ONLY = ['PDF'];
-const PHOTOS = ['JPG', 'PNG', 'HEIC', 'WebP'];
+const PHOTOS = ['JPG', 'PNG', 'HEIC', 'WebP', 'TIFF'];
 
 /** The tools of the PDF page, in the order shown on the picker and in the panel. */
 export const PDF_TOOLS: PdfToolInfo[] = [
