@@ -19,7 +19,9 @@ export type ToolId =
   | 'edit-docx'
   | 'text-to-pdf'
   | 'rtf-to-pdf'
-  | 'html-to-pdf';
+  | 'html-to-pdf'
+  | 'pdf-to-text'
+  | 'pdf-to-html';
 
 /** Kinds of file a tool works on, shown as labels on its card. */
 export type FileKind = 'image' | 'video' | 'pdf' | 'word' | 'document';
@@ -245,6 +247,34 @@ export const CATALOG: ToolInfo[] = [
     handles: ['document'],
     formats: 'HTML · HTM',
     converts: 'to-pdf',
+    secondary: true,
+  },
+  {
+    id: 'pdf-to-text',
+    path: '/pdf-to-text',
+    name: 'PDF to Text',
+    heading: 'Convert PDF to text',
+    tagline: 'Get the text out of a PDF, scans included.',
+    description:
+      'Extract the text from PDF files as a plain .txt file, in reading order or with the page layout kept. Scanned pages are read with OCR. All in your browser, nothing uploaded.',
+    title: 'PDF to Text Converter: Extract Text from PDF, Free | CompressKit',
+    handles: ['pdf'],
+    formats: 'PDF',
+    converts: 'from-pdf',
+    secondary: true,
+  },
+  {
+    id: 'pdf-to-html',
+    path: '/pdf-to-html',
+    name: 'PDF to HTML',
+    heading: 'Convert PDF to HTML',
+    tagline: 'Turn a PDF into a clean web page.',
+    description:
+      'Convert PDF files into a single, self-contained HTML page with real headings, paragraphs, lists, tables, links and pictures that reflows on any screen. Nothing is uploaded.',
+    title: 'PDF to HTML Converter: Free and Private | CompressKit',
+    handles: ['pdf'],
+    formats: 'PDF',
+    converts: 'from-pdf',
     secondary: true,
   },
 ];

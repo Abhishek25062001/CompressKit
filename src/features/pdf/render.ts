@@ -1,4 +1,4 @@
-import { canvasToBlob, createCanvas, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
+import { canvasToBlob, createCanvas, cropCanvas, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
 import { decodeImage } from '../image/decode';
 import type { PdfPage, PdfSource, ScanSettings } from '../../types/pdf';
 import { getOpenPdf } from './documents';
@@ -79,27 +79,31 @@ function fillBehind(canvas: AnyCanvas, color: string): void {
 
 const THUMB_SIDE = 320;
 
-/** A small WebP of the page without user rotation; the page grid rotates it with CSS. */
+/** A small WebP of the page without user rotation (the page grid rotates it with CSS), cropped if set. */
 export async function renderThumbnail(page: PdfPage, source: PdfSource): Promise<string> {
+  const crop = page.crop && (page.crop.x > 0 || page.crop.y > 0 || page.crop.width < 1 || page.crop.height < 1) ? page.crop : null;
+  const cut = (canvas: AnyCanvas) => (crop ? cropCanvas(canvas, crop) : canvas);
   let scale: number;
   if (source.kind === 'image') {
     const bitmap = await decodeImage(source.file);
-    scale = THUMB_SIDE / Math.max(bitmap.width, bitmap.height);
+    scale = THUMB_SIDE / Math.max(bitmap.width * (crop?.width ?? 1), bitmap.height * (crop?.height ?? 1));
     if (page.scan && (page.scan.corners || page.scan.filter !== 'none')) {
-      const cleaned = applyScan(bitmap, page.scan, THUMB_SIDE);
+      const cleaned = applyScan(bitmap, page.scan, crop ? THUMB_SIDE / Math.max(crop.width, crop.height) : THUMB_SIDE);
       bitmap.close();
-      return toUrl(cleaned);
+      return toUrl(cut(cleaned));
     }
     const canvas = drawRotated(bitmap, 0, Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
     bitmap.close();
-    return toUrl(canvas);
+    return toUrl(cut(canvas));
   }
   const pdfPage = await getOpenPdf(page.sourceId).view.getPage(page.index + 1);
   const base = pdfPage.getViewport({ scale: 1 });
-  scale = THUMB_SIDE / Math.max(base.width, base.height);
+  // A cropped page is rendered larger, so what is left still fills the thumbnail.
+  scale = THUMB_SIDE / Math.max(base.width * (crop?.width ?? 1), base.height * (crop?.height ?? 1));
   pdfPage.cleanup();
-  return toUrl(await renderPage(page, source, scale, 0, '#ffffff'));
+  return toUrl(cut(await renderPage(page, source, scale, 0, '#ffffff')));
 }
+
 
 async function toUrl(canvas: AnyCanvas): Promise<string> {
   try {

@@ -33,6 +33,8 @@ const FORMATS: Record<ToolId, FormatDef[]> = {
   'text-to-pdf': [TEXT_FORMAT, MARKDOWN_FORMAT],
   'rtf-to-pdf': [RTF_FORMAT],
   'html-to-pdf': [HTML_FORMAT],
+  'pdf-to-text': [PDF_FORMAT],
+  'pdf-to-html': [PDF_FORMAT],
 };
 
 /** Accept list for a file picker that offers every format some tool can open. */

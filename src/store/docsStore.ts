@@ -42,7 +42,7 @@ export const useDocxToPdfStore = createQueue();
 export const usePdfToDocxStore = createQueue();
 
 /** Every document converter, each with a list of its own. */
-export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf';
+export type ConvertKind = 'docx-to-pdf' | 'pdf-to-docx' | 'text-to-pdf' | 'rtf-to-pdf' | 'html-to-pdf' | 'pdf-to-text' | 'pdf-to-html';
 
 export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueState>>> = {
   'docx-to-pdf': useDocxToPdfStore,
@@ -50,6 +50,8 @@ export const DOC_QUEUES: Record<ConvertKind, UseBoundStore<StoreApi<DocQueueStat
   'text-to-pdf': createQueue(),
   'rtf-to-pdf': createQueue(),
   'html-to-pdf': createQueue(),
+  'pdf-to-text': createQueue(),
+  'pdf-to-html': createQueue(),
 };
 
 export function isConvertKind(id: string): id is ConvertKind {
@@ -129,3 +131,34 @@ export const useDocEditorStore = create<EditorState>()((set) => ({
   warnings: [],
   set: (patch) => set(patch),
 }));
+
+export interface PdfToTextSettings {
+  mode: 'paragraphs' | 'layout';
+  ocr: boolean;
+  pageMarkers: boolean;
+  update: (patch: Partial<Omit<PdfToTextSettings, 'update'>>) => void;
+}
+
+export const usePdfToTextSettings = create<PdfToTextSettings>()(
+  persist((set) => ({ mode: 'paragraphs', ocr: true, pageMarkers: false, update: (patch) => set(patch) }), {
+    name: 'compresskit-pdf-to-text',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ mode: s.mode, ocr: s.ocr, pageMarkers: s.pageMarkers }),
+  }),
+);
+
+export interface PdfToHtmlSettings {
+  images: boolean;
+  ocr: boolean;
+  update: (patch: Partial<Omit<PdfToHtmlSettings, 'update'>>) => void;
+}
+
+export const usePdfToHtmlSettings = create<PdfToHtmlSettings>()(
+  persist((set) => ({ images: true, ocr: true, update: (patch) => set(patch) }), {
+    name: 'compresskit-pdf-to-html',
+    version: 1,
+    storage: createJSONStorage(() => localStorage),
+    partialize: (s) => ({ images: s.images, ocr: s.ocr }),
+  }),
+);

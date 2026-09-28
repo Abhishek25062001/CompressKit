@@ -10,6 +10,8 @@ import {
   DOC_QUEUES,
   useHtmlToPdfSettings,
   usePdfToDocxSettings,
+  usePdfToHtmlSettings,
+  usePdfToTextSettings,
   useTextToPdfSettings,
   type ConvertKind,
   type DocJob,
@@ -42,6 +44,8 @@ const UI: Record<ConvertKind, KindUi> = {
   'text-to-pdf': { formats: [TEXT_FORMAT, MARKDOWN_FORMAT], badges: ['TXT', 'MD'], title: 'Drop text or Markdown files here', to: 'PDF', icon: FileType },
   'rtf-to-pdf': { formats: [RTF_FORMAT], badges: ['RTF'], title: 'Drop RTF documents here', to: 'PDF', icon: Pilcrow },
   'html-to-pdf': { formats: [HTML_FORMAT], badges: ['HTML', 'HTM'], title: 'Drop HTML files here', to: 'PDF', icon: FileCode },
+  'pdf-to-text': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'text', icon: FileText },
+  'pdf-to-html': { formats: [PDF_FORMAT], badges: ['PDF'], title: 'Drop PDFs here', to: 'HTML', icon: FileCode },
 };
 
 /** Opens an HTML file in the browser's print dialog, where "Save as PDF" keeps its exact layout. */
@@ -168,7 +172,66 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
   const pdfToDocx = usePdfToDocxSettings();
   const text = useTextToPdfSettings();
   const html = useHtmlToPdfSettings();
+  const toText = usePdfToTextSettings();
+  const toHtml = usePdfToHtmlSettings();
   switch (kind) {
+    case 'pdf-to-text':
+      return (
+        <>
+          <Row label="Text">
+            <SegmentedControl
+              label="Text arrangement"
+              size="sm"
+              value={toText.mode}
+              onChange={(mode) => toText.update({ mode })}
+              segments={[
+                { value: 'paragraphs', label: 'Paragraphs' },
+                { value: 'layout', label: 'Keep layout' },
+              ]}
+            />
+          </Row>
+          <p className="text-xs text-muted">
+            {toText.mode === 'paragraphs'
+              ? 'Lines are joined into paragraphs in reading order, lists keep their bullets and numbers, and table cells are separated by tabs. Best for copying into emails and documents.'
+              : 'Each line keeps its words where they are across the page, so columns, forms and tables stay lined up when opened in a monospace font.'}
+          </p>
+          <Switch
+            label="Read scanned pages (OCR)"
+            description="Pages that are photos or scans are read into text (English). Off skips them."
+            checked={toText.ocr}
+            onChange={(ocr) => toText.update({ ocr })}
+          />
+          <Switch
+            label="Mark page breaks"
+            description='Adds a "--- Page 2 ---" line where each page starts.'
+            checked={toText.pageMarkers}
+            onChange={(pageMarkers) => toText.update({ pageMarkers })}
+          />
+          {reconvert}
+        </>
+      );
+    case 'pdf-to-html':
+      return (
+        <>
+          <Switch
+            label="Include pictures"
+            description="Photos and logos are embedded in the page, so the single .html file works on its own."
+            checked={toHtml.images}
+            onChange={(images) => toHtml.update({ images })}
+          />
+          <Switch
+            label="Read scanned pages (OCR)"
+            description="Scanned pages become text (English). Off keeps them as pictures of the page."
+            checked={toHtml.ocr}
+            onChange={(ocr) => toHtml.update({ ocr })}
+          />
+          {reconvert}
+          <p className="text-xs text-muted">
+            The result is a clean, readable web page with real headings, paragraphs, lists, tables and links that reflows on phones.
+            Complex page layouts (columns, text boxes) become one flowing column.
+          </p>
+        </>
+      );
     case 'pdf-to-docx':
       return (
         <>

@@ -1,6 +1,6 @@
-import { ClipboardList, EyeOff, FileDown, FilePen, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, type LucideIcon } from 'lucide-react';
+import { ClipboardList, Crop, EyeOff, FileDown, FilePen, Images, Lock, Minimize2, PenLine, ScanLine, ScanText, Scissors, type LucideIcon } from 'lucide-react';
 
-export type PdfTab = 'save' | 'edit' | 'split' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
+export type PdfTab = 'save' | 'edit' | 'split' | 'crop' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
 
 export interface PdfToolInfo {
   value: PdfTab;
@@ -48,6 +48,15 @@ export const PDF_TOOLS: PdfToolInfo[] = [
     dropTitle: 'Drop a PDF to split',
     badges: PDF_ONLY,
     icon: Scissors,
+  },
+  {
+    value: 'crop',
+    label: 'Crop',
+    name: 'Crop PDF',
+    description: 'Trim white margins automatically, or drag a box to keep just part of a page.',
+    dropTitle: 'Drop a PDF or photos to crop',
+    badges: ['PDF', ...PHOTOS],
+    icon: Crop,
   },
   {
     value: 'images',

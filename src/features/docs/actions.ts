@@ -1,5 +1,15 @@
 import { A4, concatDocs, paragraph, type DocModel, type PageSetup } from './model';
-import { DOC_QUEUES, useDocEditorStore, useHtmlToPdfSettings, usePdfToDocxSettings, useTextToPdfSettings, type ConvertKind, type DocJob } from '../../store/docsStore';
+import {
+  DOC_QUEUES,
+  useDocEditorStore,
+  useHtmlToPdfSettings,
+  usePdfToDocxSettings,
+  usePdfToHtmlSettings,
+  usePdfToTextSettings,
+  useTextToPdfSettings,
+  type ConvertKind,
+  type DocJob,
+} from '../../store/docsStore';
 import { usePdfStore } from '../../store/pdfStore';
 import { useUiStore } from '../../store/uiStore';
 import { downloadBlob } from '../../utils/download';
@@ -167,7 +177,61 @@ export const CONVERTERS: Record<ConvertKind, Converter> = {
       return docToPdf(doc, file, progress, warnings.length ? [WARNING_TEXT(warnings)] : []);
     },
   },
+  'pdf-to-text': {
+    accepts: isPdfFile,
+    takes: 'PDF to Text takes PDF files.',
+    failure: 'The PDF could not be read. It may be too large for this browser.',
+    async convert(file, progress) {
+      const { mode, ocr, pageMarkers } = usePdfToTextSettings.getState();
+      progress(0.02, 'Opening PDF');
+      const { pdfToText } = await import('./pdfExtract');
+      const result = await withPdfPassword(file, progress, (password) =>
+        pdfToText(file, { mode, ocr, pageMarkers, password, onProgress: (r, stage) => progress(0.02 + r * 0.95, stage) }),
+      );
+      const notes = scanNotes(result.scannedPages, result.ocrPages, ocr ? 'unreadable' : 'ocr-off');
+      if (!result.text.trim()) notes.unshift('No text was found in this PDF.');
+      const base = sanitizeBaseName(file.name);
+      return { blob: new Blob([result.text], { type: 'text/plain;charset=utf-8' }), name: `${base}.txt`, pages: result.pages, notes };
+    },
+  },
+  'pdf-to-html': {
+    accepts: isPdfFile,
+    takes: 'PDF to HTML takes PDF files.',
+    failure: 'The PDF could not be converted. It may be too large for this browser.',
+    async convert(file, progress) {
+      const { images, ocr } = usePdfToHtmlSettings.getState();
+      progress(0.02, 'Opening PDF');
+      const { pdfToDoc } = await import('./pdfExtract');
+      const result = await withPdfPassword(file, progress, (password) =>
+        pdfToDoc(file, { images, ocr, pageBreaks: true, password, onProgress: (r, stage) => progress(0.02 + r * 0.9, stage) }),
+      );
+      progress(0.95, 'Writing web page');
+      const { docToHtmlFile } = await import('./htmlWrite');
+      const base = sanitizeBaseName(file.name);
+      const html = docToHtmlFile(result.doc, base);
+      return {
+        blob: new Blob([html], { type: 'text/html;charset=utf-8' }),
+        name: `${base}.html`,
+        pages: result.pages,
+        notes: scanNotes(result.scannedPages, result.ocrPages, 'picture'),
+      };
+    },
+  },
 };
+
+/** Notes about scanned pages, shared by the converters that read PDFs. */
+function scanNotes(scannedPages: number, ocrPages: number, unread: 'picture' | 'ocr-off' | 'unreadable'): string[] {
+  const notes: string[] = [];
+  const left = scannedPages - ocrPages;
+  if (ocrPages) notes.push(`${ocrPages} scanned page${ocrPages === 1 ? ' was' : 's were'} read with OCR; check the text for mistakes.`);
+  if (left) {
+    const pages = `${left} page${left === 1 ? ' is a scan' : 's are scans'} with no text`;
+    if (unread === 'picture') notes.push(`${pages}, kept as ${left === 1 ? 'a picture' : 'pictures'}.`);
+    else if (unread === 'ocr-off') notes.push(`${pages}; turn on "Read scanned pages" to read ${left === 1 ? 'it' : 'them'}.`);
+    else notes.push(`${pages} that OCR could read; a sharper scan may help.`);
+  }
+  return notes;
+}
 
 /** Converts one file on a converter's list. */
 async function runJob(kind: ConvertKind, id: string): Promise<void> {

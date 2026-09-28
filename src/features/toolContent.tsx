@@ -283,4 +283,32 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: Globe, title: 'Safe to open', body: 'Scripts in the file never run and nothing is fetched from the web or uploaded.' },
     ],
   },
+  'pdf-to-text': {
+    icon: FileText,
+    steps: [
+      ['Add PDFs', 'Drop one or many PDFs, including scanned documents.'],
+      ['Choose how', 'Paragraphs in reading order, or the page layout kept with columns lined up.'],
+      ['Download', 'Save each .txt file, or all of them as a ZIP.'],
+    ],
+    highlights: [
+      { icon: AlignLeft, title: 'Two arrangements', body: 'Reading order for copying into documents, or layout mode that keeps tables and columns lined up.' },
+      { icon: ScanText, title: 'Scans too', body: 'Scanned pages and photos of documents are read with OCR.' },
+      { icon: ListOrdered, title: 'Lists and tables', body: 'Bullets and numbers are kept, and table cells are separated by tabs for pasting into a spreadsheet.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Read in your browser. Your PDF is never uploaded.' },
+    ],
+  },
+  'pdf-to-html': {
+    icon: FileCode,
+    steps: [
+      ['Add PDFs', 'Drop one or many PDFs.'],
+      ['Choose options', 'Include pictures, and read scanned pages with OCR.'],
+      ['Download', 'Save a single .html file that opens in any browser, even offline.'],
+    ],
+    highlights: [
+      { icon: Heading, title: 'Real structure', body: 'Headings, paragraphs, bulleted and numbered lists, tables and links, not positioned boxes.' },
+      { icon: Smartphone, title: 'Reflows on phones', body: 'The page adapts to any screen size, and prints with page breaks where the PDF had them.' },
+      { icon: Images, title: 'One file', body: 'Pictures are embedded, so there is no folder of images to keep with it.' },
+      { icon: ShieldCheck, title: 'Private', body: 'Converted in your browser. Your PDF is never uploaded.' },
+    ],
+  },
 };

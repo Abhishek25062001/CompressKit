@@ -30,3 +30,18 @@ export function releaseCanvas(canvas: AnyCanvas): void {
   canvas.width = 0;
   canvas.height = 0;
 }
+
+/**
+ * Cuts a canvas to an area given in fractions of it (x, y, width, height from the top-left) and
+ * releases the original.
+ */
+export function cropCanvas(canvas: AnyCanvas, area: { x: number; y: number; width: number; height: number }): AnyCanvas {
+  const sx = Math.round(area.x * canvas.width);
+  const sy = Math.round(area.y * canvas.height);
+  const sw = Math.max(1, Math.round(area.width * canvas.width));
+  const sh = Math.max(1, Math.round(area.height * canvas.height));
+  const out = createCanvas(sw, sh);
+  getContext(out).drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  releaseCanvas(canvas);
+  return out;
+}

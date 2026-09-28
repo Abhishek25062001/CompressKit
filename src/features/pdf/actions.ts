@@ -15,6 +15,7 @@ import { renderPage } from './render';
 import { filledCopy, FormFillError } from './forms';
 import { hasTextLayer, recognizePage, type OcrPage } from './ocr';
 import { coversContent, createEditCache, drawEdits, flattenPages } from './edits';
+import { applyCropBox, cropCanvas, isCropped, toDisplayed } from './crop';
 import { drawInvisibleText, drawPageNumber, drawSignatures, drawWatermark, embedWatermark } from './stamps';
 
 /** Page sizes in PDF points (1/72 inch). */
@@ -38,12 +39,14 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 
 async function embedPhoto(out: LibDocument, page: PdfPage, source: PdfSource, settings: PdfSettings) {
   // Decoding applies EXIF orientation, which PDF viewers would otherwise ignore for phone photos.
+  const crop = isCropped(page.crop) ? page.crop : null;
   const probe = await renderPage(page, source, 1, 0, null, page.scan);
-  const longSide = Math.max(probe.width, probe.height);
-  let canvas: AnyCanvas = probe;
+  let canvas: AnyCanvas = crop ? cropCanvas(probe, crop) : probe;
+  const longSide = Math.max(canvas.width, canvas.height);
   if (settings.photoQuality === 'standard' && longSide > STANDARD_LONG_SIDE) {
-    releaseCanvas(probe);
+    releaseCanvas(canvas);
     canvas = await renderPage(page, source, STANDARD_LONG_SIDE / longSide, 0, null, page.scan);
+    if (crop) canvas = cropCanvas(canvas, crop);
   }
   try {
     const ctx = getContext(canvas);
@@ -59,11 +62,18 @@ async function embedPhoto(out: LibDocument, page: PdfPage, source: PdfSource, se
 }
 
 /**
- * Adds edits, page numbers, the watermark and placed signatures. They go on top of each page after
- * it is built, so they sit above photos and PDF content alike. Numbering counts pages in this file.
+ * Adds everything drawn on top of the pages once they are built. Edits, signatures and recognized
+ * text are placed on the whole page, so they go on before the page is cropped; the watermark and
+ * page numbers go on after, so they land inside the cropped page. Numbering counts pages in this file.
  */
-async function applyStamps(lib: typeof import('@cantoo/pdf-lib'), out: LibDocument, pages: PdfPage[], settings: PdfSettings): Promise<void> {
-  const { signature, watermarkLogo, editImages } = usePdfStore.getState();
+async function applyStamps(
+  lib: typeof import('@cantoo/pdf-lib'),
+  out: LibDocument,
+  pages: PdfPage[],
+  settings: PdfSettings,
+  ocr?: Map<string, OcrPage>,
+): Promise<void> {
+  const { signature, watermarkLogo, editImages, sources } = usePdfStore.getState();
   const outPages = out.getPages();
   // Edits become part of the page, under the watermark, signatures and numbers.
   const cache = createEditCache();
@@ -71,14 +81,27 @@ async function applyStamps(lib: typeof import('@cantoo/pdf-lib'), out: LibDocume
     const edits = pages[i].edits;
     if (edits?.length) await drawEdits(lib, out, outPages[i], edits, editImages, cache);
   }
-  const signed = signature && pages.some((p) => p.signatures.length);
-  if (!settings.pageNumbers.enabled && !settings.watermark.enabled && !signed) return;
+  if (signature && pages.some((p) => p.signatures.length)) {
+    const image = await out.embedPng(new Uint8Array(await signature.blob.arrayBuffer()));
+    outPages.forEach((page, i) => drawSignatures(lib, page, image, signature, pages[i].signatures));
+  }
+  if (ocr?.size) {
+    const font = await out.embedFont(lib.StandardFonts.Helvetica);
+    outPages.forEach((page, i) => {
+      const words = ocr.get(pages[i].id);
+      if (words) drawInvisibleText(lib, page, font, words);
+    });
+  }
+  // Photo pages were cut before they were placed; PDF pages are cropped by their page boxes.
+  outPages.forEach((page, i) => {
+    const p = pages[i];
+    if (isCropped(p.crop) && sources[p.sourceId].kind === 'pdf') applyCropBox(page, toDisplayed(p.crop, p.rotation));
+  });
+  if (!settings.pageNumbers.enabled && !settings.watermark.enabled) return;
   const font = settings.pageNumbers.enabled ? await out.embedFont(lib.StandardFonts.Helvetica) : null;
   const watermark = settings.watermark.enabled ? await embedWatermark(out, settings.watermark, watermarkLogo) : null;
-  const signatureImage = signed ? await out.embedPng(new Uint8Array(await signature.blob.arrayBuffer())) : null;
   outPages.forEach((page, i) => {
     if (watermark) drawWatermark(lib, page, watermark, settings.watermark);
-    if (signatureImage && signature) drawSignatures(lib, page, signatureImage, signature, pages[i].signatures);
     if (font) drawPageNumber(lib, page, font, settings.pageNumbers, i, outPages.length);
   });
 }
@@ -188,16 +211,12 @@ async function buildPdf(pages: PdfPage[], onProgress: (ratio: number) => void, e
     onProgress((i + 1) / pages.length);
     await tick();
   }
-  await applyStamps(lib, out, pages, settings);
-  if (extras.ocr?.size) {
-    const font = await out.embedFont(lib.StandardFonts.Helvetica);
-    out.getPages().forEach((pdfPage, i) => {
-      const words = extras.ocr!.get(pages[i].id);
-      if (words) drawInvisibleText(lib, pdfPage, font, words);
-    });
-  }
-  // Pages whose edits cover content are turned into pictures when asked, so what was covered is gone.
-  const covered = settings.flattenCovered ? pages.flatMap((p, i) => (coversContent(p.edits) ? [i] : [])) : [];
+  await applyStamps(lib, out, pages, settings, extras.ocr);
+  // Pages whose edits cover content, or whose crop hides part of the page, are turned into pictures
+  // when asked, so what was covered or cut off is gone.
+  const covered = pages.flatMap((p, i) =>
+    (settings.flattenCovered && coversContent(p.edits)) || (settings.flattenCropped && isCropped(p.crop) && sources[p.sourceId].kind === 'pdf') ? [i] : [],
+  );
   const final = covered.length ? await flattenPages(await out.save(), covered) : out;
   if (extras.protect) {
     const { protect } = extras;
@@ -312,13 +331,15 @@ export function exportImages(pages: PdfPage[]): Promise<void> {
       const source = sources[page.sourceId];
       // Photos export at their own resolution; PDF pages at the chosen DPI.
       const scale = source.kind === 'image' ? 1 : imageDpi / 72;
-      const canvas = await renderPage(page, source, scale, page.rotation, background, page.scan);
+      let canvas = await renderPage(page, source, scale, page.rotation, background, page.scan);
       try {
         const name = `${base}-page-${String(i + 1).padStart(pad, '0')}.${ext}`;
+        // Resolution is measured on the whole page, before any crop.
+        const dpi = imageFormat === 'bmp' || imageFormat === 'tiff' ? await renderedDpi(page, source, canvas, imageDpi) : 0;
+        if (isCropped(page.crop)) canvas = cropCanvas(canvas, toDisplayed(page.crop, page.rotation));
         if (imageFormat === 'jpeg' || imageFormat === 'png') {
           files.push({ name, blob: await canvasToBlob(canvas, mime, 0.92) });
         } else {
-          const dpi = await renderedDpi(page, source, canvas, imageDpi);
           const pixels = getContext(canvas).getImageData(0, 0, canvas.width, canvas.height);
           if (multipage) {
             multipage.addPage(pixels, dpi);

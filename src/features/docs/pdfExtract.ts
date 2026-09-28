@@ -25,6 +25,12 @@ export interface ExtractOptions {
   onProgress?: (ratio: number, stage?: string) => void;
 }
 
+/**
+ * Space above each paragraph, in lines of its text, for the plain-text export: lines that followed
+ * each other on the page stay on consecutive lines instead of gaining a blank line between them.
+ */
+const paragraphGap = new WeakMap<Paragraph, number>();
+
 export interface ExtractResult {
   doc: DocModel;
   pages: number;
@@ -86,7 +92,9 @@ async function readPieces(page: PDFPageProxy, viewport: ReturnType<PDFPageProxy[
   const content = await page.getTextContent();
   const pieces: Piece[] = [];
   for (const item of content.items) {
-    if (!('str' in item) || !item.str) continue;
+    // Whitespace-only items are pdf.js filling the gap between two runs of text; spaces and tabs
+    // come from measuring the gaps instead, which also tells table columns from word spaces.
+    if (!('str' in item) || !item.str.trim()) continue;
     const tx = Util.transform(viewport.transform, item.transform);
     const size = Math.hypot(tx[2], tx[3]);
     if (size < 1) continue;
@@ -276,9 +284,14 @@ async function pageImages(page: PDFPageProxy, viewportTransform: number[], pageA
   const found: { run: ImageRun; top: number; left: number; area: number }[] = [];
   let ctm = [1, 0, 0, 1, 0, 0];
   const stack: number[][] = [];
+  // Shapes drawn on the page. Text operators are not counted: a page with one short line of text
+  // still takes a dozen of them, and must not look like a drawing.
+  const PAINT = new Set([OPS.constructPath, OPS.fill, OPS.eoFill, OPS.stroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke, OPS.shadingFill]);
+  let drawOps = 0;
   for (let i = 0; i < list.fnArray.length && found.length < 60; i++) {
     const fn = list.fnArray[i];
     const args = list.argsArray[i] as unknown[];
+    if (PAINT.has(fn)) drawOps++;
     if (fn === OPS.save) stack.push(ctm);
     else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
     else if (fn === OPS.transform) ctm = Util.transform(ctm, args as number[]);
@@ -300,7 +313,7 @@ async function pageImages(page: PDFPageProxy, viewportTransform: number[], pageA
       found.push({ run: { type: 'image', ...bytes, width, height }, top, left, area: (width * height) / pageArea });
     }
   }
-  return { found, ops: list.fnArray.length };
+  return { found, ops: drawOps };
 }
 
 /**
@@ -377,7 +390,7 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
       const elements: FlowItem[] = buildLines(pieces).map((line) => ({ kind: 'line', line, top: line.y - line.size }));
       // A page with almost no text but something drawn on it is a scan (or a drawing): it is read
       // with OCR or kept whole as a picture.
-      const scanned = chars < 20 && (images.length > 0 || drawn.ops > 12);
+      const scanned = chars < 20 && (images.some((img) => img.area > 0.3) || drawn.ops > 12);
       // Stray text on a scan (a page number, a stamp) is dropped; the page is read or kept whole.
       if (scanned) {
         scannedPages++;
@@ -433,10 +446,13 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
         return;
       }
       let current: { para: Paragraph; last: TextLine; lines: TextLine[] } | null = null;
+      let previousLine: TextLine | null = null;
+      const gapBefore = (line: TextLine) =>
+        previousLine ? (line.y - previousLine.y) / Math.max(1, line.size, previousLine.size) : Infinity;
       // Lists nest by indent, measured from the page's least indented list marker.
       const listLefts = p.elements.flatMap((e) => {
         if (e.kind !== 'line') return [];
-        const t = e.line.pieces.map((pc) => pc.text).join('').trimStart();
+        const t = lineRuns(e.line, bodySize).map((r) => r.text).join('').trimStart();
         return BULLET.test(t) || NUMBERED.test(t) ? [e.line.left] : [];
       });
       const listLeft = listLefts.length ? Math.min(...listLefts) : textLeft;
@@ -457,6 +473,7 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
       for (const el of p.elements) {
         if (el.kind === 'image') {
           finish();
+          previousLine = null;
           const fit = Math.min(1, contentWidth / el.run.width);
           blocks.push({
             type: 'paragraph',
@@ -509,6 +526,7 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
           para.runs.push(...runs);
           current.last = line;
           current.lines.push(line);
+          previousLine = line;
           continue;
         }
         finish();
@@ -534,6 +552,8 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
             last: line,
             lines: [line],
           };
+          paragraphGap.set(current.para, gapBefore(line));
+          previousLine = line;
           continue;
         }
         if (style !== 'normal') for (const r of runs) {
@@ -541,12 +561,162 @@ export async function pdfToDoc(file: File, options: ExtractOptions): Promise<Ext
           delete r.bold;
         }
         current = { para: { type: 'paragraph', style, align: 'left', runs }, last: line, lines: [line] };
+        paragraphGap.set(current.para, gapBefore(line));
+        previousLine = line;
       }
       finish();
     });
 
     progress(1, 'Writing document');
     return { doc: { page, blocks }, pages: numPages, scannedPages, ocrPages };
+  } finally {
+    closePdf(sourceId);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Plain text.
+
+export interface TextExtractOptions {
+  /** 'layout' keeps each line's words at their place across the page, so columns and tables line up. */
+  mode: 'paragraphs' | 'layout';
+  ocr: boolean;
+  /** Puts a "--- Page 3 ---" line before each page. */
+  pageMarkers: boolean;
+  password?: string;
+  onProgress?: (ratio: number, stage?: string) => void;
+}
+
+export interface TextExtractResult {
+  text: string;
+  pages: number;
+  scannedPages: number;
+  ocrPages: number;
+}
+
+/** A page's lines laid out as monospace text: each piece starts at the column matching its position. */
+function layoutText(lines: TextLine[]): string {
+  if (!lines.length) return '';
+  // The width of an average character, from the pieces themselves, sets the column grid.
+  const widths = lines.flatMap((l) => l.pieces.filter((p) => p.text.trim().length >= 3).map((p) => p.width / p.text.length)).sort((a, b) => a - b);
+  const charWidth = widths.length ? widths[Math.floor(widths.length / 2)] : 5;
+  const left = Math.min(...lines.map((l) => l.left));
+  const out: string[] = [];
+  let prevY: number | null = null;
+  let prevSize = 0;
+  for (const line of lines) {
+    if (prevY !== null) {
+      // Extra blank lines where the page leaves vertical space, up to two.
+      const gap = line.y - prevY;
+      const height = Math.max(prevSize, line.size) * 1.25;
+      const blanks = Math.min(2, Math.max(0, Math.round(gap / height) - 1));
+      for (let i = 0; i < blanks; i++) out.push('');
+    }
+    let text = '';
+    let prev: Piece | null = null;
+    for (const p of line.pieces) {
+      const col = Math.max(0, Math.round((p.x - left) / charWidth));
+      const piece = prev ? p.text : p.text.trimStart();
+      if (text.length < col) text = text.padEnd(col, ' ');
+      else if (prev && !/\s$/.test(text) && !/^\s/.test(piece) && p.x - (prev.x + prev.width) > p.size * 0.18) text += ' ';
+      text += piece;
+      prev = p;
+    }
+    out.push(text.trimEnd());
+    prevY = line.y;
+    prevSize = line.size;
+  }
+  return out.join('\n');
+}
+
+const plain = (p: Paragraph) => p.runs.map((r) => (r.type === 'text' ? r.text : r.type === 'break' ? '\n' : '')).join('');
+
+/**
+ * The document's text in reading order: one line per paragraph, list items numbered, table cells
+ * split by tabs. Paragraphs that were apart on the page get a blank line between them.
+ */
+function docText(doc: DocModel, pageMarkers: boolean): string {
+  let out = pageMarkers ? '--- Page 1 ---\n\n' : '';
+  let page = 1;
+  let fresh = true;
+  const counters: number[] = [];
+  let inList = false;
+  const add = (text: string, gap: number) => {
+    if (!fresh) out += gap < 1.6 ? '\n' : '\n\n';
+    out += text;
+    fresh = false;
+  };
+  for (const b of doc.blocks) {
+    if (b.type === 'pagebreak') {
+      page++;
+      counters.length = 0;
+      inList = false;
+      out += pageMarkers ? `\n\n--- Page ${page} ---\n\n` : '\n\n\n';
+      fresh = true;
+      continue;
+    }
+    if (b.type === 'table') {
+      counters.length = 0;
+      inList = false;
+      add(b.rows.map((row) => row.map((cell) => cell.paragraphs.map(plain).join(' ').replace(/\s+/g, ' ').trim()).join('\t')).join('\n'), Infinity);
+      continue;
+    }
+    const text = plain(b).trim();
+    if (!text) continue;
+    const gap = paragraphGap.get(b) ?? Infinity;
+    if (b.list) {
+      const { level, ordered } = b.list;
+      // Numbering continues past nested items, and restarts after anything that is not a list.
+      counters.length = level + 1;
+      counters[level] = ordered ? (counters[level] ?? 0) + 1 : 0;
+      // Items of one list stay on consecutive lines; the first keeps its space from what came before.
+      add(`${'  '.repeat(level)}${ordered ? `${counters[level]}.` : '•'} ${text}`, inList ? 0 : gap);
+      inList = true;
+      continue;
+    }
+    counters.length = 0;
+    inList = false;
+    add(text, gap);
+  }
+  return `${out.replace(/\n{4,}/g, '\n\n\n').trim()}\n`;
+}
+
+export async function pdfToText(file: File, options: TextExtractOptions): Promise<TextExtractResult> {
+  const progress = options.onProgress ?? (() => undefined);
+  if (options.mode === 'paragraphs') {
+    const result = await pdfToDoc(file, { ocr: options.ocr, images: false, pageBreaks: true, password: options.password, onProgress: progress });
+    return { text: docText(result.doc, options.pageMarkers), pages: result.pages, scannedPages: result.scannedPages, ocrPages: result.ocrPages };
+  }
+  const sourceId = createId();
+  const opened = await openPdf(sourceId, file, options.password);
+  const source: PdfSource = { id: sourceId, name: file.name, kind: 'pdf', file, pageCount: opened.view.numPages };
+  try {
+    const numPages = opened.view.numPages;
+    const pages: string[] = [];
+    let scannedPages = 0;
+    let ocrPages = 0;
+    for (let n = 1; n <= numPages; n++) {
+      progress((n - 1) / numPages, `Reading page ${n} of ${numPages}`);
+      const page = await opened.view.getPage(n);
+      const viewport = page.getViewport({ scale: 1 });
+      const drawn = await pageImages(page, viewport.transform, viewport.width * viewport.height);
+      const pieces = await readPieces(page, viewport);
+      page.cleanup();
+      const chars = pieces.reduce((c, p) => c + p.text.trim().length, 0);
+      let lines = buildLines(pieces);
+      if (chars < 20 && (drawn.found.some((img) => img.area > 0.3) || drawn.ops > 12)) {
+        scannedPages++;
+        lines = options.ocr
+          ? await ocrLines(source, n - 1, viewport.width, viewport.height, (r) => progress((n - 1 + r) / numPages, `Reading scanned page ${n} with OCR`))
+          : [];
+        if (lines.length) ocrPages++;
+      }
+      pages.push(`${options.pageMarkers ? `--- Page ${n} ---\n\n` : ''}${layoutText(lines)}`);
+    }
+    progress(1, 'Writing text');
+    // Blank lines between pages: form feeds would show as odd symbols in Notepad and most editors.
+    const text = `${pages.join('\n\n\n')}\n`;
+    return { text, pages: numPages, scannedPages, ocrPages };
   } finally {
     closePdf(sourceId);
   }

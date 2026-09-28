@@ -92,6 +92,17 @@ export type PageEdit =
       imageId: string;
     };
 
+/**
+ * A crop, as fractions of the page as it looks before the user turns it (its own rotation applied),
+ * from the top-left corner.
+ */
+export interface CropBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** One page on the board. Pages keep a pointer to their source, so reordering never touches file data. */
 export interface PdfPage {
   id: string;
@@ -107,6 +118,8 @@ export interface PdfPage {
   scan?: ScanSettings;
   /** Changes made with Edit PDF. */
   edits?: PageEdit[];
+  /** Area kept by Crop PDF; unset keeps the whole page. */
+  crop?: CropBox;
 }
 
 export type PdfPageSize = 'fit' | 'a4' | 'letter';
@@ -161,4 +174,8 @@ export interface PdfSettings {
   removeComments: boolean;
   /** Turns pages with white-out or retyped text into pictures, so the covered text is really gone. */
   flattenCovered: boolean;
+  /** Space left around the content when removing white margins, in points. */
+  cropPadding: number;
+  /** Turns cropped PDF pages into pictures, so the part cut off is really gone. */
+  flattenCropped: boolean;
 }

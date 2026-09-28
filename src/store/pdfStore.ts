@@ -21,6 +21,9 @@ interface PdfState {
   signingPageId: string | null;
   /** Page whose Edit PDF dialog is open. */
   editingPageId: string | null;
+  /** Page whose crop dialog is open. */
+  croppingPageId: string | null;
+  setCroppingPage: (id: string | null) => void;
   setEditingPage: (id: string | null) => void;
   /** Pictures placed with Edit PDF, by id. Kept in memory only. */
   editImages: Record<string, SignatureAsset>;
@@ -71,6 +74,8 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   signingPageId: null,
   editingPageId: null,
   setEditingPage: (editingPageId) => set({ editingPageId }),
+  croppingPageId: null,
+  setCroppingPage: (croppingPageId) => set({ croppingPageId }),
   editImages: {},
   addEditImage: (id, image) => set((s) => ({ editImages: { ...s.editImages, [id]: image } })),
   wordDocs: {},
@@ -168,6 +173,8 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   allowFlatten: false,
   removeComments: false,
   flattenCovered: false,
+  cropPadding: 6,
+  flattenCropped: false,
 };
 
 interface PdfSettingsState extends PdfSettings {
@@ -198,6 +205,8 @@ export const usePdfSettingsStore = create<PdfSettingsState>()(
         allowFlatten: s.allowFlatten,
         removeComments: s.removeComments,
         flattenCovered: s.flattenCovered,
+        cropPadding: s.cropPadding,
+        flattenCropped: s.flattenCropped,
       }),
     },
   ),
