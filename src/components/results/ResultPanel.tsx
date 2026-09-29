@@ -45,7 +45,7 @@ export function ResultPanel({ item }: { item: QueueItem }) {
         )}
         {/* A cropped cut-out no longer lines up with the photo, so it is shown on its own. */}
         {result.width === item.meta.width && result.height === item.meta.height ? (
-          <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} resultLabel="Cut-out" />
+          <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} resultLabel="Cut-out" resultTag="Cut-out" />
         ) : (
           <ConvertedPreview result={result} />
         )}

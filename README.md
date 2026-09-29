@@ -45,7 +45,7 @@ Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…
 | 🗜️ Compress | `/compress` | Shrink images and videos. Keep the original when it would not get smaller. |
 | 🔄 Convert | `/convert` | Images, video, animated GIF, or audio. Always the format you asked for. |
 | ✂️ Resize & Crop | `/resize` | Crop and scale photos to an exact pixel size. |
-| 🪄 Remove Background | `/remove-background` | Cut out a subject with IS-Net on your device. Model is 88 MB and self-hosted. |
+| 🪄 Remove Background | `/remove-background` | Cut out a subject on your device: BiRefNet on the graphics card, IS-Net without WebGPU. Models are self-hosted. |
 | 🎬 Trim & Split | `/trim-video` | Trim one clip, or split it into WhatsApp Status parts. |
 | 📍 Remove Location | `/remove-location` | Strip GPS and other hidden metadata. Picture and sound are not re-encoded. |
 | 📄 PDF | `/pdf` | Merge, split, crop, compress, sign, scan, fill forms, protect, clean, OCR, or save pages as JPG, PNG, BMP or TIFF. |
@@ -139,7 +139,7 @@ flowchart TD
 | State | Zustand 5 |
 | Images | Canvas, UPNG.js, `@jsquash/avif` |
 | Video | WebCodecs, Mediabunny, `@ffmpeg/core` 0.12 |
-| Cut-out | ONNX Runtime Web, IS-Net (88 MB, self-hosted) |
+| Cut-out | ONNX Runtime Web; BiRefNet lite on WebGPU (115 MB), IS-Net on the CPU (88 MB); self-hosted |
 | PDF | pdf.js (reading, rendering), pdf-lib (writing), Tesseract.js (OCR) |
 | Documents | Own readers and writers for DOCX, XLSX, PPTX, RTF, HTML and Markdown; UTIF.js for TIFF |
 | ZIP | fflate, in the browser |
@@ -156,7 +156,7 @@ npm run build
 | | |
 | --- | --- |
 | Node.js | 20.19+ |
-| Build output | Static `dist/` · ~175 MB with the model |
+| Build output | Static `dist/` · ~290 MB with both models |
 | Server code | Zero |
 | Environment variables | Zero |
 | Database | None |
@@ -191,7 +191,7 @@ Serve `dist/` over HTTPS. One HTML file per tool. No functions, env file, or dat
 - 🖼️ Animated WebP and APNG become a single frame.
 - 👁️ Some MKV and HEVC files cannot be previewed. FFmpeg can still compress them.
 - 🧭 Safari cannot encode WebP.
-- 🧠 Without WebGPU, background removal runs on the CPU: about a minute per photo.
+- 🧠 Without WebGPU (or without 16-bit float support on the GPU), background removal uses the lighter IS-Net on the CPU: about a minute per photo, with softer edges.
 - 🔤 PDFs made from documents use the fonts every PDF reader has built in (Helvetica, Times, Courier). Letters those fonts lack (Hindi, Chinese, ₹, emoji) are drawn as small pictures, visible but not selectable.
 - 📊 Charts and SmartArt in Excel and PowerPoint files are not drawn; cells, shapes, pictures and tables are.
 - 🌐 HTML to PDF lays the page out as a document with selectable text; for an exact copy of a web page's layout, use its print view. Pictures the page links to on the web are not fetched.
@@ -210,6 +210,7 @@ CompressKit’s own code is proprietary. Copyright © 2026 Abhishek Jaiswal. Per
 | `pdfjs-dist` | Apache-2.0 |
 | `tesseract.js` | Apache-2.0 |
 | `onnxruntime-web` | MIT |
+| BiRefNet | MIT |
 | IS-Net | Apache-2.0 / MIT |
 
 > ⚠️ Shipping a build that includes `@ffmpeg/core` carries GPL-2.0-or-later obligations. Review that before you distribute, or ship WebCodecs only.

@@ -118,7 +118,7 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
     icon: WandSparkles,
     steps: [
       ['Add your photos', 'People, pets, products or cars with some background around them work best.'],
-      ['Let the AI cut it out', 'About a second per photo on your graphics card. Nothing is uploaded.'],
+      ['Let the AI cut it out', 'A few seconds per photo on your graphics card. Nothing is uploaded.'],
       ['Download', 'A transparent PNG or WebP, or the subject on white or any colour.'],
     ],
     highlights: [

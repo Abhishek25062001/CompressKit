@@ -1,5 +1,4 @@
 import { removeBackground } from '../features/background/cutout';
-import { loadModel } from '../features/background/model';
 import type { BackgroundJobRequest } from '../types/background';
 import type { WorkerResponse } from '../types/worker';
 import { classifyError, describeError } from '../utils/errors';
@@ -17,8 +16,7 @@ async function run(job: BackgroundJobRequest): Promise<void> {
     lastPost = now;
     post({ type: 'progress', jobId: job.jobId, progress, stage });
   };
-  const model = await loadModel(job, onProgress);
-  const out = await removeBackground(job.file, job.settings, model, onProgress);
+  const out = await removeBackground(job, onProgress);
   post({
     type: 'done',
     jobId: job.jobId,
@@ -27,7 +25,7 @@ async function run(job: BackgroundJobRequest): Promise<void> {
     width: out.width,
     height: out.height,
     notes: out.notes,
-    engine: model.device,
+    engine: out.device,
     keptOriginal: false,
   });
 }

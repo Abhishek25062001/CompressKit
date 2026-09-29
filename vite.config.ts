@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
@@ -43,59 +44,123 @@ function selfHostedOcr(): Plugin {
 }
 
 /**
- * The background-removal model, served from this site in parts of at most 20 MB so it fits the
- * per-file limits of static hosts. Part names carry the model's hash, so they can be cached forever.
- * The app imports the part list from `virtual:background-model`. `npm run model` downloads the file.
+ * The background-removal models, served from this site in parts of at most 20 MB so they fit the
+ * per-file limits of static hosts. Part names carry each model's hash, so they can be cached forever.
+ * The app imports the part lists from `virtual:background-model`. `npm run model` prepares the files.
  */
 const MODEL_PART_BYTES = 20 * 1024 * 1024;
+
+interface ServedModel {
+  file: string;
+  size: number;
+  sha256: string;
+  parts: { fileName: string; start: number; end: number }[];
+}
+
+function describeModel(name: string, file: string): ServedModel {
+  const bytes = readFileSync(file);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const count = Math.ceil(bytes.length / MODEL_PART_BYTES);
+  const parts = Array.from({ length: count }, (_, i) => ({
+    fileName: `models/${name}-${sha256.slice(0, 12)}/part-${String(i + 1).padStart(2, '0')}.bin`,
+    start: i * MODEL_PART_BYTES,
+    end: Math.min(bytes.length, (i + 1) * MODEL_PART_BYTES),
+  }));
+  return { file, size: bytes.length, sha256, parts };
+}
+
+function readRange(file: string, start: number, end: number): Buffer {
+  const fd = openSync(file, 'r');
+  try {
+    const bytes = Buffer.alloc(end - start);
+    readSync(fd, bytes, 0, bytes.length, start);
+    return bytes;
+  } finally {
+    closeSync(fd);
+  }
+}
 
 function selfHostedModel(): Plugin {
   const virtualId = 'virtual:background-model';
   const resolvedId = `\0${virtualId}`;
-  let parts: { fileName: string; start: number; end: number }[] = [];
-  let model: { sha256: string; size: number; file: string } | null = null;
-  let isBuild = false;
+  const models: Record<'gpu' | 'cpu', ServedModel | null> = { gpu: null, cpu: null };
 
   return {
     name: 'compresskit-background-model',
     async configResolved(config) {
-      isBuild = config.command === 'build';
-      const { MODEL } = await import('./scripts/fetch-model.mjs');
-      if (!existsSync(MODEL.file)) {
-        if (isBuild) throw new Error('Background-removal model missing: run `npm run model`.');
-        return;
+      const { MODELS } = await import('./scripts/fetch-model.mjs');
+      for (const key of ['gpu', 'cpu'] as const) {
+        const { name, file } = MODELS[key];
+        if (existsSync(file)) models[key] = describeModel(name, file);
+        else if (config.command === 'build') throw new Error(`Background-removal model missing (${file}): run \`npm run model\`.`);
       }
-      model = MODEL;
-      const count = Math.ceil(MODEL.size / MODEL_PART_BYTES);
-      parts = Array.from({ length: count }, (_, i) => ({
-        fileName: `models/isnet-${MODEL.sha256.slice(0, 12)}/part-${String(i + 1).padStart(2, '0')}.bin`,
-        start: i * MODEL_PART_BYTES,
-        end: Math.min(MODEL.size, (i + 1) * MODEL_PART_BYTES),
-      }));
     },
     resolveId(id) {
       return id === virtualId ? resolvedId : undefined;
     },
     load(id) {
       if (id !== resolvedId) return undefined;
-      const info = model ? { parts: parts.map((p) => p.fileName), size: model.size, sha256: model.sha256 } : null;
-      return `export default ${JSON.stringify(info)};`;
+      const info = (m: ServedModel | null) => (m ? { parts: m.parts.map((p) => p.fileName), size: m.size, sha256: m.sha256 } : null);
+      return `export default ${JSON.stringify({ gpu: info(models.gpu), cpu: info(models.cpu) })};`;
     },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const path = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\//, '');
-        const part = parts.find((p) => p.fileName === path);
-        if (!part || !model) return next();
-        res.setHeader('Content-Type', 'application/octet-stream');
-        res.end(readFileSync(model.file).subarray(part.start, part.end));
+        for (const model of [models.gpu, models.cpu]) {
+          const part = model?.parts.find((p) => p.fileName === path);
+          if (!model || !part) continue;
+          res.setHeader('Content-Type', 'application/octet-stream');
+          res.end(readRange(model.file, part.start, part.end));
+          return;
+        }
+        next();
       });
     },
     generateBundle() {
-      if (!model) return;
-      const bytes = readFileSync(model.file);
-      for (const part of parts) {
-        this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
+      for (const model of [models.gpu, models.cpu]) {
+        if (!model) continue;
+        const bytes = readFileSync(model.file);
+        for (const part of model.parts) {
+          this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
+        }
       }
+    },
+  };
+}
+
+/**
+ * Fixes a bug in ONNX Runtime Web 1.30 (microsoft/onnxruntime#32731): when GatherND data has more
+ * than four dimensions, its WebGPU shader reads a packed uniform array (array<vec4<u32>>) as if it
+ * were flat, and the browser rejects the shader. BiRefNet has such GatherNDs. If the code no longer
+ * matches, the build fails so an ONNX Runtime update gets checked; remove this once a release has the fix.
+ */
+function onnxRuntimeGatherNdFix(): Plugin {
+  const fixes = [
+    {
+      pattern: /\$\{(\w+)\.length===1\?"index \+= i32\(uniforms\.input_dims\);":"index \+= i32\(uniforms\.input_dims\[input_dim_idx\]\);"\}/,
+      fix: (n: string) =>
+        `\${${n}.length===1?"index += i32(uniforms.input_dims);":${n}.length>4?"index += i32(uniforms.input_dims[input_dim_idx / 4u][input_dim_idx % 4u]);":"index += i32(uniforms.input_dims[input_dim_idx]);"}`,
+    },
+    {
+      pattern:
+        /\$\{(\w+)\.length===1\?"relative_slice_offset \+= index \* i32\(uniforms\.sizes_from_slice_dims_data\);":"relative_slice_offset \+= index \* i32\(uniforms\.sizes_from_slice_dims_data\[dim_idx\]\);"\}/,
+      fix: (n: string) =>
+        `\${${n}.length===1?"relative_slice_offset += index * i32(uniforms.sizes_from_slice_dims_data);":${n}.length>4?"relative_slice_offset += index * i32(uniforms.sizes_from_slice_dims_data[dim_idx / 4u][dim_idx % 4u]);":"relative_slice_offset += index * i32(uniforms.sizes_from_slice_dims_data[dim_idx]);"}`,
+    },
+  ];
+  return {
+    name: 'compresskit-onnxruntime-gathernd-fix',
+    transform(code, id) {
+      if (!/\/onnxruntime-web\/dist\/ort\.all\.bundle\.min\.mjs(\?|$)/.test(id)) return undefined;
+      let out = code;
+      for (const { pattern, fix } of fixes) {
+        const match = pattern.exec(out);
+        if (!match) {
+          throw new Error('onnxruntime-web changed: check whether microsoft/onnxruntime#32731 is fixed, then update or remove onnxRuntimeGatherNdFix in vite.config.ts.');
+        }
+        out = out.replace(pattern, () => fix(match[1]));
+      }
+      return { code: out, map: null };
     },
   };
 }
@@ -141,10 +206,12 @@ function toolPages(): Plugin {
 
 // CompressKit is a fully static, client-side app. No server code, no env vars.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), toolPages()],
+  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), onnxRuntimeGatherNdFix(), toolPages()],
   worker: {
     // Module workers let the video worker dynamically import the FFmpeg core.
     format: 'es',
+    // The background worker bundles ONNX Runtime, so its fix must apply there too.
+    plugins: () => [onnxRuntimeGatherNdFix()],
   },
   optimizeDeps: {
     // These packages locate their .wasm files relative to import.meta.url,

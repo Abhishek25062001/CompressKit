@@ -9,8 +9,10 @@ import { SegmentedControl } from '../common/SegmentedControl';
 import { Select, type SelectOption } from '../common/Select';
 import { Switch } from '../common/Switch';
 
-/** WebGPU runs the model on the graphics card; without it the processor takes about a minute per photo. */
+/** WebGPU runs the detailed model on the graphics card; without it the processor runs a lighter one, taking about a minute per photo. */
 const HAS_WEBGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
+/** The model this browser will most likely download. */
+const MODEL_SIZE = (HAS_WEBGPU ? MODEL_BYTES.gpu : null) ?? MODEL_BYTES.cpu;
 
 export function BackgroundSettingsPanel() {
   const settings = useBackgroundSettingsStore();
@@ -80,7 +82,7 @@ export function BackgroundSettingsPanel() {
         />
 
         <div className="space-y-2 border-t border-border pt-4 text-xs text-muted">
-          {MODEL_BYTES === null ? (
+          {MODEL_SIZE === null ? (
             <p className="flex gap-2 text-warning">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               This copy of CompressKit was built without the AI model, so the background remover is unavailable.
@@ -89,7 +91,7 @@ export function BackgroundSettingsPanel() {
             <p className="flex gap-2">
               <Download className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>
-                The first photo downloads a {formatBytes(MODEL_BYTES, 0)} AI model from this site. It is then kept by your browser, so later photos start
+                The first photo downloads a {formatBytes(MODEL_SIZE, 0)} AI model from this site. It is then kept by your browser, so later photos start
                 right away, even offline. Your photos never leave your device.
               </span>
             </p>
@@ -97,12 +99,12 @@ export function BackgroundSettingsPanel() {
           {HAS_WEBGPU ? (
             <p className="flex gap-2">
               <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-text" aria-hidden />
-              Runs on your graphics card: about a second per photo.
+              Runs on your graphics card: a few seconds per photo.
             </p>
           ) : (
             <p className="flex gap-2 text-warning">
               <Cpu className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              This browser has no WebGPU, so the model runs on the processor: about a minute per photo. Recent Chrome, Edge or Safari are much faster.
+              This browser has no WebGPU, so a lighter model runs on the processor: about a minute per photo, with softer edges. Recent Chrome, Edge or Safari are faster and more precise.
             </p>
           )}
         </div>

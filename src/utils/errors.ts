@@ -19,6 +19,7 @@ export function classifyError(error: unknown): ErrorCode {
     text.includes('memory access out of bounds') ||
     text.includes('cannot enlarge memory') ||
     text.includes('allocation failed') ||
+    text.includes('bad_alloc') ||
     text.includes('array buffer allocation') ||
     text.includes('rangeerror')
   ) {

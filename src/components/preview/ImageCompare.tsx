@@ -9,10 +9,12 @@ interface ImageCompareProps {
   height?: number;
   /** What the processed image is, for its alt text. */
   resultLabel?: string;
+  /** Short name of the processed image, shown on its side of the slider. */
+  resultTag?: string;
 }
 
 /** Before/after slider. A native range input drives it, so it works with keyboard and screen readers. */
-export function ImageCompare({ original, compressedUrl, width, height, resultLabel = 'Compressed version' }: ImageCompareProps) {
+export function ImageCompare({ original, compressedUrl, width, height, resultLabel = 'Compressed version', resultTag = 'Compressed' }: ImageCompareProps) {
   const originalUrl = useObjectUrl(original);
   const [position, setPosition] = useState(50);
   const id = useId();
@@ -44,10 +46,10 @@ export function ImageCompare({ original, compressedUrl, width, height, resultLab
           Original
         </span>
         <span className="pointer-events-none absolute top-2 right-2 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
-          Compressed
+          {resultTag}
         </span>
         <label htmlFor={id} className="sr-only">
-          Comparison position: left shows the original, right shows the compressed image
+          Comparison position: left shows the original, right shows the {resultTag.toLowerCase()} image
         </label>
         <input
           id={id}

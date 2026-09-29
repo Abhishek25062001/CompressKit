@@ -1,1 +1,4 @@
-export declare const MODEL: { url: string; sha256: string; size: number; file: string };
+export declare const MODELS: {
+  gpu: { name: string; file: string };
+  cpu: { name: string; file: string };
+};

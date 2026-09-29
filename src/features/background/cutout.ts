@@ -1,10 +1,8 @@
-import type { BackgroundSettings } from '../../types/background';
+import type { BackgroundJobRequest } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
-import type { LoadedModel } from './model';
+import { findSubject, MASK_SIZE as SIZE, type Device } from './model';
 
-/** The model looks at the photo squeezed into a 1024 × 1024 square. */
-const SIZE = 1024;
 /** Larger photos are scaled down to this many pixels, which keeps canvases within browser limits. */
 const MAX_PIXELS = 40_000_000;
 
@@ -16,6 +14,7 @@ export interface CutoutOutput {
   width: number;
   height: number;
   notes: string[];
+  device: Device;
 }
 
 function canvas(width: number, height: number) {
@@ -27,42 +26,11 @@ function canvas(width: number, height: number) {
   return { c, ctx };
 }
 
-/** Pixels as three planes of normalized floats: (value − 128) / 256, as the model was trained. */
-function toTensorData(source: ImageBitmap): Float32Array {
+/** The photo squeezed into the model's square, as RGBA pixels. */
+function squarePixels(source: ImageBitmap): Uint8ClampedArray {
   const { ctx } = canvas(SIZE, SIZE);
   ctx.drawImage(source, 0, 0, SIZE, SIZE);
-  const rgba = ctx.getImageData(0, 0, SIZE, SIZE).data;
-  const plane = SIZE * SIZE;
-  const out = new Float32Array(3 * plane);
-  for (let i = 0; i < plane; i++) {
-    out[i] = (rgba[i * 4] - 128) / 256;
-    out[plane + i] = (rgba[i * 4 + 1] - 128) / 256;
-    out[2 * plane + i] = (rgba[i * 4 + 2] - 128) / 256;
-  }
-  return out;
-}
-
-/** The model's 1024 × 1024 foreground map as an alpha-only image, stretched so its weakest and strongest values span 0–255. */
-function toMask(values: Float32Array): { image: ImageData; alpha: Uint8ClampedArray } {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const v of values) {
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  // Stretch only a real foreground map; a nearly flat one (no subject) is used as it is.
-  if (max - min < 0.2) {
-    min = 0;
-    max = 1;
-  }
-  const range = max - min;
-  const image = new ImageData(SIZE, SIZE);
-  const alpha = new Uint8ClampedArray(SIZE * SIZE);
-  for (let i = 0; i < alpha.length; i++) {
-    alpha[i] = ((values[i] - min) / range) * 255;
-    image.data[i * 4 + 3] = alpha[i];
-  }
-  return { image, alpha };
+  return ctx.getImageData(0, 0, SIZE, SIZE).data;
 }
 
 /** Bounding box of the subject in mask coordinates, or null when nothing was found. */
@@ -84,12 +52,8 @@ function subjectBox(alpha: Uint8ClampedArray): { x0: number; y0: number; x1: num
   return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
 }
 
-export async function removeBackground(
-  file: Blob,
-  settings: BackgroundSettings,
-  model: LoadedModel,
-  onProgress: ProgressFn,
-): Promise<CutoutOutput> {
+export async function removeBackground(job: BackgroundJobRequest, onProgress: ProgressFn): Promise<CutoutOutput> {
+  const { file, settings } = job;
   const notes: string[] = [];
   onProgress(null, 'Reading photo');
   let bitmap: ImageBitmap;
@@ -108,18 +72,14 @@ export async function removeBackground(
       notes.push(`This photo is very large, so the cut-out was made at ${width} × ${height}.`);
     }
 
-    onProgress(null, model.device === 'webgpu' ? 'Finding the subject' : 'Finding the subject (no GPU, this takes about a minute)');
-    const input = new model.ort.Tensor('float32', toTensorData(bitmap), [1, 3, SIZE, SIZE]);
-    const results = await model.session.run({ [model.session.inputNames[0]]: input });
-    input.dispose();
-    const output = results[model.session.outputNames[0]];
-    const values = (await output.getData()) as Float32Array;
-    output.dispose();
+    const subject = await findSubject(job, squarePixels(bitmap), onProgress);
+    notes.push(...subject.notes);
 
     onProgress(0.9, 'Cutting out');
-    const mask = toMask(values);
+    const mask = new ImageData(SIZE, SIZE);
+    for (let i = 0; i < subject.alpha.length; i++) mask.data[i * 4 + 3] = subject.alpha[i];
     const maskCanvas = canvas(SIZE, SIZE);
-    maskCanvas.ctx.putImageData(mask.image, 0, 0);
+    maskCanvas.ctx.putImageData(mask, 0, 0);
 
     // The photo at full size, keeping only what the mask covers (the mask is scaled up smoothly).
     const cut = canvas(width, height);
@@ -127,7 +87,7 @@ export async function removeBackground(
     cut.ctx.globalCompositeOperation = 'destination-in';
     cut.ctx.drawImage(maskCanvas.c, 0, 0, width, height);
 
-    const box = subjectBox(mask.alpha);
+    const box = subjectBox(subject.alpha);
     if (!box) notes.push('No clear subject was found in this photo, so most of it may have been removed.');
     let crop = { x: 0, y: 0, w: width, h: height };
     if (settings.trim && box) {
@@ -151,7 +111,7 @@ export async function removeBackground(
     const blob = await final.c.convertToBlob({ type: mime, quality: format === 'png' ? undefined : 0.92 });
     // Browsers without a WebP encoder silently return PNG.
     if (blob.type !== mime) notes.push(`Your browser cannot write ${format.toUpperCase()}, so the result was saved as ${blob.type.split('/')[1].toUpperCase()}.`);
-    return { blob, mime: blob.type, width: crop.w, height: crop.h, notes };
+    return { blob, mime: blob.type, width: crop.w, height: crop.h, notes, device: subject.device };
   } finally {
     bitmap.close();
   }
