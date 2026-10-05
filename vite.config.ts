@@ -213,7 +213,14 @@ export default defineConfig({
     // The background worker bundles ONNX Runtime, so its fix must apply there too.
     plugins: () => [onnxRuntimeGatherNdFix()],
   },
+  server: {
+    // The React Native project in app/ holds gigabytes of native build output and a copy of this
+    // site's own build; none of it belongs to the dev server.
+    watch: { ignored: ['**/app/ofctools/**'] },
+  },
   optimizeDeps: {
+    // Only this site's own page is scanned for dependencies, not the copy of the build in app/.
+    entries: ['index.html'],
     // These packages locate their .wasm files relative to import.meta.url,
     // which breaks if Vite pre-bundles them.
     exclude: ['@ffmpeg/core', '@jsquash/avif', 'onnxruntime-web'],

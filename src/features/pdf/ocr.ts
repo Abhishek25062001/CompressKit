@@ -1,5 +1,6 @@
 import type { Worker } from 'tesseract.js';
 import type { PdfPage, PdfSource } from '../../types/pdf';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { releaseCanvas } from '../image/canvas';
 import { decodeImage } from '../image/decode';
 import { getOpenPdf } from './documents';
@@ -40,6 +41,8 @@ function getWorker(): Promise<Worker> {
       workerPath: `${base}ocr/worker.min.js`,
       corePath: `${base}ocr/core`,
       langPath: `${base}ocr/lang`,
+      // The Android and iOS app carries the English data unzipped (app/ofctools/scripts/sync-web.mjs).
+      gzip: !IN_NATIVE_APP,
       workerBlobURL: false,
       logger: (m: { status: string; progress: number }) => {
         if (m.status === 'recognizing text') onEngineProgress?.(m.progress, 'Reading text');

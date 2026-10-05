@@ -53,6 +53,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
+import { IN_NATIVE_APP } from '../utils/nativeApp';
 import type { ToolId } from './catalog';
 
 export interface Highlight {
@@ -276,12 +277,15 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
     steps: [
       ['Add HTML files', 'Drop saved web pages, email exports or any .html file.'],
       ['Choose a page size', 'A4 or Letter. The file is read with its own styles applied.'],
-      ['Download', 'Save the PDF, or open the print view for an exact copy of the layout.'],
+      // The print view needs a browser's print dialog, which the phone app does not have.
+      ['Download', IN_NATIVE_APP ? 'Save the PDF to your device.' : 'Save the PDF, or open the print view for an exact copy of the layout.'],
     ],
     highlights: [
       { icon: PaletteIcon, title: 'Styles applied', body: 'Stylesheets decide the fonts, colours, sizes and alignment, just as in a browser.' },
       { icon: Table2, title: 'Structure kept', body: 'Headings, tables with shading, lists, links and embedded pictures come across as real text.' },
-      { icon: Printer, title: 'Exact layout option', body: "Need it to look exactly like the page? The print view saves a PDF with your browser's own engine." },
+      ...(IN_NATIVE_APP
+        ? []
+        : [{ icon: Printer, title: 'Exact layout option', body: "Need it to look exactly like the page? The print view saves a PDF with your browser's own engine." }]),
       { icon: Globe, title: 'Safe to open', body: 'Scripts in the file never run and nothing is fetched from the web or uploaded.' },
     ],
   },

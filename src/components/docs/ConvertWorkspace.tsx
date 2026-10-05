@@ -23,6 +23,7 @@ import {
 import { useRouteStore } from '../../store/routeStore';
 import { downloadBlob } from '../../utils/download';
 import { formatBytes } from '../../utils/format';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { SegmentedControl } from '../common/SegmentedControl';
@@ -134,7 +135,8 @@ function JobCard({ kind, job }: { kind: ConvertKind; job: DocJob }) {
               {ui.edit === 'source' ? 'Edit document' : 'Edit in browser'}
             </Button>
           )}
-          {kind === 'html-to-pdf' && (
+          {/* The print dialog belongs to a browser; the app's WebView has none, so the option is not offered there. */}
+          {kind === 'html-to-pdf' && !IN_NATIVE_APP && (
             <Button size="sm" onClick={() => void printExact(job.file)} icon={<Printer className="h-3.5 w-3.5" aria-hidden />}>
               Exact layout (print)
             </Button>
@@ -422,8 +424,14 @@ function Options({ kind, reconvert }: { kind: ConvertKind; reconvert: ReactNode 
           {reconvert}
           <p className="text-xs text-muted">
             The page is read with its stylesheets, and laid out as a document with selectable text: headings, fonts, colours, tables,
-            lists, links and embedded pictures come across, while side-by-side columns are placed one after another. For a PDF that
-            looks exactly like the page, use <span className="font-medium text-fg">Exact layout (print)</span> and choose Save as PDF.
+            lists, links and embedded pictures come across, while side-by-side columns are placed one after another.
+            {!IN_NATIVE_APP && (
+              <>
+                {' '}
+                For a PDF that looks exactly like the page, use <span className="font-medium text-fg">Exact layout (print)</span> and choose
+                Save as PDF.
+              </>
+            )}
           </p>
           <p className="text-xs text-muted">
             Scripts never run. Pictures inside the file are included; pictures it links to on the web or in a folder next to it are not

@@ -6,3 +6,6 @@ dist
 /models
 .DS_Store
 Archive.zip
+ios 
+android
+app/
