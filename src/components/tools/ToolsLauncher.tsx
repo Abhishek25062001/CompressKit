@@ -7,8 +7,10 @@ import { useDialog } from '../../hooks/useDialog';
 import { useRouteStore } from '../../store/routeStore';
 import { useUiStore } from '../../store/uiStore';
 import { cn } from '../../utils/cn';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { Link } from '../common/Link';
 import { hue } from './hue';
+import { TILE_GRID, ToolTile } from './ToolTile';
 
 /** Marks the links the arrow keys move between (data-launcher-item on each). */
 const ITEM = 'data-launcher-item';
@@ -190,7 +192,29 @@ function LauncherPanel({ focusSearch, onClose }: { focusSearch: boolean; onClose
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div id={`${titleId}-list`} className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-          {!searching ? (
+          {!searching && IN_NATIVE_APP ? (
+            // The phone app shows tiles, three to a row, so every tool is a short scroll away.
+            <div className="space-y-6">
+              {FEATURES_BY_CATEGORY.map(({ category, features }) => (
+                <section key={category.id} aria-labelledby={`${titleId}-${category.id}`} style={hue(category.id)}>
+                  <h3 id={`${titleId}-${category.id}`} className="mb-2.5 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
+                    <span className="hue-tile inline-flex h-6 w-6 items-center justify-center rounded-md">
+                      <category.icon className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    {category.name}
+                    <span className="font-normal text-subtle tabular">{features.length}</span>
+                  </h3>
+                  <ul className={TILE_GRID}>
+                    {features.map((f) => (
+                      <li key={f.key}>
+                        <ToolTile feature={f} current={f.to === here} onPick={onClose} launcherItem />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : !searching ? (
             <div className="columns-1 gap-x-8 sm:columns-2 lg:columns-4">
               {FEATURES_BY_CATEGORY.map(({ category, features }) => (
                 <section key={category.id} aria-labelledby={`${titleId}-${category.id}`} style={hue(category.id)} className="mb-7 break-inside-avoid">
@@ -219,10 +243,14 @@ function LauncherPanel({ focusSearch, onClose }: { focusSearch: boolean; onClose
                   : `No tool matches “${query.trim()}”`}
               </p>
               {results.length > 0 ? (
-                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className={IN_NATIVE_APP ? TILE_GRID : 'grid gap-2 sm:grid-cols-2 lg:grid-cols-3'}>
                   {results.map((f, i) => (
                     <li key={f.key}>
-                      <ResultLink feature={f} first={i === 0} current={f.to === here} onPick={onClose} />
+                      {IN_NATIVE_APP ? (
+                        <ToolTile feature={f} highlighted={i === 0} current={f.to === here} onPick={onClose} launcherItem />
+                      ) : (
+                        <ResultLink feature={f} first={i === 0} current={f.to === here} onPick={onClose} />
+                      )}
                     </li>
                   ))}
                 </ul>

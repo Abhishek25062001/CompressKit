@@ -2,9 +2,11 @@ import { ArrowUpRight, LayoutGrid } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 import { CATEGORIES, FEATURES, FEATURES_BY_CATEGORY, type CategoryId, type Feature } from '../../features/directory';
 import { cn } from '../../utils/cn';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { Link } from '../common/Link';
 import { SectionHeading } from '../sections/SectionHeading';
 import { hue } from './hue';
+import { TILE_GRID, ToolTile } from './ToolTile';
 
 function FeatureCard({ feature }: { feature: Feature }) {
   return (
@@ -51,6 +53,9 @@ function Chip({ active, onClick, count, children, id }: { active: boolean; onCli
 /**
  * Every tool on the home page, grouped by category, with chips that narrow the list to one
  * category. The same list as the header's launcher, with a line on what each tool does.
+ *
+ * In the phone app the tools are small tiles instead, three to a row, so the whole list fits in
+ * a few screens; the website keeps its cards.
  */
 export function ToolDirectory() {
   const [filter, setFilter] = useState<CategoryId | 'all'>('all');
@@ -71,7 +76,11 @@ export function ToolDirectory() {
         id="tools-title"
         eyebrow="All tools"
         title={`${FEATURES.length} tools, sorted by what you're working on`}
-        description="Pick a category or scroll through them all. Each one runs entirely in your browser, works offline after your first visit, and never uploads your files."
+        description={
+          IN_NATIVE_APP
+            ? 'Pick a category or scroll through them all. Each one runs on this phone, works without a connection, and never uploads your files.'
+            : 'Pick a category or scroll through them all. Each one runs entirely in your browser, works offline after your first visit, and never uploads your files.'
+        }
       />
       <div className="sticky top-16 z-30 -mx-4 mb-8 border-b border-border/60 bg-bg/85 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6">
         <div role="group" aria-label="Show tools for" className="no-scrollbar -my-1 flex gap-2 overflow-x-auto py-1 lg:flex-wrap lg:justify-center">
@@ -87,26 +96,36 @@ export function ToolDirectory() {
           ))}
         </div>
       </div>
-      <div ref={listRef} className="scroll-mt-36 space-y-12 sm:space-y-14">
+      <div ref={listRef} className={cn('scroll-mt-36', IN_NATIVE_APP ? 'space-y-8' : 'space-y-12 sm:space-y-14')}>
         {groups.map(({ category, features }) => (
           <section key={category.id} aria-labelledby={`tools-${category.id}`} style={hue(category.id)}>
-            <div className="mb-4 flex items-center gap-3 sm:mb-5">
-              <span className="hue-tile inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-                <category.icon className="h-5 w-5" aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <h3 id={`tools-${category.id}`} className="flex items-baseline gap-2 text-lg font-semibold tracking-tight text-fg">
+            {IN_NATIVE_APP ? (
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="hue-tile inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                  <category.icon className="h-4 w-4" aria-hidden />
+                </span>
+                <h3 id={`tools-${category.id}`} className="flex items-baseline gap-2 text-base font-semibold tracking-tight text-fg">
                   {category.name}
                   <span className="text-sm font-normal text-subtle tabular">{features.length}</span>
                 </h3>
-                <p className="text-sm text-muted">{category.description}</p>
               </div>
-            </div>
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            ) : (
+              <div className="mb-4 flex items-center gap-3 sm:mb-5">
+                <span className="hue-tile inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                  <category.icon className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 id={`tools-${category.id}`} className="flex items-baseline gap-2 text-lg font-semibold tracking-tight text-fg">
+                    {category.name}
+                    <span className="text-sm font-normal text-subtle tabular">{features.length}</span>
+                  </h3>
+                  <p className="text-sm text-muted">{category.description}</p>
+                </div>
+              </div>
+            )}
+            <ul className={IN_NATIVE_APP ? TILE_GRID : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'}>
               {features.map((f) => (
-                <li key={f.key}>
-                  <FeatureCard feature={f} />
-                </li>
+                <li key={f.key}>{IN_NATIVE_APP ? <ToolTile feature={f} /> : <FeatureCard feature={f} />}</li>
               ))}
             </ul>
           </section>
