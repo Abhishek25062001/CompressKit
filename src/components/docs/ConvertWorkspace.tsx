@@ -85,7 +85,7 @@ function JobCard({ kind, job }: { kind: ConvertKind; job: DocJob }) {
           </p>
           <p className="text-xs text-muted" aria-live="polite">
             {formatBytes(job.file.size)}
-            {job.status === 'waiting' && ' · Waiting'}
+            {job.status === 'waiting' && ' · Ready'}
             {job.status === 'working' && ` · ${job.stage ?? 'Converting'}…`}
             {job.status === 'done' && job.result && (
               <>

@@ -607,21 +607,23 @@ export function ToolDirectory() {
         IN_NATIVE_APP ? 'py-8' : 'py-16 sm:py-24',
       )}
     >
-      <SectionHeading
-        id="tools-title"
-        eyebrow={
-          <span className="inline-flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            All tools
-          </span>
-        }
-        title={`${FEATURES.length} tools, sorted by what you're working on`}
-        description={
-          IN_NATIVE_APP
-            ? 'Pick a category or scroll through them all. Each one runs on this phone, works without a connection, and never uploads your files.'
-            : 'Pick a category or scroll through them all. Each one runs entirely in your browser, works offline after your first visit, and never uploads your files.'
-        }
-      />
+      {IN_NATIVE_APP ? (
+        <h2 id="tools-title" className="sr-only">
+          All tools
+        </h2>
+      ) : (
+        <SectionHeading
+          id="tools-title"
+          eyebrow={
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              All tools
+            </span>
+          }
+          title={`${FEATURES.length} tools, sorted by what you're working on`}
+          description="Pick a category or scroll through them all. Each one runs entirely in your browser, works offline after your first visit, and never uploads your files."
+        />
+      )}
 
       {/* Sticky filter bar */}
       <div

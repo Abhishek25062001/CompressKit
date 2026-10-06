@@ -1,9 +1,10 @@
-import { CheckCircle2, CircleDashed, Loader2, Ban, XCircle } from 'lucide-react';
+import { Ban, CheckCircle2, CircleCheck, Loader2, XCircle } from 'lucide-react';
 import type { FileStatus } from '../../types/media';
 import { cn } from '../../utils/cn';
 
 const CONFIG: Record<FileStatus, { label: string; className: string; Icon: typeof CheckCircle2; spin?: boolean }> = {
-  waiting: { label: 'Waiting', className: 'bg-surface-2 text-muted', Icon: CircleDashed },
+  // File is already on the device / in the queue — not still "uploading".
+  waiting: { label: 'Ready', className: 'bg-accent-soft text-accent-text', Icon: CircleCheck },
   compressing: { label: 'Compressing', className: 'bg-accent-soft text-accent-text', Icon: Loader2, spin: true },
   completed: { label: 'Completed', className: 'bg-accent-soft text-accent-text', Icon: CheckCircle2 },
   failed: { label: 'Failed', className: 'bg-danger-soft text-danger', Icon: XCircle },

@@ -1,5 +1,6 @@
 import { Layers, ShieldCheck, WifiOff, Zap } from 'lucide-react';
 import type { Highlight } from '../../features/toolContent';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { HighlightGrid } from '../sections/HighlightGrid';
 import { Hero } from '../sections/Hero';
 import { Privacy } from '../sections/Privacy';
@@ -41,9 +42,13 @@ export function HomePage() {
     <>
       <Hero />
       <ToolDirectory />
-      <StepList id="how-it-works" eyebrow="How it works" title="Three steps. No uploads." steps={STEPS} />
-      <HighlightGrid id="features" eyebrow="Why ofctools" title="Serious tools, zero setup" items={WHY} />
-      <Privacy />
+      {!IN_NATIVE_APP && (
+        <>
+          <StepList id="how-it-works" eyebrow="How it works" title="Three steps. No uploads." steps={STEPS} />
+          <HighlightGrid id="features" eyebrow="Why ofctools" title="Serious tools, zero setup" items={WHY} />
+          <Privacy />
+        </>
+      )}
     </>
   );
 }
