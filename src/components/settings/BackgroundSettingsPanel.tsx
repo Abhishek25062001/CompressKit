@@ -85,7 +85,7 @@ export function BackgroundSettingsPanel() {
           {MODEL_SIZE === null ? (
             <p className="flex gap-2 text-warning">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              This copy of CompressKit was built without the AI model, so the background remover is unavailable.
+              This copy of ofctools was built without the AI model, so the background remover is unavailable.
             </p>
           ) : (
             <p className="flex gap-2">

@@ -16,7 +16,7 @@ export interface VideoEncodeSupport {
 }
 
 /**
- * Encoders CompressKit uses from the single-threaded @ffmpeg/core 0.12 build. Its libx265 and
+ * Encoders ofctools uses from the single-threaded @ffmpeg/core 0.12 build. Its libx265 and
  * libvpx-vp9 are not reliable in WebAssembly (hang / memory fault), so they are not used.
  */
 export const FFMPEG_CODECS: Record<VideoCodecId, boolean> = {

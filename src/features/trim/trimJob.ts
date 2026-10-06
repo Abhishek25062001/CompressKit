@@ -125,7 +125,7 @@ export function startTrim(): void {
       if (msg.type === 'progress') {
         store.setProgress(msg.progress, msg.stage);
       } else if (msg.type === 'error') {
-        console.warn(`[CompressKit] ${msg.code}:`, msg.detail);
+        console.warn(`[ofctools] ${msg.code}:`, msg.detail);
         store.failJob(toFriendlyError(msg.code));
       } else {
         const parts: TrimPart[] = msg.parts.map((p, i) => ({
@@ -139,7 +139,7 @@ export function startTrim(): void {
       }
     },
     onCrash: (detail) => {
-      console.warn('[CompressKit] WORKER_CRASHED:', detail);
+      console.warn('[ofctools] WORKER_CRASHED:', detail);
       useTrimStore.getState().failJob(toFriendlyError('WORKER_CRASHED'));
     },
   });

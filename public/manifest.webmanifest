@@ -1,7 +1,7 @@
 {
-  "name": "CompressKit",
-  "short_name": "CompressKit",
-  "description": "Private file tools that run in your browser: compress, convert, resize, trim, remove backgrounds and hidden location data, and work with PDFs. No uploads.",
+  "name": "ofctools",
+  "short_name": "ofctools",
+  "description": "Private file tools that run in your browser: compress, convert, resize, trim, remove hidden location data, and work with PDFs. No uploads.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -569,8 +569,8 @@ class Layout {
 export async function layoutPdf(doc: DocModel, options: { title?: string; onProgress?: (ratio: number) => void } = {}): Promise<LayoutResult> {
   const lib = await import('@cantoo/pdf-lib');
   const out = await lib.PDFDocument.create();
-  out.setProducer('CompressKit');
-  out.setCreator('CompressKit (in-browser)');
+  out.setProducer('ofctools');
+  out.setCreator('ofctools (in-browser)');
   if (options.title) out.setTitle(options.title);
   const layout = new Layout(lib, out, doc);
   await layout.run(options.onProgress);

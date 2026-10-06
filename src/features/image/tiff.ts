@@ -181,7 +181,7 @@ interface Entry {
 }
 
 function writeTiff(pages: EncodedPage[]): Uint8Array {
-  const software = 'CompressKit';
+  const software = 'ofctools';
   const multi = pages.length > 1;
   // Lay out each page's directory and the data it points to, then fill in offsets in one pass.
   const parts: { entries: Entry[]; page: EncodedPage }[] = pages.map((page, n) => {

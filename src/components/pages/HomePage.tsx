@@ -15,7 +15,8 @@ const WHY: Highlight[] = [
   {
     icon: Zap,
     title: 'Fast on your own device',
-    body: 'Videos use your hardware encoder through WebCodecs, and the background remover runs on your graphics card.',
+    // Remove Background is switched off for now; with it on, this ended: "…through WebCodecs, and the background remover runs on your graphics card."
+    body: 'Videos are encoded by your hardware encoder through WebCodecs, right on your device.',
   },
   {
     icon: WifiOff,
@@ -41,7 +42,7 @@ export function HomePage() {
       <Hero />
       <ToolDirectory />
       <StepList id="how-it-works" eyebrow="How it works" title="Three steps. No uploads." steps={STEPS} />
-      <HighlightGrid id="features" eyebrow="Why CompressKit" title="Serious tools, zero setup" items={WHY} />
+      <HighlightGrid id="features" eyebrow="Why ofctools" title="Serious tools, zero setup" items={WHY} />
       <Privacy />
     </>
   );

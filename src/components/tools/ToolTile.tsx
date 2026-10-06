@@ -16,7 +16,7 @@ interface ToolTileProps {
 
 /**
  * A tool as a small tile: its icon over its name, three or more to a row. The phone app lists
- * tools this way so all 62 fit in a few screens; the one-line description is still read out by
+ * tools this way so all of them fit in a few screens; the one-line description is still read out by
  * screen readers.
  */
 export function ToolTile({ feature, current = false, highlighted = false, onPick, launcherItem = false }: ToolTileProps) {

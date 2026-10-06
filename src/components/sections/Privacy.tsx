@@ -11,7 +11,7 @@ const POINTS = [
   {
     icon: EyeOff,
     title: 'No tracking scripts',
-    body: 'CompressKit ships without analytics or third-party trackers, and needs no account.',
+    body: 'ofctools ships without analytics or third-party trackers, and needs no account.',
   },
   {
     icon: HardDrive,

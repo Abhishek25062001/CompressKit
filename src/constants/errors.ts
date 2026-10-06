@@ -3,7 +3,7 @@ import type { ErrorCode, FriendlyError } from '../types/media';
 const MESSAGES: Record<ErrorCode, { title: string; message: string }> = {
   UNSUPPORTED_TYPE: {
     title: 'This file type is not supported',
-    message: 'CompressKit works with JPG, PNG, WebP and AVIF images and MP4, MOV, WebM and MKV videos.',
+    message: 'ofctools works with JPG, PNG, WebP and AVIF images and MP4, MOV, WebM and MKV videos.',
   },
   DECODE_FAILED: {
     title: "We couldn't read this file",

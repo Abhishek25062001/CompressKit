@@ -51,7 +51,7 @@ async function preciseCut(
       } catch (error) {
         const code = error instanceof CompressionError ? error.code : null;
         if (code === 'CANCELLED' || code === 'OUT_OF_MEMORY') throw error;
-        console.info('[CompressKit] WebCodecs trim unavailable, using FFmpeg:', describeError(error));
+        console.info('[ofctools] WebCodecs trim unavailable, using FFmpeg:', describeError(error));
         useFFmpeg = true;
       }
     }
@@ -87,7 +87,7 @@ async function run(job: TrimJobRequest): Promise<void> {
       return;
     } catch (error) {
       if (!(error instanceof CopyUnavailable)) throw error;
-      console.info('[CompressKit] Lossless cut unavailable, re-encoding:', error.message);
+      console.info('[ofctools] Lossless cut unavailable, re-encoding:', error.message);
       notes.push(error.userNote ?? 'This video could not be cut without re-encoding, so it was re-encoded to MP4 instead.');
     }
   }

@@ -134,7 +134,7 @@ function getEngine(job: BackgroundJobRequest, onProgress: ProgressFn): Promise<E
         return await startSession(ort, bytes, 'webgpu', onProgress);
       } catch (error) {
         gpuFailed = true;
-        console.info('[CompressKit] The graphics card could not start the background model, using the processor:', error);
+        console.info('[ofctools] The graphics card could not start the background model, using the processor:', error);
       }
     }
     if (!job.models.cpu) throw new CompressionError('ENGINE_LOAD_FAILED', 'no processor model in this build');
@@ -192,7 +192,7 @@ export async function findSubject(job: BackgroundJobRequest, rgba: Uint8ClampedA
       return { alpha: await predict(current, rgba), device: 'webgpu', notes: [] };
     } catch (error) {
       // A driver or memory problem on the graphics card: the processor can still do it.
-      console.info('[CompressKit] The graphics card failed on the background model, using the processor:', error);
+      console.info('[ofctools] The graphics card failed on the background model, using the processor:', error);
       gpuFailed = true;
       engine = null;
       void current.session.release().catch(() => undefined);

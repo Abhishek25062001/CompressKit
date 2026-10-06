@@ -303,7 +303,7 @@ class CompressionManager {
 
   private fail(id: string, code: ErrorCode, detail: string, status: 'failed' | 'cancelled' = 'failed'): void {
     this.startedAt.delete(id);
-    if (code !== 'CANCELLED') console.warn(`[CompressKit] ${code}:`, detail);
+    if (code !== 'CANCELLED') console.warn(`[ofctools] ${code}:`, detail);
     this.queue.getState().updateItem(id, {
       status: code === 'CANCELLED' ? 'cancelled' : status,
       progress: null,

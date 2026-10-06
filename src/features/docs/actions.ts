@@ -339,7 +339,7 @@ async function runJob(kind: ConvertKind, id: string): Promise<void> {
     const { notes, ...result } = await converter.convert(job.file, (ratio, stage) => update(id, { progress: ratio, ...(stage ? { stage } : {}) }));
     update(id, { status: 'done', progress: 1, stage: undefined, result, notes: notes ?? [] });
   } catch (e) {
-    if (!(e instanceof ConvertError)) console.warn(`[CompressKit] ${kind} failed:`, e);
+    if (!(e instanceof ConvertError)) console.warn(`[ofctools] ${kind} failed:`, e);
     update(id, { status: 'failed', stage: undefined, error: e instanceof ConvertError ? e.message : converter.failure });
   }
 }
@@ -381,7 +381,7 @@ export function retryJob(kind: ConvertKind, id: string): void {
 export async function downloadAllJobs(kind: ConvertKind): Promise<void> {
   const done = DOC_QUEUES[kind].getState().jobs.flatMap((j) => (j.result ? [j.result] : []));
   if (done.length === 1) downloadBlob(done[0].blob, done[0].name);
-  else if (done.length) downloadBlob(await createZip(done.map((r) => ({ name: r.name, blob: r.blob }))), `compresskit-${kind}.zip`);
+  else if (done.length) downloadBlob(await createZip(done.map((r) => ({ name: r.name, blob: r.blob }))), `ofctools-${kind}.zip`);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -427,7 +427,7 @@ export async function openInEditor(file: File | null): Promise<void> {
     const { doc, warnings } = await readDocx(file);
     useDocEditorStore.getState().set({ name, doc, version: useDocEditorStore.getState().version + 1, warnings });
   } catch (e) {
-    console.warn('[CompressKit] could not open document:', e);
+    console.warn('[ofctools] could not open document:', e);
     useUiStore.getState().pushNotice({
       tone: 'error',
       title: "We couldn't open this file",
@@ -451,6 +451,6 @@ export function mergeWordFiles(): void {
   const docs = order.flatMap((id) => (wordDocs[id] ? [wordDocs[id]] : []));
   if (!docs.length) return;
   const first = sources[order[0]];
-  const name = docs.length === 1 && first ? sanitizeBaseName(first.name) : `compresskit-merged-${new Date().toISOString().slice(0, 10)}`;
+  const name = docs.length === 1 && first ? sanitizeBaseName(first.name) : `ofctools-merged-${new Date().toISOString().slice(0, 10)}`;
   downloadBlob(writeDocx(concatDocs(docs), name), `${name}.docx`);
 }

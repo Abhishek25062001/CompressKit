@@ -100,7 +100,7 @@ async function flatten(bytes: Uint8Array, dpi: number, quality: number, onProgre
   const [{ PDFDocument }, pdfjs] = await Promise.all([import('@cantoo/pdf-lib'), loadPdfjs()]);
   const view = await pdfjs.getDocument({ data: bytes.slice() }).promise;
   const out = await PDFDocument.create();
-  out.setProducer('CompressKit');
+  out.setProducer('ofctools');
   try {
     for (let i = 1; i <= view.numPages; i++) {
       const page = await view.getPage(i);

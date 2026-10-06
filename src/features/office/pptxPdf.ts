@@ -639,8 +639,8 @@ async function drawTable(painter: PdfTextPainter, lib: Lib, page: PDFPage, table
 export async function slidesToPdf(pres: Presentation, onProgress?: (ratio: number) => void): Promise<SlidesPdfResult> {
   const lib: Lib = await import('@cantoo/pdf-lib');
   const out = await lib.PDFDocument.create();
-  out.setProducer('CompressKit');
-  out.setCreator('CompressKit (in-browser)');
+  out.setProducer('ofctools');
+  out.setCreator('ofctools (in-browser)');
   const painter = new PdfTextPainter(lib, out);
   const cache = new Map<Uint8Array, PDFImage>();
   const W = pres.width;

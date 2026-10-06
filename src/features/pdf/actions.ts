@@ -31,7 +31,7 @@ function baseName(pages: PdfPage[]): string {
   const { sources } = usePdfStore.getState();
   const ids = new Set(pages.map((p) => p.sourceId));
   if (ids.size === 1) return sanitizeBaseName(sources[[...ids][0]].name);
-  return `compresskit-${new Date().toISOString().slice(0, 10)}`;
+  return `ofctools-${new Date().toISOString().slice(0, 10)}`;
 }
 
 /** Yields to the browser so progress can paint during long synchronous PDF work. */
@@ -156,8 +156,8 @@ async function buildPdf(pages: PdfPage[], onProgress: (ratio: number) => void, e
   const { sources, formValues, docInfo } = usePdfStore.getState();
   const out = await PDFDocument.create();
   // A new document: nothing from the original files' properties is carried over.
-  out.setProducer('CompressKit');
-  out.setCreator('CompressKit (in-browser)');
+  out.setProducer('ofctools');
+  out.setCreator('ofctools (in-browser)');
   if (docInfo.title.trim()) out.setTitle(docInfo.title.trim());
   if (docInfo.author.trim()) out.setAuthor(docInfo.author.trim());
 
@@ -248,7 +248,7 @@ async function run(label: string, action: (progress: (ratio: number) => void) =>
   try {
     await action((ratio) => usePdfStore.getState().setBusy(label, ratio));
   } catch (e) {
-    console.warn('[CompressKit] PDF action failed:', e);
+    console.warn('[ofctools] PDF action failed:', e);
     useUiStore.getState().pushNotice(
       e instanceof FormFillError
         ? {

@@ -101,8 +101,8 @@ function mergeMap(sheet: Sheet): Map<string, Range> {
 export async function workbookToPdf(workbook: Workbook, options: SheetPdfOptions): Promise<SheetPdfResult> {
   const lib: Lib = await import('@cantoo/pdf-lib');
   const out = await lib.PDFDocument.create();
-  out.setProducer('CompressKit');
-  out.setCreator('CompressKit (in-browser)');
+  out.setProducer('ofctools');
+  out.setCreator('ofctools (in-browser)');
   const painter = new PdfTextPainter(lib, out);
   const { styles } = workbook;
   const tick = () => new Promise((r) => setTimeout(r, 0));

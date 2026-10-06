@@ -39,7 +39,7 @@ function pumpThumbnails(): void {
         if (usePdfStore.getState().pages.some((p) => p.id === page.id)) usePdfStore.getState().updatePage(page.id, { thumbUrl: url });
         else URL.revokeObjectURL(url);
       } catch (e) {
-        console.warn('[CompressKit] thumbnail failed:', e);
+        console.warn('[ofctools] thumbnail failed:', e);
       } finally {
         thumbWorkers--;
         pumpThumbnails();
@@ -106,7 +106,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
       try {
         const result = await decodeTiff(file);
         if (!result.ok || !result.pages.length) {
-          if (!result.ok) console.warn('[CompressKit] could not read TIFF:', result.error);
+          if (!result.ok) console.warn('[ofctools] could not read TIFF:', result.error);
           broken.push(file.name);
           continue;
         }
@@ -144,7 +144,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
         if (warnings.length) wordWarnings.push(`${file.name}: ${warnings.join(', ')}`);
       } catch (e) {
         broken.push(file.name);
-        if (!(e instanceof DocxReadError)) console.warn('[CompressKit] could not read Word file:', e);
+        if (!(e instanceof DocxReadError)) console.warn('[ofctools] could not read Word file:', e);
       } finally {
         usePdfStore.getState().setBusy(null);
       }
@@ -173,7 +173,7 @@ export async function addPdfFiles(files: Iterable<File>): Promise<void> {
             continue;
           }
           broken.push(file.name);
-          console.warn('[CompressKit] could not open PDF:', e);
+          console.warn('[ofctools] could not open PDF:', e);
           break;
         } finally {
           usePdfStore.getState().setBusy(null);

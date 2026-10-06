@@ -14,11 +14,12 @@ export function Footer() {
         <div>
           <div className="flex items-center gap-2.5">
             <LogoMark className="h-5 w-5" />
-            <span className="font-medium text-fg">CompressKit</span>
+            <span className="font-medium text-fg">ofctools</span>
           </div>
           <p className="mt-3 max-w-xs">Private file tools that run in your browser. Your files never leave your device.</p>
           <p className="mt-4 text-xs">
-            Video engine: FFmpeg.wasm (GPL). Media parsing: Mediabunny. Background removal: BiRefNet and IS-Net on ONNX Runtime.
+            {/* Remove Background is switched off for now; with it on, this also said "Background removal: BiRefNet and IS-Net on ONNX Runtime." */}
+            Video engine: FFmpeg.wasm (GPL). Media parsing: Mediabunny.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-[2fr_1fr]">

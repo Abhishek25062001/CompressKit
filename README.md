@@ -1,6 +1,6 @@
 <div align="center">
 
-# CompressKit
+# ofctools
 
 **Compress images & videos in your browser. Files never leave your device.**
 
@@ -14,19 +14,19 @@ Designed and developed by **[Abhishek Jaiswal](https://abhishekjaiswal.net/)**
 
 </div>
 
-## 🔒 Why CompressKit
+## 🔒 Why ofctools
 
 ```mermaid
 flowchart LR
   O[Other tools] --> S[Uploaded to a server]
-  C[CompressKit] --> L[Stays on your device]
+  C[ofctools] --> L[Stays on your device]
   style O fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
   style S fill:#fecaca,stroke:#b91c1c,color:#7f1d1d
   style C fill:#dcfce7,stroke:#15803d,color:#14532d
   style L fill:#bbf7d0,stroke:#15803d,color:#14532d
 ```
 
-| | Other tools | CompressKit |
+| | Other tools | ofctools |
 | --- | :---: | :---: |
 | Uploads the file | ✅ | ❌ |
 | Encodes on your device | ❌ | ✅ |
@@ -38,14 +38,16 @@ Static `dist/`. No server code, database, or API.
 
 ## 🛠️ Tools
 
-Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…), 62 in all, is listed by category on the home page and in the header's **All tools** launcher, which also opens with <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> or <kbd>/</kbd>. Links such as `/convert#gif`, `/resize#passport` or `/pdf#page-numbers` open a tool with that option already chosen. The list lives in `src/features/directory.ts`.
+Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…), 59 in all (62 with Remove Background, which is switched off for now), is listed by category on the home page and in the header's **All tools** launcher, which also opens with <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> or <kbd>/</kbd>. Links such as `/convert#gif`, `/resize#passport` or `/pdf#page-numbers` open a tool with that option already chosen. The list lives in `src/features/directory.ts`.
 
 | Tool | Address | What it does |
 | --- | --- | --- |
 | 🗜️ Compress | `/compress` | Shrink images and videos. Keep the original when it would not get smaller. |
 | 🔄 Convert | `/convert` | Images, video, animated GIF, or audio. Always the format you asked for. |
 | ✂️ Resize & Crop | `/resize` | Crop and scale photos to an exact pixel size. |
+<!-- Remove Background is switched off for now:
 | 🪄 Remove Background | `/remove-background` | Cut out a subject on your device: BiRefNet on the graphics card, IS-Net without WebGPU. Models are self-hosted. |
+-->
 | 🎬 Trim & Split | `/trim-video` | Trim one clip, or split it into WhatsApp Status parts. |
 | 📍 Remove Location | `/remove-location` | Strip GPS and other hidden metadata. Picture and sound are not re-encoded. |
 | 📄 PDF | `/pdf` | Merge, split, crop, compress, sign, scan, fill forms, protect, clean, OCR, or save pages as JPG, PNG, BMP or TIFF. |
@@ -156,7 +158,7 @@ npm run build
 | | |
 | --- | --- |
 | Node.js | 20.19+ |
-| Build output | Static `dist/` · ~290 MB with both models |
+| Build output | Static `dist/` · ~90 MB (Remove Background and its ~200 MB of models are switched off) |
 | Server code | Zero |
 | Environment variables | Zero |
 | Database | None |
@@ -200,7 +202,7 @@ Serve `dist/` over HTTPS. One HTML file per tool. No functions, env file, or dat
 
 ## 📜 License
 
-CompressKit’s own code is proprietary. Copyright © 2026 Abhishek Jaiswal. Personal or internal use is free. You may not copy, redistribute, publish changes, sell, or use the source to build a competing product. See [`LICENSE`](LICENSE).
+ofctools’s own code is proprietary. Copyright © 2026 Abhishek Jaiswal. Personal or internal use is free. You may not copy, redistribute, publish changes, sell, or use the source to build a competing product. See [`LICENSE`](LICENSE).
 
 | Package | License |
 | --- | --- |
@@ -223,6 +225,6 @@ CompressKit’s own code is proprietary. Copyright © 2026 Abhishek Jaiswal. Per
 
 <div align="center">
 
-If CompressKit saves you time, drop a ⭐ on the repo.
+If ofctools saves you time, drop a ⭐ on the repo.
 
 </div>

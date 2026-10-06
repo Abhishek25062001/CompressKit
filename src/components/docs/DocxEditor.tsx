@@ -270,7 +270,7 @@ function Editor({ doc, name }: { doc: DocModel; name: string }) {
       }
       dirty.current = false;
     } catch (e) {
-      console.warn('[CompressKit] saving document failed:', e);
+      console.warn('[ofctools] saving document failed:', e);
       useUiStore.getState().pushNotice({ tone: 'error', title: 'Could not save', message: 'Something in the document could not be written.' });
     } finally {
       setSaving(null);

@@ -133,7 +133,7 @@ export function SmartDrop() {
           ) : (
             <p className="flex items-start gap-2 rounded-xl bg-surface-2/60 p-3 text-sm text-muted">
               <FileQuestion className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              CompressKit works with photos (JPG, PNG, HEIC, WebP, AVIF, BMP, TIFF, GIF), videos (MP4, MOV, WebM, MKV and more), PDFs,
+              ofctools works with photos (JPG, PNG, HEIC, WebP, AVIF, BMP, TIFF, GIF), videos (MP4, MOV, WebM, MKV and more), PDFs,
               Word, Excel and PowerPoint files (DOCX, XLSX, CSV, PPTX), and text, Markdown, RTF and HTML documents.
             </p>
           )}

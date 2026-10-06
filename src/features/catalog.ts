@@ -55,12 +55,14 @@ export interface ToolInfo {
   secondary?: true;
 }
 
-export const SITE_NAME = 'CompressKit';
+export const SITE_NAME = 'ofctools';
 
 export const HOME_META = {
-  title: 'CompressKit: Private File Tools That Run in Your Browser',
+  title: 'ofctools: Private File Tools That Run in Your Browser',
+  // Remove Background is switched off for now; with it on, the description was:
+  // 'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
   description:
-    'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
+    'Compress, convert, resize and trim photos and videos, remove hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
 };
 
 export const CATALOG: ToolInfo[] = [
@@ -72,7 +74,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Make photos and videos smaller without visible quality loss.',
     description:
       'Shrink JPG, PNG, WebP and AVIF images and MP4, MOV, WebM and MKV videos in your browser, with presets, a target file size and before/after comparison. No uploads.',
-    title: 'Compress Images and Videos Online, Privately | CompressKit',
+    title: 'Compress Images and Videos Online, Privately | ofctools',
     handles: ['image', 'video'],
     formats: 'JPG · PNG · WebP · AVIF · MP4 · MOV · WebM · MKV',
   },
@@ -84,7 +86,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'HEIC to JPG, PNG to WebP, video to MP4, GIF or MP3.',
     description:
       'Convert photos to JPG, PNG, WebP or AVIF (including iPhone HEIC) and videos to MP4, WebM, animated GIF or audio, right in your browser. No uploads.',
-    title: 'Convert HEIC, PNG, WebP, Video to MP4, GIF or MP3 | CompressKit',
+    title: 'Convert HEIC, PNG, WebP, Video to MP4, GIF or MP3 | ofctools',
     handles: ['image', 'video'],
     formats: 'HEIC · JPG · PNG · WebP · AVIF · MP4 · GIF · MP3',
   },
@@ -96,22 +98,25 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Passport photos, signatures, profile pictures and posts at exact sizes.',
     description:
       'Crop and resize photos to exact pixel sizes for passport and visa photos, signatures, profile pictures, Instagram posts and YouTube thumbnails, with an optional KB limit.',
-    title: 'Resize and Crop Photos to Exact Sizes, Free | CompressKit',
+    title: 'Resize and Crop Photos to Exact Sizes, Free | ofctools',
     handles: ['image'],
     formats: 'JPG · PNG · WebP · AVIF · BMP',
   },
-  {
-    id: 'background',
-    path: '/remove-background',
-    name: 'Remove background',
-    heading: 'Remove the background from a photo',
-    tagline: 'Cut out people, pets and products with AI on your device.',
-    description:
-      'Remove photo backgrounds with an AI model that runs in your browser. Get a transparent PNG or put the subject on any colour. Your photos are never uploaded.',
-    title: 'Remove Background from Photos, Free and Private | CompressKit',
-    handles: ['image'],
-    formats: 'JPG · PNG · WebP · AVIF · BMP',
-  },
+  // Remove Background is switched off for now (website and phone app). Uncomment this entry, the
+  // three entries and the popular link in directory.ts, '#remove-background' below, and the model
+  // files in vite.config.ts to bring it back. Without this entry /remove-background has no page.
+  // {
+  //   id: 'background',
+  //   path: '/remove-background',
+  //   name: 'Remove background',
+  //   heading: 'Remove the background from a photo',
+  //   tagline: 'Cut out people, pets and products with AI on your device.',
+  //   description:
+  //     'Remove photo backgrounds with an AI model that runs in your browser. Get a transparent PNG or put the subject on any colour. Your photos are never uploaded.',
+  //   title: 'Remove Background from Photos, Free and Private | ofctools',
+  //   handles: ['image'],
+  //   formats: 'JPG · PNG · WebP · AVIF · BMP',
+  // },
   {
     id: 'trim',
     path: '/trim-video',
@@ -120,7 +125,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Cut a clip, or split a video into WhatsApp Status parts.',
     description:
       'Trim a video to the part you want, or split it into 60-second parts for WhatsApp Status, without re-encoding and without uploading it.',
-    title: 'Trim Video and Split for WhatsApp Status, Online | CompressKit',
+    title: 'Trim Video and Split for WhatsApp Status, Online | ofctools',
     handles: ['video'],
     formats: 'MP4 · MOV · WebM · MKV',
   },
@@ -132,7 +137,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Strip GPS, camera and date details before you share.',
     description:
       'See and remove the hidden GPS location, camera, date and other details inside photos and videos before you share them. Nothing is re-encoded and nothing is uploaded.',
-    title: 'Remove Location and EXIF Data from Photos and Videos | CompressKit',
+    title: 'Remove Location and EXIF Data from Photos and Videos | ofctools',
     handles: ['image', 'video'],
     formats: 'JPG · PNG · HEIC · WebP · AVIF · MP4 · MOV',
   },
@@ -144,7 +149,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Photos to PDF, merge, split, sign, compress, OCR and more.',
     description:
       'Turn photos into a PDF, merge, split, crop and reorder pages, sign, fill forms, compress, protect with a password or make scans searchable. All in your browser.',
-    title: 'Free PDF Tools: Merge, Split, Sign, Compress, OCR | CompressKit',
+    title: 'Free PDF Tools: Merge, Split, Sign, Compress, OCR | ofctools',
     handles: ['pdf', 'image', 'word'],
     formats: 'PDF · DOCX · JPG · PNG · HEIC · TIFF · GIF',
   },
@@ -156,7 +161,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Change text, add text and pictures, white out, highlight and draw.',
     description:
       'Edit PDF files in your browser: change existing text, add text boxes and pictures, white out, highlight, draw and add shapes. Your PDF is never uploaded.',
-    title: 'Edit PDF Online: Change Text, Add Text and Images, Free | CompressKit',
+    title: 'Edit PDF Online: Change Text, Add Text and Images, Free | ofctools',
     handles: ['pdf', 'image'],
     formats: 'PDF · JPG · PNG',
   },
@@ -168,7 +173,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Combine PDFs, Word documents and photos into one file.',
     description:
       'Merge PDF files, Word documents (DOCX), photos and scans (JPG, PNG, HEIC, TIFF, GIF) into one PDF, in the order you choose, or join Word files into one DOCX. Nothing is uploaded.',
-    title: 'Merge PDF and Word Documents into One File, Free | CompressKit',
+    title: 'Merge PDF and Word Documents into One File, Free | ofctools',
     handles: ['pdf', 'word', 'image'],
     formats: 'PDF · DOCX · JPG · PNG · HEIC · TIFF',
   },
@@ -180,7 +185,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Turn DOCX files into PDFs with selectable text.',
     description:
       'Convert Word documents (DOCX) to PDF in your browser, with headings, lists, tables and pictures, and text that stays selectable. Your documents are never uploaded.',
-    title: 'Word to PDF Converter: DOCX to PDF, Free and Private | CompressKit',
+    title: 'Word to PDF Converter: DOCX to PDF, Free and Private | ofctools',
     handles: ['word'],
     formats: 'DOCX',
     converts: 'to-pdf',
@@ -193,7 +198,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Turn PDFs into editable DOCX files, scans included.',
     description:
       'Convert PDF files to editable Word documents (DOCX) with headings, lists and pictures. Scanned pages can be read with OCR. All in your browser, nothing uploaded.',
-    title: 'PDF to Word Converter: PDF to DOCX, Free and Private | CompressKit',
+    title: 'PDF to Word Converter: PDF to DOCX, Free and Private | ofctools',
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
@@ -207,7 +212,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Open, edit and save DOCX files, or start a new one.',
     description:
       'Open and edit Word documents (DOCX) in your browser: text, headings, lists, tables and pictures. Save as DOCX or PDF. No account, no upload, no Office needed.',
-    title: 'Edit Word Documents Online: Free DOCX Editor | CompressKit',
+    title: 'Edit Word Documents Online: Free DOCX Editor | ofctools',
     handles: ['word', 'pdf'],
     formats: 'DOCX · PDF',
   },
@@ -219,7 +224,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Turn TXT and Markdown files into clean, searchable PDFs.',
     description:
       'Convert plain text (.txt) and Markdown (.md) files to PDF in your browser. Lines, indentation and columns stay exactly as typed; Markdown becomes formatted headings, lists and tables.',
-    title: 'Text to PDF Converter: TXT and Markdown to PDF, Free | CompressKit',
+    title: 'Text to PDF Converter: TXT and Markdown to PDF, Free | ofctools',
     handles: ['document'],
     formats: 'TXT · MD',
     converts: 'to-pdf',
@@ -233,7 +238,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Rich Text from WordPad, TextEdit or Word, as a PDF.',
     description:
       'Convert Rich Text Format (.rtf) documents to PDF in your browser, with fonts, colours, headings, lists, tables, links and pictures. Text stays selectable. Nothing is uploaded.',
-    title: 'RTF to PDF Converter: Free and Private | CompressKit',
+    title: 'RTF to PDF Converter: Free and Private | ofctools',
     handles: ['document'],
     formats: 'RTF',
     converts: 'to-pdf',
@@ -247,7 +252,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Saved web pages and HTML files, as PDFs.',
     description:
       'Convert HTML files to PDF in your browser, with their styles, tables, lists, links and embedded pictures. Scripts never run and nothing is fetched or uploaded.',
-    title: 'HTML to PDF Converter: HTML Files to PDF, Free | CompressKit',
+    title: 'HTML to PDF Converter: HTML Files to PDF, Free | ofctools',
     handles: ['document'],
     formats: 'HTML · HTM',
     converts: 'to-pdf',
@@ -261,7 +266,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Get the text out of a PDF, scans included.',
     description:
       'Extract the text from PDF files as a plain .txt file, in reading order or with the page layout kept. Scanned pages are read with OCR. All in your browser, nothing uploaded.',
-    title: 'PDF to Text Converter: Extract Text from PDF, Free | CompressKit',
+    title: 'PDF to Text Converter: Extract Text from PDF, Free | ofctools',
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
@@ -276,7 +281,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Turn a PDF into a clean web page.',
     description:
       'Convert PDF files into a single, self-contained HTML page with real headings, paragraphs, lists, tables, links and pictures that reflows on any screen. Nothing is uploaded.',
-    title: 'PDF to HTML Converter: Free and Private | CompressKit',
+    title: 'PDF to HTML Converter: Free and Private | ofctools',
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
@@ -291,7 +296,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Turn PDF pages into slides with editable text.',
     description:
       'Convert PDF files to PowerPoint (PPTX) in your browser. Each page becomes a slide with its text as editable text boxes, and pictures and backgrounds kept exactly. Nothing is uploaded.',
-    title: 'PDF to PowerPoint Converter: PDF to PPTX, Free | CompressKit',
+    title: 'PDF to PowerPoint Converter: PDF to PPTX, Free | ofctools',
     handles: ['pdf'],
     formats: 'PDF',
     converts: 'from-pdf',
@@ -306,7 +311,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Print spreadsheets to PDF with their formatting.',
     description:
       'Convert Excel workbooks (XLSX) and CSV files to PDF in your browser, with fonts, colours, borders, merged cells, dates and currency formats, fitted to the page. Nothing is uploaded.',
-    title: 'Excel to PDF Converter: XLSX and CSV to PDF, Free | CompressKit',
+    title: 'Excel to PDF Converter: XLSX and CSV to PDF, Free | ofctools',
     handles: ['sheet'],
     formats: 'XLSX · CSV',
     converts: 'to-pdf',
@@ -320,7 +325,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Pull tables out of PDFs into spreadsheet rows and columns.',
     description:
       'Convert PDF tables to Excel (XLSX) in your browser. Rows and columns are rebuilt, and amounts, percentages and dates become numbers you can sum. Scans are read with OCR. Nothing is uploaded.',
-    title: 'PDF to Excel Converter: PDF Tables to XLSX, Free | CompressKit',
+    title: 'PDF to Excel Converter: PDF Tables to XLSX, Free | ofctools',
     handles: ['pdf', 'sheet'],
     formats: 'PDF',
     converts: 'from-pdf',
@@ -335,7 +340,7 @@ export const CATALOG: ToolInfo[] = [
     tagline: 'Slides to PDF pages, with their design kept.',
     description:
       'Convert PowerPoint presentations (PPTX) to PDF in your browser, with backgrounds, shapes, pictures, tables and text from the slide layouts and theme. Nothing is uploaded.',
-    title: 'PowerPoint to PDF Converter: PPTX to PDF, Free | CompressKit',
+    title: 'PowerPoint to PDF Converter: PPTX to PDF, Free | ofctools',
     handles: ['slides'],
     formats: 'PPTX',
     converts: 'to-pdf',
@@ -355,6 +360,6 @@ export const LEGACY_HASHES: Record<string, string> = {
   '#resize': '/resize',
   '#trim': '/trim-video',
   '#clean': '/remove-location',
-  '#remove-background': '/remove-background',
+  // '#remove-background': '/remove-background', // Remove Background is switched off for now.
   '#pdf': '/pdf',
 };

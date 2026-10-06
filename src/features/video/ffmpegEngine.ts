@@ -12,7 +12,7 @@ import {
   x26xPreset,
 } from './videoParams';
 
-/** The subset of the Emscripten module exported by @ffmpeg/core that CompressKit uses. */
+/** The subset of the Emscripten module exported by @ffmpeg/core that ofctools uses. */
 interface FFmpegFS {
   mkdir(path: string): void;
   readdir(path: string): string[];

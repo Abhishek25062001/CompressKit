@@ -58,7 +58,7 @@ export function docToHtmlFile(doc: DocModel, title: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="CompressKit">
+<meta name="generator" content="ofctools">
 <title>${escapeHtml(title)}</title>
 <style>
 ${STYLES}

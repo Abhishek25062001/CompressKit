@@ -83,7 +83,7 @@ workerScope.addEventListener('message', (event: MessageEvent<TiffRequest>) => {
           pages.push({ blob: await canvas.convertToBlob({ type: 'image/png' }), width: canvas.width, height: canvas.height });
           canvas.width = 0;
         } catch (e) {
-          console.warn('[CompressKit] TIFF page could not be decoded:', e);
+          console.warn('[ofctools] TIFF page could not be decoded:', e);
           failed++;
         }
       }

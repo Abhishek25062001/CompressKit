@@ -54,7 +54,7 @@ async function run(job: VideoJobRequest): Promise<void> {
       if (settings.engine === 'webcodecs') {
         throw new CompressionError('CODEC_UNSUPPORTED', describeError(error));
       }
-      console.info('[CompressKit] WebCodecs path unavailable, using FFmpeg:', describeError(error));
+      console.info('[ofctools] WebCodecs path unavailable, using FFmpeg:', describeError(error));
       if (!(error instanceof WebCodecsUnavailable)) {
         notes.push('Hardware encoding failed for this file, so the FFmpeg engine was used instead.');
       }
