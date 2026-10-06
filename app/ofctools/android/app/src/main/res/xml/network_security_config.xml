@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The tools are served to the WebView by a web server inside the app, over plain http on this
+  phone only (127.0.0.1). Plain http stays blocked for every other address.
+  The debug build has its own copy of this file that also lets the app reach the Metro dev server.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

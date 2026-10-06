@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only: plain http is allowed everywhere, because the app loads its JavaScript from
+  the Metro dev server on your computer (by USB or over Wi-Fi). Release builds use the strict
+  file in src/main.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
