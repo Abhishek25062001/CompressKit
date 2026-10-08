@@ -11,6 +11,8 @@ import {
   MousePointer2,
   Move,
   PenLine,
+  ZoomIn,
+  ZoomOut,
   Square,
   TextCursorInput,
   Trash2,
@@ -49,6 +51,9 @@ const TOOLS: { value: Tool; label: string; icon: LucideIcon; hint: string }[] = 
 
 const COLORS = ['#000000', '#4b5563', '#dc2626', '#2563eb', '#16a34a', '#ca8a04', '#ffffff'];
 const HIGHLIGHTS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74'];
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.25;
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 type Drag =
@@ -153,8 +158,18 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   const [lines, setLines] = useState<PageTextLine[] | null>(null);
   const [pageHeightPt, setPageHeightPt] = useState(842);
   const [box, setBox] = useState({ w: 0, h: 0 });
+  const [zoom, setZoom] = useState(1);
   const boxRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
+  const zoomRef = useRef(1);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
+  const pinchUsed = useRef(false);
+  const panRef = useRef<{ x: number; y: number; sl: number; st: number; moved: boolean } | null>(null);
+  /** Where to keep the page still after the next zoom, measured on screen. */
+  const zoomAnchor = useRef<{ fx: number; fy: number; x: number; y: number } | null>(null);
+  const lastTap = useRef({ t: 0, x: 0, y: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
   const sampler = useRef<{ ctx: CanvasRenderingContext2D; w: number; h: number } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -184,7 +199,76 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     const observer = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }));
     observer.observe(el);
     return () => observer.disconnect();
-  }, [preview]);
+  }, [preview, zoom]);
+
+  // After the page changes size, put the same spot back under the pointer or pinch.
+  useLayoutEffect(() => {
+    const anchor = zoomAnchor.current;
+    zoomAnchor.current = null;
+    const view = viewRef.current;
+    const boxEl = boxRef.current;
+    if (!anchor || !view || !boxEl) return;
+    const rect = boxEl.getBoundingClientRect();
+    view.scrollLeft += rect.left + anchor.fx * rect.width - anchor.x;
+    view.scrollTop += rect.top + anchor.fy * rect.height - anchor.y;
+  }, [zoom]);
+
+  const focusZoom = (next: number, clientX: number, clientY: number) => {
+    const clamped = clamp(next, ZOOM_MIN, ZOOM_MAX);
+    if (Math.abs(clamped - zoomRef.current) < 0.005) return;
+    const boxEl = boxRef.current;
+    if (boxEl && boxEl.clientWidth > 0) {
+      const rect = boxEl.getBoundingClientRect();
+      zoomAnchor.current = {
+        fx: clamp((clientX - rect.left) / rect.width, 0, 1),
+        fy: clamp((clientY - rect.top) / rect.height, 0, 1),
+        x: clientX,
+        y: clientY,
+      };
+    }
+    zoomRef.current = clamped;
+    setZoom(clamped);
+  };
+  const focusZoomRef = useRef(focusZoom);
+  focusZoomRef.current = focusZoom;
+
+  const viewCenter = () => {
+    const rect = viewRef.current?.getBoundingClientRect();
+    return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: 0, y: 0 };
+  };
+
+  // Trackpad pinch (Ctrl/Cmd + scroll) zooms toward the pointer.
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      focusZoomRef.current(zoomRef.current * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /** A second finger cancels a stroke that the first finger just started, and begins a pinch. */
+  const armPinch = () => {
+    if (pointers.current.size < 2) {
+      pinchRef.current = null;
+      return;
+    }
+    const [a, b] = [...pointers.current.values()];
+    pinchUsed.current = true;
+    pinchRef.current = { dist: Math.max(12, Math.hypot(a.x - b.x, a.y - b.y)), zoom: zoomRef.current };
+    const started = drag.current;
+    if (started && (started.kind === 'create' || started.kind === 'draw')) {
+      drag.current = null;
+      setEdits((list) => list.filter((ed) => ed.id !== started.id));
+      setSelected((id) => (id === started.id ? null : id));
+    } else {
+      drag.current = null;
+    }
+    panRef.current = null;
+  };
 
   // Text on the page, for "Edit text", read once when that tool is first picked.
   useEffect(() => {
@@ -230,6 +314,11 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   };
 
   const onBoxDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size > 1) {
+      armPinch();
+      return;
+    }
     if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.surface) return;
     const p = point(e);
     const s = style;
@@ -387,6 +476,62 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   const hint = TOOLS.find((t) => t.value === tool)!.hint;
   const replaceUnavailable = tool === 'replace' && source?.kind !== 'pdf';
   const px = (fraction: number) => fraction * box.h;
+  const drawing = tool === 'whiteout' || tool === 'highlight' || tool === 'box' || tool === 'draw';
+  const pageRatio = preview ? preview.width / preview.height : 0.75;
+
+  const onViewPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size > 1) {
+      armPinch();
+      return;
+    }
+    if (!drawing && !drag.current) {
+      const view = viewRef.current;
+      panRef.current = view ? { x: e.clientX, y: e.clientY, sl: view.scrollLeft, st: view.scrollTop, moved: false } : null;
+    }
+  };
+
+  const onViewPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pinch = pinchRef.current;
+    if (pinch && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      focusZoom(pinch.zoom * (dist / pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      return;
+    }
+    const pan = panRef.current;
+    const view = viewRef.current;
+    if (!pan || !view || drag.current || drawing) return;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    if (!pan.moved && Math.hypot(dx, dy) < 8) return;
+    pan.moved = true;
+    view.scrollLeft = pan.sl - dx;
+    view.scrollTop = pan.st - dy;
+  };
+
+  const onViewPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchRef.current = null;
+    panRef.current = null;
+    if (pinchUsed.current) {
+      if (pointers.current.size === 0) pinchUsed.current = false;
+      return;
+    }
+    const tappedEdit = (e.target as HTMLElement).closest('button, textarea');
+    if (pan?.moved || tappedEdit || drawing || (tool !== 'select' && tool !== 'replace')) return;
+    const now = Date.now();
+    const last = lastTap.current;
+    if (now - last.t < 280 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 28) {
+      focusZoom(zoomRef.current > 1.05 ? 1 : 2, e.clientX, e.clientY);
+      lastTap.current = { t: 0, x: 0, y: 0 };
+    } else {
+      lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+    }
+  };
 
   return (
     <Modal
@@ -527,6 +672,49 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
           )}
         </div>
 
+        <div className="flex items-center justify-center gap-1">
+          <IconButton
+            label="Zoom out"
+            icon={ZoomOut}
+            disabled={zoom <= ZOOM_MIN}
+            onClick={() => {
+              const c = viewCenter();
+              focusZoom(zoomRef.current - ZOOM_STEP, c.x, c.y);
+            }}
+          />
+          <span className="tabular min-w-12 text-center text-xs font-medium text-fg">{Math.round(zoom * 100)}%</span>
+          <IconButton
+            label="Zoom in"
+            icon={ZoomIn}
+            disabled={zoom >= ZOOM_MAX}
+            onClick={() => {
+              const c = viewCenter();
+              focusZoom(zoomRef.current + ZOOM_STEP, c.x, c.y);
+            }}
+          />
+          {zoom !== 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                const c = viewCenter();
+                focusZoom(1, c.x, c.y);
+              }}
+              className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-surface-2 hover:text-fg"
+            >
+              Fit
+            </button>
+          )}
+        </div>
+        <p className="text-center text-[11px] text-subtle">Pinch or double-tap to zoom. Drag the page to move around.</p>
+
+        <div
+          ref={viewRef}
+          onPointerDown={onViewPointerDown}
+          onPointerMove={onViewPointerMove}
+          onPointerUp={onViewPointerUp}
+          onPointerCancel={onViewPointerUp}
+          className="max-h-[62dvh] touch-none overflow-auto overscroll-contain rounded-xl"
+        >
         <div
           ref={boxRef}
           data-surface="1"
@@ -535,15 +723,15 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
           onPointerUp={onUp}
           onPointerCancel={onUp}
           className={cn(
-            'relative mx-auto w-full touch-none overflow-hidden rounded-xl border border-border bg-white select-none',
+            'relative mx-auto overflow-hidden rounded-xl border border-border bg-white select-none',
+            drawing && 'touch-none',
             tool === 'text' && 'cursor-text',
-            (tool === 'whiteout' || tool === 'highlight' || tool === 'box' || tool === 'draw') && 'cursor-crosshair',
+            drawing && 'cursor-crosshair',
           )}
-          style={
-            preview
-              ? { aspectRatio: `${preview.width} / ${preview.height}`, maxWidth: `calc(62dvh * ${preview.width / preview.height})` }
-              : { aspectRatio: '3 / 4', maxWidth: 'calc(62dvh * 0.75)' }
-          }
+          style={{
+            width: `min(${zoom * 100}%, calc(62dvh * ${pageRatio} * ${zoom}))`,
+            aspectRatio: preview ? `${preview.width} / ${preview.height}` : '3 / 4',
+          }}
         >
           {preview ? (
             <img src={preview.url} alt="" draggable={false} data-surface="1" className="pointer-events-none absolute inset-0 h-full w-full" />
@@ -688,6 +876,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
             </p>
           )}
         </div>
+        </div>
         <p className="text-center text-xs text-muted">
           Replaced text is covered and retyped in a standard font, so it may look slightly different from the original.
         </p>
@@ -727,7 +916,7 @@ function TextArea({ edit, style, autoFocus, onFocused, onChange }: {
       aria-label="Text"
       onChange={(e) => onChange(e.target.value)}
       className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 outline-none placeholder:text-gray-400"
-      style={style}
+      style={{ ...style, touchAction: 'auto' }}
     />
   );
 }
