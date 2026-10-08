@@ -163,13 +163,16 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   const viewRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const zoomRef = useRef(1);
+  const shownRef = useRef(1);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const pinchUsed = useRef(false);
   const panRef = useRef<{ x: number; y: number; sl: number; st: number; moved: boolean } | null>(null);
-  /** Where to keep the page still after the next zoom, measured on screen. */
-  const zoomAnchor = useRef<{ fx: number; fy: number; x: number; y: number } | null>(null);
   const lastTap = useRef({ t: 0, x: 0, y: 0 });
+  const zoomLabel = useRef<HTMLSpanElement>(null);
+  const queuedZoom = useRef<{ n: number; x: number; y: number } | null>(null);
+  const zoomFrame = useRef(0);
+  const settleZoom = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const sampler = useRef<{ ctx: CanvasRenderingContext2D; w: number; h: number } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -201,50 +204,95 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     return () => observer.disconnect();
   }, [preview, zoom]);
 
-  // After the page changes size, put the same spot back under the pointer or pinch.
-  useLayoutEffect(() => {
-    const anchor = zoomAnchor.current;
-    zoomAnchor.current = null;
-    const view = viewRef.current;
-    const boxEl = boxRef.current;
-    if (!anchor || !view || !boxEl) return;
-    const rect = boxEl.getBoundingClientRect();
-    view.scrollLeft += rect.left + anchor.fx * rect.width - anchor.x;
-    view.scrollTop += rect.top + anchor.fy * rect.height - anchor.y;
-  }, [zoom]);
+  const pageRatioRef = useRef(0.75);
+  const widthFor = (z: number) => `min(${z * 100}%, calc(62dvh * ${pageRatioRef.current} * ${z}))`;
 
-  const focusZoom = (next: number, clientX: number, clientY: number) => {
-    const clamped = clamp(next, ZOOM_MIN, ZOOM_MAX);
-    if (Math.abs(clamped - zoomRef.current) < 0.005) return;
+  /** Resizes the page in place, keeping the point under (clientX, clientY). No React render. */
+  const applyZoom = (next: number, clientX: number, clientY: number) => {
     const boxEl = boxRef.current;
-    if (boxEl && boxEl.clientWidth > 0) {
-      const rect = boxEl.getBoundingClientRect();
-      zoomAnchor.current = {
-        fx: clamp((clientX - rect.left) / rect.width, 0, 1),
-        fy: clamp((clientY - rect.top) / rect.height, 0, 1),
-        x: clientX,
-        y: clientY,
-      };
-    }
-    zoomRef.current = clamped;
-    setZoom(clamped);
+    const view = viewRef.current;
+    if (!boxEl || !view) return;
+    const shown = clamp(next, ZOOM_MIN, ZOOM_MAX);
+    const before = boxEl.getBoundingClientRect();
+    const fx = before.width ? clamp((clientX - before.left) / before.width, 0, 1) : 0.5;
+    const fy = before.height ? clamp((clientY - before.top) / before.height, 0, 1) : 0.5;
+    shownRef.current = shown;
+    boxEl.style.width = widthFor(shown);
+    const after = boxEl.getBoundingClientRect();
+    view.scrollLeft += after.left + fx * after.width - clientX;
+    view.scrollTop += after.top + fy * after.height - clientY;
+    if (zoomLabel.current) zoomLabel.current.textContent = `${Math.round(shown * 100)}%`;
   };
-  const focusZoomRef = useRef(focusZoom);
-  focusZoomRef.current = focusZoom;
+
+  const queueZoom = (next: number, clientX: number, clientY: number) => {
+    queuedZoom.current = { n: next, x: clientX, y: clientY };
+    if (zoomFrame.current) return;
+    zoomFrame.current = requestAnimationFrame(() => {
+      zoomFrame.current = 0;
+      const job = queuedZoom.current;
+      queuedZoom.current = null;
+      if (job) applyZoom(job.n, job.x, job.y);
+    });
+  };
+
+  /** Writes the live size into React once the gesture is over, so the two cannot drift. */
+  const commitZoom = () => {
+    window.clearTimeout(settleZoom.current);
+    if (zoomFrame.current) {
+      cancelAnimationFrame(zoomFrame.current);
+      zoomFrame.current = 0;
+    }
+    const job = queuedZoom.current;
+    queuedZoom.current = null;
+    if (job) applyZoom(job.n, job.x, job.y);
+    const shown = shownRef.current;
+    if (Math.abs(shown - zoomRef.current) < 0.001) return;
+    zoomRef.current = shown;
+    setZoom(shown);
+  };
+
+  const glideZoom = (target: number, clientX: number, clientY: number) => {
+    const from = shownRef.current;
+    const to = clamp(target, ZOOM_MIN, ZOOM_MAX);
+    const started = performance.now();
+    cancelAnimationFrame(zoomFrame.current);
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / 220);
+      const eased = 1 - (1 - t) ** 3;
+      applyZoom(from + (to - from) * eased, clientX, clientY);
+      if (t < 1) zoomFrame.current = requestAnimationFrame(step);
+      else {
+        zoomFrame.current = 0;
+        zoomRef.current = to;
+        setZoom(to);
+      }
+    };
+    zoomFrame.current = requestAnimationFrame(step);
+  };
 
   const viewCenter = () => {
     const rect = viewRef.current?.getBoundingClientRect();
     return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: 0, y: 0 };
   };
 
-  // Trackpad pinch (Ctrl/Cmd + scroll) zooms toward the pointer.
+  // Trackpad pinch zooms toward the pointer, one frame at a time, then settles.
   useEffect(() => {
     const el = viewRef.current;
     if (!el) return;
+    let target = shownRef.current;
+    let tracking = false;
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      focusZoomRef.current(zoomRef.current * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+      if (!tracking) target = shownRef.current;
+      tracking = true;
+      target = clamp(target * Math.exp(-e.deltaY * 0.0016), ZOOM_MIN, ZOOM_MAX);
+      queueZoom(target, e.clientX, e.clientY);
+      window.clearTimeout(settleZoom.current);
+      settleZoom.current = window.setTimeout(() => {
+        tracking = false;
+        commitZoom();
+      }, 140);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -257,8 +305,10 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       return;
     }
     const [a, b] = [...pointers.current.values()];
+    cancelAnimationFrame(zoomFrame.current);
+    zoomFrame.current = 0;
     pinchUsed.current = true;
-    pinchRef.current = { dist: Math.max(12, Math.hypot(a.x - b.x, a.y - b.y)), zoom: zoomRef.current };
+    pinchRef.current = { dist: Math.max(12, Math.hypot(a.x - b.x, a.y - b.y)), zoom: shownRef.current };
     const started = drag.current;
     if (started && (started.kind === 'create' || started.kind === 'draw')) {
       drag.current = null;
@@ -478,6 +528,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   const px = (fraction: number) => fraction * box.h;
   const drawing = tool === 'whiteout' || tool === 'highlight' || tool === 'box' || tool === 'draw';
   const pageRatio = preview ? preview.width / preview.height : 0.75;
+  pageRatioRef.current = pageRatio;
 
   const onViewPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -498,7 +549,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     if (pinch && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      focusZoom(pinch.zoom * (dist / pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      queueZoom(pinch.zoom * (dist / pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
       return;
     }
     const pan = panRef.current;
@@ -518,6 +569,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     if (pointers.current.size < 2) pinchRef.current = null;
     panRef.current = null;
     if (pinchUsed.current) {
+      if (pointers.current.size < 2) commitZoom();
       if (pointers.current.size === 0) pinchUsed.current = false;
       return;
     }
@@ -526,7 +578,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     const now = Date.now();
     const last = lastTap.current;
     if (now - last.t < 280 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 28) {
-      focusZoom(zoomRef.current > 1.05 ? 1 : 2, e.clientX, e.clientY);
+      glideZoom(shownRef.current > 1.05 ? 1 : 2, e.clientX, e.clientY);
       lastTap.current = { t: 0, x: 0, y: 0 };
     } else {
       lastTap.current = { t: now, x: e.clientX, y: e.clientY };
@@ -679,17 +731,19 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
             disabled={zoom <= ZOOM_MIN}
             onClick={() => {
               const c = viewCenter();
-              focusZoom(zoomRef.current - ZOOM_STEP, c.x, c.y);
+              glideZoom(shownRef.current - ZOOM_STEP, c.x, c.y);
             }}
           />
-          <span className="tabular min-w-12 text-center text-xs font-medium text-fg">{Math.round(zoom * 100)}%</span>
+          <span ref={zoomLabel} className="tabular min-w-12 text-center text-xs font-medium text-fg">
+            {Math.round(zoom * 100)}%
+          </span>
           <IconButton
             label="Zoom in"
             icon={ZoomIn}
             disabled={zoom >= ZOOM_MAX}
             onClick={() => {
               const c = viewCenter();
-              focusZoom(zoomRef.current + ZOOM_STEP, c.x, c.y);
+              glideZoom(shownRef.current + ZOOM_STEP, c.x, c.y);
             }}
           />
           {zoom !== 1 && (
@@ -697,7 +751,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
               type="button"
               onClick={() => {
                 const c = viewCenter();
-                focusZoom(1, c.x, c.y);
+                glideZoom(1, c.x, c.y);
               }}
               className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-surface-2 hover:text-fg"
             >
