@@ -4,6 +4,7 @@ import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { HighlightGrid } from '../sections/HighlightGrid';
 import { Hero } from '../sections/Hero';
 import { Privacy } from '../sections/Privacy';
+import { Contact } from '../sections/Contact';
 import { StepList } from '../sections/StepList';
 import { ToolDirectory } from '../tools/ToolDirectory';
 
@@ -49,6 +50,7 @@ export function HomePage() {
           <Privacy />
         </>
       )}
+      <Contact />
     </>
   );
 }

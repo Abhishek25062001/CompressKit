@@ -52,6 +52,11 @@ export function Footer() {
                   Privacy
                 </Link>
               </li>
+              <li>
+                <Link to="/#contact" className="hover:text-fg hover:underline">
+                  Contact
+                </Link>
+              </li>
             
             </ul>
           </nav>

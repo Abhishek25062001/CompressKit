@@ -30,7 +30,7 @@ export function Hero() {
       <div
         className={cn(
           'relative mx-auto max-w-4xl px-4 text-center sm:px-6',
-          IN_NATIVE_APP ? 'pt-4 pb-2' : 'pt-14 pb-10 sm:pt-20 sm:pb-14',
+          IN_NATIVE_APP ? 'pt-4 pb-2' : 'pt-6 pb-1 sm:pt-8 sm:pb-2',
         )}
       >
         {!IN_NATIVE_APP && (
@@ -40,7 +40,7 @@ export function Hero() {
               variants={fadeUp}
               initial="hidden"
               animate="show"
-              className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 px-3 py-1 text-xs font-medium text-muted backdrop-blur"
+              className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 px-3 py-1 text-xs font-medium text-muted backdrop-blur"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
               {FEATURES.length} private file tools · Nothing is uploaded · No account · Free · Works offline
@@ -69,14 +69,14 @@ export function Hero() {
             </motion.p> */}
           </>
         )}
-        <motion.div
+        {/* <motion.div
           custom={IN_NATIVE_APP ? 0 : 3}
           variants={fadeUp}
           initial="hidden"
           animate="show"
           className={cn('mx-auto max-w-3xl', IN_NATIVE_APP ? 'mt-0' : 'mt-8')}
-        >
-          <button
+        > */}
+          {/* <button
             type="button"
             onClick={() => openTools(true)}
             aria-haspopup="dialog"
@@ -95,7 +95,7 @@ export function Hero() {
                 {TOOLS_SHORTCUT}
               </kbd>
             )}
-          </button>
+          </button> */}
           {/* {!IN_NATIVE_APP && (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <span className="text-xs font-medium tracking-wide text-subtle uppercase">Popular</span>
@@ -112,7 +112,7 @@ export function Hero() {
               ))}
             </div>
           )} */}
-        </motion.div>
+        {/* </motion.div> */}
         {/* {!IN_NATIVE_APP && (
           <motion.div
             custom={4}

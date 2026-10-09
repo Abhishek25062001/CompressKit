@@ -165,7 +165,7 @@ export function ToolDirectory() {
       aria-labelledby="tools-title"
       className={cn(
         'relative mx-auto w-full max-w-6xl scroll-mt-20 px-4 sm:px-6',
-        IN_NATIVE_APP ? 'py-2' : 'py-16 sm:py-8',
+        IN_NATIVE_APP ? 'py-2' : 'pt-2 pb-6 sm:pt-3 sm:pb-8',
       )}
     >
       {/* {IN_NATIVE_APP ? (
@@ -190,7 +190,7 @@ export function ToolDirectory() {
       <div
         className={cn(
           'sticky z-30 -mx-4 border-b border-border/60 bg-bg/80 backdrop-blur-xl sm:-mx-6',
-          IN_NATIVE_APP ? 'top-14 mb-5 px-4 py-2' : 'top-16 mb-8 px-4 py-3 sm:mb-10 sm:px-6',
+          IN_NATIVE_APP ? 'top-8 mb-5 px-4 py-2' : 'top-6 mb-8 px-4 py-3 sm:mb-10 sm:px-4',
         )}
       >
         <div
@@ -224,6 +224,7 @@ export function ToolDirectory() {
                 />
                 {c.name}
               </Chip>
+              
             );
           })}
         </div>
