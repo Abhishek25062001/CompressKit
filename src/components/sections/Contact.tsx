@@ -2,14 +2,14 @@ import { Globe, Mail, MessageCircle, Phone } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const WEBSITE = 'https://abhishekjaiswal.net/';
-const PHONE_DISPLAY = '+91 87508 92993';
-const PHONE_TEL = '+918750892993';
-const EMAIL = 'aj956087@gmail.com';
+const PHONE_DISPLAY = '+91 87962 52123';
+const PHONE_TEL = '+918796252123';
+const EMAIL = 'abhishekjaiswal0203@gmail.com';
 
 const CHANNELS: { label: string; value: string; href: string; icon: LucideIcon; external?: boolean }[] = [
   { label: 'Website', value: 'abhishekjaiswal.net', href: WEBSITE, icon: Globe, external: true },
   { label: 'Phone', value: PHONE_DISPLAY, href: `tel:${PHONE_TEL}`, icon: Phone },
-  { label: 'WhatsApp', value: PHONE_DISPLAY, href: `https://wa.me/${PHONE_TEL.replace('+', '')}`, icon: MessageCircle, external: true },
+  { label: 'WhatsApp', value: PHONE_DISPLAY, href: `https://wa.me/${PHONE_TEL.replace('+', '')}?text=${encodeURIComponent('Hey !')}`, icon: MessageCircle, external: true },
   { label: 'Email', value: EMAIL, href: `mailto:${EMAIL}`, icon: Mail },
 ];
 
