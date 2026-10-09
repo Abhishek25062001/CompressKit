@@ -165,7 +165,7 @@ export function ToolDirectory() {
       aria-labelledby="tools-title"
       className={cn(
         'relative mx-auto w-full max-w-6xl scroll-mt-20 px-4 sm:px-6',
-        IN_NATIVE_APP ? 'py-8' : 'py-16 sm:py-24',
+        IN_NATIVE_APP ? 'py-2' : 'py-16 sm:py-8',
       )}
     >
       {/* {IN_NATIVE_APP ? (

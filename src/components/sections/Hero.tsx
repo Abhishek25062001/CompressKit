@@ -5,8 +5,8 @@ import { useUiStore } from '../../store/uiStore';
 import { cn } from '../../utils/cn';
 import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { TOOLS_SHORTCUT } from '../../utils/shortcut';
-import { Link } from '../common/Link';
-import { hue } from '../tools/hue';
+// import { Link } from '../common/Link';
+// import { hue } from '../tools/hue';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -43,7 +43,7 @@ export function Hero() {
               className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 px-3 py-1 text-xs font-medium text-muted backdrop-blur"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-              {FEATURES.length} private file tools · Nothing is uploaded
+              {FEATURES.length} private file tools · Nothing is uploaded · No account · Free · Works offline
             </motion.p>
             {/* <motion.h1
               custom={1}
@@ -113,7 +113,7 @@ export function Hero() {
             </div>
           )} */}
         </motion.div>
-        {!IN_NATIVE_APP && (
+        {/* {!IN_NATIVE_APP && (
           <motion.div
             custom={4}
             variants={fadeUp}
@@ -129,7 +129,7 @@ export function Hero() {
             </span>
             <span>No account · Free · Works offline</span>
           </motion.div>
-        )}
+        )} */}
       </div>
     </section>
   );
