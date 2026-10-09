@@ -45,7 +45,7 @@ export function Hero() {
               <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
               {FEATURES.length} private file tools · Nothing is uploaded
             </motion.p>
-            <motion.h1
+            {/* <motion.h1
               custom={1}
               variants={fadeUp}
               initial="hidden"
@@ -56,8 +56,8 @@ export function Hero() {
               <span className="bg-gradient-to-r from-accent-text to-accent-2 bg-clip-text text-transparent">
                 that never upload your files.
               </span>
-            </motion.h1>
-            <motion.p
+            </motion.h1> */}
+            {/* <motion.p
               custom={2}
               variants={fadeUp}
               initial="hidden"
@@ -66,7 +66,7 @@ export function Hero() {
             >
               Compress, convert, resize and trim photos and videos. Merge, split, sign, edit and convert PDFs, Word, Excel
               and PowerPoint files. Everything runs right here in your browser.
-            </motion.p>
+            </motion.p> */}
           </>
         )}
         <motion.div
@@ -96,7 +96,7 @@ export function Hero() {
               </kbd>
             )}
           </button>
-          {!IN_NATIVE_APP && (
+          {/* {!IN_NATIVE_APP && (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <span className="text-xs font-medium tracking-wide text-subtle uppercase">Popular</span>
               {POPULAR_FEATURES.map((f) => (
@@ -111,7 +111,7 @@ export function Hero() {
                 </Link>
               ))}
             </div>
-          )}
+          )} */}
         </motion.div>
         {!IN_NATIVE_APP && (
           <motion.div
