@@ -1,10 +1,9 @@
-import { ArrowUpRight, LayoutGrid, Sparkles } from 'lucide-react';
+import { ArrowUpRight, LayoutGrid } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { CATEGORIES, FEATURES, FEATURES_BY_CATEGORY, type CategoryId, type Feature } from '../../features/directory';
 import { cn } from '../../utils/cn';
 import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { Link } from '../common/Link';
-import { SectionHeading } from '../sections/SectionHeading';
 import { hue } from './hue';
 import { ToolTile } from './ToolTile';
 

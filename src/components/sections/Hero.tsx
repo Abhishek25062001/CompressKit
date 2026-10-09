@@ -1,12 +1,7 @@
 import { motion } from 'framer-motion';
-import { ArrowDown, Search } from 'lucide-react';
-import { FEATURES, POPULAR_FEATURES } from '../../features/directory';
-import { useUiStore } from '../../store/uiStore';
+import { FEATURES } from '../../features/directory';
 import { cn } from '../../utils/cn';
 import { IN_NATIVE_APP } from '../../utils/nativeApp';
-import { TOOLS_SHORTCUT } from '../../utils/shortcut';
-// import { Link } from '../common/Link';
-// import { hue } from '../tools/hue';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -14,7 +9,6 @@ const fadeUp = {
 };
 
 export function Hero() {
-  const openTools = useUiStore((s) => s.openTools);
   return (
     <section id="top" className="relative overflow-hidden">
       {!IN_NATIVE_APP && (
