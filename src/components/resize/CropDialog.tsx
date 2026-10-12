@@ -22,6 +22,14 @@ const MIN_SIDE = 0.03;
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
 const EDGES: Edge[] = ['n', 's', 'e', 'w'];
 
+/** Corner roundness: 0 is square, 1 is a circle or a pill. */
+const CORNER_OPTIONS: { radius: number; label: string }[] = [
+  { radius: 0, label: 'Square' },
+  { radius: 0.15, label: 'Slight' },
+  { radius: 0.4, label: 'Rounded' },
+  { radius: 1, label: 'Circle' },
+];
+
 const CURSOR: Record<Handle, string> = {
   nw: 'nwse-resize',
   se: 'nwse-resize',
@@ -124,6 +132,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
   const [orientation, setOrientation] = useState<Orientation>(() => itemOrientation(item));
   const [rect, setRect] = useState<CropRect | null>(cropFits(item.crop, aspect) ? item.crop.rect : null);
+  const [radius, setRadius] = useState(() => item.crop?.radius ?? 0);
   const drag = useRef<Drag | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -212,7 +221,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
   const save = () => {
     if (!current) return;
     updateItem(item.id, {
-      crop: { rect: current, aspect, ...orientation },
+      crop: { rect: current, aspect, radius, ...orientation },
       // A finished photo is resized again with its new crop.
       ...(item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'
         ? { status: 'waiting' as const, error: null }
@@ -222,6 +231,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
   };
 
   const pct = (n: number) => `${n * 100}%`;
+  const cornerRadius = `${radius * 50}%`;
   const cropPixels =
     current && shown ? `${Math.round(current.width * shown.width)} × ${Math.round(current.height * shown.height)}` : null;
 
@@ -262,6 +272,20 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
             Mirror
           </Button>
         </div>
+        <div className="flex flex-wrap justify-center gap-1" role="group" aria-label="Corner shape">
+          {CORNER_OPTIONS.map((option) => (
+            <Button
+              key={option.label}
+              variant={radius === option.radius ? 'primary' : 'ghost'}
+              size="sm"
+              aria-pressed={radius === option.radius}
+              onClick={() => setRadius(option.radius)}
+              disabled={!natural}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
         <div
           ref={boxRef}
           className="relative mx-auto w-full touch-none select-none"
@@ -293,6 +317,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
                   width: pct(current.width),
                   height: pct(current.height),
                   boxShadow: '0 0 0 9999px rgb(0 0 0 / 0.55)',
+                  borderRadius: cornerRadius,
                 }}
               />
             )}
@@ -316,10 +341,11 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
                 width: pct(current.width),
                 height: pct(current.height),
                 border: '1.5px solid white',
+                borderRadius: cornerRadius,
               }}
             >
               {/* Rule of thirds guides. */}
-              <div className="pointer-events-none absolute inset-0" aria-hidden>
+              <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ borderRadius: cornerRadius }} aria-hidden>
                 <div className="absolute inset-y-0 left-1/3 w-px bg-white/40" />
                 <div className="absolute inset-y-0 left-2/3 w-px bg-white/40" />
                 <div className="absolute inset-x-0 top-1/3 h-px bg-white/40" />

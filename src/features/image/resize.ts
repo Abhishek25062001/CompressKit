@@ -73,6 +73,34 @@ export function cropToCanvas(image: ImageBitmap | AnyCanvas, rect: CropRect, out
   return result;
 }
 
+/** Cuts the corners. `radius` is 0 for square and 1 for a circle or pill, against the shorter side. */
+export function roundCanvasCorners(canvas: AnyCanvas, radius: number): void {
+  const amount = Math.min(1, Math.max(0, radius));
+  if (amount <= 0) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const r = (Math.min(w, h) / 2) * amount;
+  const mask = createCanvas(w, h);
+  const ctx = getContext(mask);
+  ctx.drawImage(canvas, 0, 0);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(0, 0, w, h, r);
+  else {
+    ctx.moveTo(r, 0);
+    ctx.arcTo(w, 0, w, h, r);
+    ctx.arcTo(w, h, 0, h, r);
+    ctx.arcTo(0, h, 0, 0, r);
+    ctx.arcTo(0, 0, w, 0, r);
+    ctx.closePath();
+  }
+  ctx.fill();
+  const out = getContext(canvas);
+  out.clearRect(0, 0, w, h);
+  out.drawImage(mask, 0, 0);
+  releaseCanvas(mask);
+}
+
 export function hasTransparency(data: Uint8ClampedArray): boolean {
   for (let i = 3; i < data.length; i += 4) {
     if (data[i] !== 255) return true;

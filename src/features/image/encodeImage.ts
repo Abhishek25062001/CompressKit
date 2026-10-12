@@ -7,7 +7,7 @@ import { CompressionError } from '../../utils/errors';
 import { canvasToBlob, getContext, releaseCanvas, type AnyCanvas } from './canvas';
 import { decodeImage } from './decode';
 import { FULL_CROP, centeredCrop, orientedSize } from '../resize/resizeJob';
-import { computeTargetSize, cropToCanvas, hasTransparency, orientToCanvas, renderToCanvas, type Size } from './resize';
+import { computeTargetSize, cropToCanvas, hasTransparency, orientToCanvas, renderToCanvas, roundCanvasCorners, type Size } from './resize';
 
 type EncodableFormat = keyof typeof IMAGE_MIME;
 
@@ -225,6 +225,7 @@ export async function encodeImage({ file, settings, mode, transform, support, on
     oriented = turned ? orientToCanvas(bitmap, orientation) : null;
     const image = oriented ?? bitmap;
     canvas = cropRect ? cropToCanvas(image, cropRect, target) : renderToCanvas(image, target);
+    if (transform && transform.radius > 0) roundCanvasCorners(canvas, transform.radius);
   } catch (e) {
     throw new CompressionError('OUT_OF_MEMORY', `render failed: ${String(e)}`);
   } finally {
@@ -247,12 +248,17 @@ export async function encodeImage({ file, settings, mode, transform, support, on
     format = mode === 'compress' && alpha() && support.webp ? 'webp' : 'jpeg';
     notes.push(`PNG can't be shrunk to an exact size, so this was saved as ${MIME_LABEL[IMAGE_MIME[format]]}.`);
   }
-  if (format === 'jpeg' && alpha()) {
-    if (mode !== 'compress' || (limit && !support.webp)) {
+  const rounded = (transform?.radius ?? 0) > 0;
+  if (format === 'jpeg' && (alpha() || rounded)) {
+    if (mode !== 'compress' || (limit && !support.webp) || rounded) {
       // JPEG was asked for explicitly (or is the only way to hit the size), so do what image editors do.
       flattenOnWhite(canvas);
       alphaChecked = false;
-      notes.push('JPEG has no transparency, so transparent areas were filled with white.');
+      notes.push(
+        rounded
+          ? 'JPEG has no transparency, so the rounded corners were filled with white.'
+          : 'JPEG has no transparency, so transparent areas were filled with white.',
+      );
     } else {
       // Never flatten transparency into JPEG when compressing. WebP keeps alpha and is still small.
       format = support.webp ? 'webp' : 'png';

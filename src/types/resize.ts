@@ -23,6 +23,11 @@ export interface ItemCrop extends Orientation {
   rect: CropRect;
   /** Output width / height when the crop was drawn, or null for a freehand crop. A different preset aspect discards the rect, not the orientation. */
   aspect: number | null;
+  /**
+   * Corner roundness, 0 for square corners and 1 for a circle or pill.
+   * Measured against the shorter side of the crop.
+   */
+  radius?: number;
 }
 
 export type ResizePresetId =
@@ -60,4 +65,6 @@ export interface ImageTransform {
   /** Null (freehand) keeps the cropped area at its own pixel size. */
   width: number | null;
   height: number | null;
+  /** Corner roundness, 0 for square corners and 1 for a circle or pill. */
+  radius: number;
 }
