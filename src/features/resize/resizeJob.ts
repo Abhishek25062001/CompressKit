@@ -65,6 +65,7 @@ export function orientedSize<T extends { width: number; height: number }>(size: 
 export function resizeTransform(item: QueueItem, s: ResizeSettings): ImageTransform {
   const size = outputSize(s);
   const crop = cropFits(item.crop, size ? size.width / size.height : null) ? item.crop.rect : null;
-  const radius = cropFits(item.crop, size ? size.width / size.height : null) ? item.crop.radius ?? 0 : 0;
+  // Corner shape stays even when a saved rectangle no longer matches the preset.
+  const radius = item.crop?.radius ?? 0;
   return { orientation: itemOrientation(item), crop, width: size?.width ?? null, height: size?.height ?? null, radius };
 }

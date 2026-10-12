@@ -249,16 +249,17 @@ export async function encodeImage({ file, settings, mode, transform, support, on
     notes.push(`PNG can't be shrunk to an exact size, so this was saved as ${MIME_LABEL[IMAGE_MIME[format]]}.`);
   }
   const rounded = (transform?.radius ?? 0) > 0;
-  if (format === 'jpeg' && (alpha() || rounded)) {
-    if (mode !== 'compress' || (limit && !support.webp) || rounded) {
+  // White-filled JPEG corners vanish on a light photo, so a rounded result keeps real transparency.
+  if (rounded && format === 'jpeg') {
+    format = limit && support.webp ? 'webp' : 'png';
+    notes.push(`Rounded corners need transparency, so this was saved as ${MIME_LABEL[IMAGE_MIME[format]]} instead of JPEG.`);
+  }
+  if (format === 'jpeg' && alpha()) {
+    if (mode !== 'compress' || (limit && !support.webp)) {
       // JPEG was asked for explicitly (or is the only way to hit the size), so do what image editors do.
       flattenOnWhite(canvas);
       alphaChecked = false;
-      notes.push(
-        rounded
-          ? 'JPEG has no transparency, so the rounded corners were filled with white.'
-          : 'JPEG has no transparency, so transparent areas were filled with white.',
-      );
+      notes.push('JPEG has no transparency, so transparent areas were filled with white.');
     } else {
       // Never flatten transparency into JPEG when compressing. WebP keeps alpha and is still small.
       format = support.webp ? 'webp' : 'png';

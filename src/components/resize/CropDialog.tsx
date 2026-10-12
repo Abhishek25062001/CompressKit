@@ -63,6 +63,24 @@ function handleStyle(handle: Handle): CSSProperties {
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
+/** Square crop minus its rounded window, so the cut corners can show the checkerboard. */
+function cornerCutout(rx: number, ry: number): string {
+  const x = Math.min(0.5, Math.max(0, rx));
+  const y = Math.min(0.5, Math.max(0, ry));
+  if (x <= 0 || y <= 0) return '';
+  return [
+    'M 0 0 H 1 V 1 H 0 Z',
+    `M ${x} 0 H ${1 - x}`,
+    `A ${x} ${y} 0 0 1 1 ${y}`,
+    `V ${1 - y}`,
+    `A ${x} ${y} 0 0 1 ${1 - x} 1`,
+    `H ${x}`,
+    `A ${x} ${y} 0 0 1 0 ${1 - y}`,
+    `V ${y}`,
+    `A ${x} ${y} 0 0 1 ${x} 0 Z`,
+  ].join(' ');
+}
+
 interface Drag {
   kind: 'move' | Handle;
   startX: number;
@@ -232,6 +250,10 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
 
   const pct = (n: number) => `${n * 100}%`;
   const cornerRadius = `${radius * 50}%`;
+  const clipId = `crop-corners-${item.id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const pixelAspect = current && shown ? (current.width / current.height) * (shown.width / shown.height) : 1;
+  const cornerRx = (radius * Math.min(1, 1 / pixelAspect)) / 2;
+  const cornerRy = (radius * Math.min(pixelAspect, 1)) / 2;
   const cropPixels =
     current && shown ? `${Math.round(current.width * shown.width)} × ${Math.round(current.height * shown.height)}` : null;
 
@@ -307,26 +329,29 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
                 style={natural ? orientedImageStyle(natural, orientation) : { inset: 0, width: '100%', height: '100%' }}
               />
             )}
-            {current && (
-              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
-                <defs>
-                  <mask id={`crop-hole-${item.id}`}>
-                    <rect width="1" height="1" fill="white" />
-                    <rect
-                      x={current.x}
-                      y={current.y}
-                      width={current.width}
-                      height={current.height}
-                      rx={(radius * Math.min(current.width, current.height * ((shown?.height ?? 1) / (shown?.width ?? 1)))) / 2}
-                      ry={(radius * Math.min(current.width * ((shown?.width ?? 1) / (shown?.height ?? 1)), current.height)) / 2}
-                      fill="black"
-                    />
-                  </mask>
-                </defs>
-                <rect width="1" height="1" fill="rgb(0 0 0 / 0.55)" mask={`url(#crop-hole-${item.id})`} />
-              </svg>
-            )}
           </div>
+          {current && radius > 0 && (
+            <>
+              <svg className="absolute h-0 w-0" aria-hidden>
+                <defs>
+                  <clipPath id={clipId} clipPathUnits="objectBoundingBox">
+                    <path clipRule="evenodd" fillRule="evenodd" d={cornerCutout(cornerRx, cornerRy)} />
+                  </clipPath>
+                </defs>
+              </svg>
+              <div
+                aria-hidden
+                className="checkerboard pointer-events-none absolute"
+                style={{
+                  left: pct(current.x),
+                  top: pct(current.y),
+                  width: pct(current.width),
+                  height: pct(current.height),
+                  clipPath: `url(#${clipId})`,
+                }}
+              />
+            </>
+          )}
           {current && (
             <div
               role="slider"
@@ -347,6 +372,7 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
                 height: pct(current.height),
                 border: '1.5px solid white',
                 borderRadius: cornerRadius,
+                boxShadow: '0 0 0 9999px rgb(0 0 0 / 0.55)',
               }}
             >
               {/* Rule of thirds guides. */}
