@@ -308,18 +308,23 @@ function CropEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
               />
             )}
             {current && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute"
-                style={{
-                  left: pct(current.x),
-                  top: pct(current.y),
-                  width: pct(current.width),
-                  height: pct(current.height),
-                  boxShadow: '0 0 0 9999px rgb(0 0 0 / 0.55)',
-                  borderRadius: cornerRadius,
-                }}
-              />
+              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
+                <defs>
+                  <mask id={`crop-hole-${item.id}`}>
+                    <rect width="1" height="1" fill="white" />
+                    <rect
+                      x={current.x}
+                      y={current.y}
+                      width={current.width}
+                      height={current.height}
+                      rx={(radius * Math.min(current.width, current.height * ((shown?.height ?? 1) / (shown?.width ?? 1)))) / 2}
+                      ry={(radius * Math.min(current.width * ((shown?.width ?? 1) / (shown?.height ?? 1)), current.height)) / 2}
+                      fill="black"
+                    />
+                  </mask>
+                </defs>
+                <rect width="1" height="1" fill="rgb(0 0 0 / 0.55)" mask={`url(#crop-hole-${item.id})`} />
+              </svg>
             )}
           </div>
           {current && (

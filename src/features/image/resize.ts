@@ -79,26 +79,22 @@ export function roundCanvasCorners(canvas: AnyCanvas, radius: number): void {
   if (amount <= 0) return;
   const w = canvas.width;
   const h = canvas.height;
-  const r = (Math.min(w, h) / 2) * amount;
-  const mask = createCanvas(w, h);
-  const ctx = getContext(mask);
-  ctx.drawImage(canvas, 0, 0);
-  ctx.globalCompositeOperation = 'destination-in';
+  const r = Math.min(w, h) / 2 * amount;
+  const shaped = createCanvas(w, h);
+  const ctx = getContext(shaped);
   ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') ctx.roundRect(0, 0, w, h, r);
-  else {
-    ctx.moveTo(r, 0);
-    ctx.arcTo(w, 0, w, h, r);
-    ctx.arcTo(w, h, 0, h, r);
-    ctx.arcTo(0, h, 0, 0, r);
-    ctx.arcTo(0, 0, w, 0, r);
-    ctx.closePath();
-  }
-  ctx.fill();
-  const out = getContext(canvas);
-  out.clearRect(0, 0, w, h);
-  out.drawImage(mask, 0, 0);
-  releaseCanvas(mask);
+  ctx.moveTo(r, 0);
+  ctx.arcTo(w, 0, w, h, r);
+  ctx.arcTo(w, h, 0, h, r);
+  ctx.arcTo(0, h, 0, 0, r);
+  ctx.arcTo(0, 0, w, 0, r);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(canvas, 0, 0);
+  const dest = getContext(canvas);
+  dest.clearRect(0, 0, w, h);
+  dest.drawImage(shaped, 0, 0);
+  releaseCanvas(shaped);
 }
 
 export function hasTransparency(data: Uint8ClampedArray): boolean {
