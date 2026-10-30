@@ -106,17 +106,22 @@ async function drawText(lib: Lib, doc: PDFDocument, page: PDFPage, edit: TextEdi
   const lines = wrapText(edit.text, width, measure);
   const lineHeight = size * EDIT_LINE_HEIGHT;
   const textHeight = lines.length * lineHeight;
+  const angle = edit.rotation ?? 0;
+  const cos = Math.cos((angle * Math.PI) / 180);
+  const sin = Math.sin((angle * Math.PI) / 180);
+  /** Where a point of the box lands, given from its top-left corner, once the box is turned. */
+  const place = (dx: number, dy: number) => ({ x: left + dx * cos - dy * sin, y: view.height - (top + dx * sin + dy * cos) });
 
   if (edit.background) {
     const h = Math.max(textHeight, (edit.coverHeight ?? 0) * view.height);
-    drawBox(lib, view, { x: left, y: view.height - top - h }, 0, (at, rotate) =>
+    drawBox(lib, view, place(0, h), -angle, (at, rotate) =>
       page.drawRectangle({ x: at.x, y: at.y, width, height: h, rotate, color: rgbOf(lib, edit.background!) }),
     );
   }
 
   if (!encodable) {
     const png = await doc.embedPng(await rasterText(edit, lines, width, size));
-    drawBox(lib, view, { x: left, y: view.height - top - textHeight }, 0, (at, rotate) =>
+    drawBox(lib, view, place(0, textHeight), -angle, (at, rotate) =>
       page.drawImage(png, { x: at.x, y: at.y, width, height: textHeight, rotate }),
     );
     return;
@@ -127,8 +132,8 @@ async function drawText(lib: Lib, doc: PDFDocument, page: PDFPage, edit: TextEdi
     const dx = edit.align === 'center' ? (width - w) / 2 : edit.align === 'right' ? width - w : 0;
     // Baseline sits where the browser puts it in the editor: about 0.97 of the size below the line top
     // for a 1.25 line height (half the extra space above, then the ascent).
-    const baseline = top + i * lineHeight + size * 0.97;
-    drawBox(lib, view, { x: left + dx, y: view.height - baseline }, 0, (at, rotate) =>
+    const baseline = i * lineHeight + size * 0.97;
+    drawBox(lib, view, place(dx, baseline), -angle, (at, rotate) =>
       page.drawText(line, { x: at.x, y: at.y, size, font, rotate, color: rgbOf(lib, edit.color) }),
     );
   });

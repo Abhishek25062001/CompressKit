@@ -61,6 +61,8 @@ export type PageEdit =
       background?: string;
       /** Height of the covered area, when replacing text, as a fraction of the page height. */
       coverHeight?: number;
+      /** Clockwise turn in degrees, around the box's top-left corner (x, y). */
+      rotation?: number;
     }
   | {
       id: string;

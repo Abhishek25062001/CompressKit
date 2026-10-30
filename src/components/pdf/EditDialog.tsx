@@ -17,6 +17,7 @@ import {
   Move,
   PenLine,
   Redo2,
+  RotateCw,
   Square,
   TextCursorInput,
   Trash2,
@@ -72,6 +73,7 @@ const ZOOM_MAX = 4;
 const ZOOM_STEP = 0.25;
 const HISTORY_LIMIT = 100;
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+const normalAngle = (degrees: number) => ((Math.round(degrees) % 360) + 360) % 360;
 
 /** The last-used text style and colours, kept across pages so new edits look like the previous one. */
 interface EditStyle {
@@ -101,6 +103,7 @@ const DEFAULT_STYLE: EditStyle = {
 type Drag =
   | { kind: 'move'; id: string; startX: number; startY: number; start: PageEdit }
   | { kind: 'resize'; id: string; startX: number; startY: number; start: PageEdit }
+  | { kind: 'rotate'; id: string; start: TextEdit; height: number; cx: number; cy: number }
   | { kind: 'create'; id: string; startX: number; startY: number }
   | { kind: 'draw'; id: string };
 
@@ -209,6 +212,7 @@ interface TextLook {
   italic: boolean;
   color: string;
   align?: TextEdit['align'];
+  rotation?: number;
 }
 
 /** Font, size, style, alignment and colour, for the selected text box or the next one. */
@@ -262,6 +266,23 @@ function TextControls({ value, onChange }: { value: TextLook; onChange: (patch: 
           <IconButton label="Align left" icon={AlignLeft} active={value.align === 'left'} onClick={() => onChange({ align: 'left' })} />
           <IconButton label="Align center" icon={AlignCenter} active={value.align === 'center'} onClick={() => onChange({ align: 'center' })} />
           <IconButton label="Align right" icon={AlignRight} active={value.align === 'right'} onClick={() => onChange({ align: 'right' })} />
+        </div>
+      )}
+      {value.rotation !== undefined && (
+        <div className="flex shrink-0 items-center gap-0.5">
+          <IconButton label="Turn 90 degrees" icon={RotateCw} onClick={() => onChange({ rotation: normalAngle((value.rotation ?? 0) + 90) })} />
+          <label className="inline-flex items-center gap-1 text-xs text-muted">
+            <input
+              type="number"
+              aria-label="Rotation in degrees"
+              min={0}
+              max={359}
+              value={value.rotation}
+              onChange={(e) => onChange({ rotation: normalAngle(Number(e.target.value) || 0) })}
+              className="tabular h-9 w-14 rounded-lg border border-border bg-surface px-1 text-center text-sm text-fg [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            °
+          </label>
         </div>
       )}
       <Divider />
@@ -686,7 +707,24 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
     setSelected(null);
   };
 
-  const onItemDown = (e: ReactPointerEvent<HTMLElement>, edit: PageEdit, kind: 'move' | 'resize' = 'move') => {
+  /**
+   * The new position and angle of a text box turned on the spot. Rotation is stored around the
+   * top-left corner, so text growing as it is typed never shifts; this moves that corner so the
+   * box still appears to spin around its middle. `height` is the box's height on screen.
+   */
+  const turnText = (edit: TextEdit, rotation: number, height: number) => {
+    const offset = (degrees: number) => {
+      const rad = (degrees * Math.PI) / 180;
+      const w = (edit.width * box.w) / 2;
+      const h = height / 2;
+      return { x: w * Math.cos(rad) - h * Math.sin(rad), y: w * Math.sin(rad) + h * Math.cos(rad) };
+    };
+    const before = offset(edit.rotation ?? 0);
+    const after = offset(rotation);
+    return { rotation, x: edit.x + (before.x - after.x) / box.w, y: edit.y + (before.y - after.y) / box.h };
+  };
+
+  const onItemDown = (e: ReactPointerEvent<HTMLElement>, edit: PageEdit, kind: 'move' | 'resize' | 'rotate' = 'move') => {
     if (tool === 'draw') return;
     e.stopPropagation();
     // Typing and selecting text inside the selected text box must not start a drag.
@@ -697,6 +735,13 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
     const p = point(e);
     boxRef.current!.setPointerCapture(e.pointerId);
     checkpoint();
+    if (kind === 'rotate') {
+      const item = e.currentTarget.parentElement;
+      if (edit.kind !== 'text' || !item) return;
+      const r = item.getBoundingClientRect();
+      drag.current = { kind, id: edit.id, start: edit, height: item.offsetHeight, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+      return;
+    }
     drag.current = { kind, id: edit.id, startX: p.x, startY: p.y, start: edit };
   };
 
@@ -717,12 +762,23 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
       } as Partial<RectEdit>);
     } else if (d.kind === 'move') {
       setEdits((list) => list.map((ed) => (ed.id === d.id ? moveEdit(d.start, p.x - d.startX, p.y - d.startY) : ed)));
+    } else if (d.kind === 'rotate') {
+      const raw = (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180) / Math.PI + 90;
+      // Settles on straight and diagonal angles when the pointer is close to one.
+      const near = Math.round(raw / 45) * 45;
+      update(d.id, turnText(d.start, normalAngle(Math.abs(raw - near) < 4 ? near : raw), d.height));
     } else {
       const s = d.start;
       if (s.kind === 'draw') return;
+      if (s.kind === 'text') {
+        // A turned box grows along its own direction, so the drag is measured along that.
+        const rad = ((s.rotation ?? 0) * Math.PI) / 180;
+        const along = (p.x - d.startX) * Math.cos(rad) + ((p.y - d.startY) * box.h * Math.sin(rad)) / box.w;
+        update(d.id, { width: clamp(s.width + along, 0.02, 1.2) });
+        return;
+      }
       const width = clamp(s.width + p.x - d.startX, 0.02, 1.2);
-      if (s.kind === 'text') update(d.id, { width });
-      else if (s.kind === 'image') update(d.id, { width, height: (s.height * width) / s.width });
+      if (s.kind === 'image') update(d.id, { width, height: (s.height * width) / s.width });
       else update(d.id, { width, height: clamp(s.height + p.y - d.startY, 0.005, 1.2) });
     }
   };
@@ -739,7 +795,7 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
             : ed,
         ),
       );
-    } else if (d?.kind === 'move' || d?.kind === 'resize') {
+    } else if (d?.kind === 'move' || d?.kind === 'resize' || d?.kind === 'rotate') {
       dropUnchanged();
     }
   };
@@ -910,10 +966,16 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
   if (current?.kind === 'text') {
     properties = (
       <TextControls
-        value={{ font: current.font, sizePt: Math.round(current.size * pageHeightPt * 2) / 2, bold: current.bold, italic: current.italic, color: current.color, align: current.align }}
-        onChange={({ sizePt, align, ...look }) => {
+        value={{ font: current.font, sizePt: Math.round(current.size * pageHeightPt * 2) / 2, bold: current.bold, italic: current.italic, color: current.color, align: current.align, rotation: current.background ? undefined : (current.rotation ?? 0) }}
+        onChange={({ sizePt, align, rotation, ...look }) => {
           remember({ ...look, ...(sizePt ? { size: sizePt } : {}) });
-          change(current.id, { ...look, ...(align ? { align } : {}), ...(sizePt ? { size: sizePt / pageHeightPt } : {}) });
+          const height = boxRef.current?.querySelector<HTMLElement>(`[data-edit-id="${current.id}"]`)?.offsetHeight ?? 0;
+          change(current.id, {
+            ...look,
+            ...(align ? { align } : {}),
+            ...(sizePt ? { size: sizePt / pageHeightPt } : {}),
+            ...(rotation !== undefined ? turnText(current, rotation, height) : {}),
+          });
         }}
       />
     );
@@ -1144,9 +1206,12 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
                     return (
                       <div
                         key={ed.id}
+                        data-edit-id={ed.id}
                         onPointerDown={(e) => onItemDown(e, ed)}
                         className={cn(common, !isSel && 'cursor-move')}
                         style={{
+                          transform: ed.rotation ? `rotate(${ed.rotation}deg)` : undefined,
+                          transformOrigin: '0 0',
                           left: `${ed.x * 100}%`,
                           top: `${ed.y * 100}%`,
                           width: `${ed.width * 100}%`,
@@ -1172,6 +1237,17 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
                             >
                               <Move className="h-3.5 w-3.5" />
                             </span>
+                            {/* Turning a retyped line would uncover the original text under it. */}
+                            {!ed.background && (
+                              <span
+                                aria-hidden
+                                title="Drag to rotate"
+                                onPointerDown={(e) => onItemDown(e, ed, 'rotate')}
+                                className="absolute -top-10 left-1/2 z-10 inline-flex h-7 w-7 -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-accent text-accent-fg shadow"
+                              >
+                                <RotateCw className="h-3.5 w-3.5" />
+                              </span>
+                            )}
                           </>
                         ) : (
                           <div className="break-words whitespace-pre-wrap" style={textStyle}>
