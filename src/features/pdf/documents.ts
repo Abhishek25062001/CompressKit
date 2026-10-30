@@ -37,21 +37,30 @@ export class PdfOpenError extends Error {
 }
 
 /**
+ * Loads a PDF with pdf-lib. Many PDFs open in any viewer without a password but are still
+ * encrypted, with only an owner password limiting printing or editing. Viewers try an empty
+ * password first; pdf-lib only decrypts when given one, so without a password the empty one is
+ * tried. Only a PDF that really needs a password to open throws `encrypted`.
+ */
+export async function loadPdfLib(bytes: Uint8Array, password?: string): Promise<PDFDocument> {
+  const { PDFDocument } = await import('@cantoo/pdf-lib');
+  try {
+    return await PDFDocument.load(bytes, { updateMetadata: false, password: password ?? '' });
+  } catch (e) {
+    // The library's error classes are not reliable with `instanceof` across builds, so match the message.
+    const text = String(e);
+    const needsPassword = /password incorrect|needs password|is encrypted/i.test(text);
+    throw new PdfOpenError(needsPassword ? (password ? 'wrong-password' : 'encrypted') : 'invalid', text);
+  }
+}
+
+/**
  * Opens a PDF for viewing and editing. A password-protected PDF needs its password; once open,
  * its pages are decrypted, so copies made from it are not protected unless a password is added.
  */
 export async function openPdf(sourceId: string, file: File, password?: string): Promise<OpenPdf> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const [{ PDFDocument }, pdfjs] = await Promise.all([import('@cantoo/pdf-lib'), loadPdfjs()]);
-  let edit: PDFDocument;
-  try {
-    edit = await PDFDocument.load(bytes, { updateMetadata: false, password });
-  } catch (e) {
-    // The library's error classes are not reliable with `instanceof` across builds, so match the message.
-    const text = String(e);
-    const reason = /password incorrect/i.test(text) ? 'wrong-password' : /is encrypted/i.test(text) ? 'encrypted' : 'invalid';
-    throw new PdfOpenError(reason, text);
-  }
+  const [edit, pdfjs] = await Promise.all([loadPdfLib(bytes, password), loadPdfjs()]);
   let view: PDFDocumentProxy;
   try {
     // pdf.js takes ownership of the buffer it is given, so hand it a copy.

@@ -501,11 +501,11 @@ export const FEATURES: Feature[] = [
   {
     key: 'unlock-pdf',
     name: 'Unlock PDF',
-    description: 'Remove the password from a PDF you know the password to.',
+    description: 'Remove the password and the printing, copying and editing limits from a PDF.',
     to: '/pdf#unlock',
     category: 'pdf',
     icon: LockOpen,
-    keywords: 'remove password decrypt',
+    keywords: 'remove password decrypt restrictions permissions owner',
   },
   {
     key: 'clean-pdf',

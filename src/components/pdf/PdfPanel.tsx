@@ -13,7 +13,7 @@ import { SegmentedControl } from '../common/SegmentedControl';
 import { Select } from '../common/Select';
 import { Switch } from '../common/Switch';
 import { TargetSizeField } from '../settings/TargetSizeField';
-import { CleanTab, FormsTab, OcrTab, ProtectTab, ScanTab } from './PdfExtraTabs';
+import { CleanTab, FormsTab, OcrTab, ProtectTab, ScanTab, UnlockTab } from './PdfExtraTabs';
 import { SignatureMaker } from './SignatureMaker';
 import { PDF_TOOLS, type PdfTab } from './pdfTools';
 import { StampSettings } from './StampSettings';
@@ -299,10 +299,10 @@ function EditTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
     <>
       <p className="flex gap-2 text-xs text-muted">
         <FilePen className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-        Press Edit on a page to change its text, add text boxes and pictures, white out, highlight or draw.
+        Open the editor to change text, add text and pictures, white out, highlight or draw. Move between pages inside it.
       </p>
       <Button onClick={() => first && setEditingPage(first)} disabled={busy || !first} icon={<FilePen className="h-4 w-4" aria-hidden />}>
-        Edit page {firstNumber}
+        Open editor{firstNumber > 1 ? ` at page ${firstNumber}` : ''}
       </Button>
       {edited.length > 0 && (
         <div className="space-y-2">
@@ -612,6 +612,7 @@ export function PdfPanel({ initialTab = 'save', request = 0 }: { initialTab?: Pd
         {tab === 'scan' && <ScanTab target={target} count={count} busy={busy} />}
         {tab === 'forms' && <FormsTab target={target} count={count} busy={busy} />}
         {tab === 'protect' && <ProtectTab target={target} count={count} busy={busy} />}
+        {tab === 'unlock' && <UnlockTab target={target} count={count} busy={busy} />}
         {tab === 'clean' && <CleanTab target={target} count={count} busy={busy} />}
         {tab === 'ocr' && <OcrTab target={target} count={count} busy={busy} />}
       </div>

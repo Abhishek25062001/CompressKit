@@ -274,6 +274,25 @@ export function savePdf(pages: PdfPage[], protect?: ProtectOptions): Promise<voi
   });
 }
 
+/**
+ * Saves a copy with no password and no printing, copying or editing limits. A file that needs a
+ * password to open was decrypted when it was added (its password was typed then), so rebuilding it
+ * here — a fresh PDF with the pages copied in, never re-encrypted — drops the password and every
+ * restriction. This cannot recover a password that was never entered; it only removes protection
+ * from a file you can already open.
+ */
+export function unlockPdf(pages: PdfPage[]): Promise<void> {
+  return run('Unlocking PDF', async (progress) => {
+    const bytes = await buildPdf(pages, progress);
+    downloadBlob(pdfBlob(bytes), `${baseName(pages)}-unlocked.pdf`);
+    useUiStore.getState().pushNotice({
+      tone: 'info',
+      title: 'PDF unlocked',
+      message: 'The copy you downloaded has no password and no printing, copying or editing limits.',
+    });
+  });
+}
+
 /** Splits pages into PDFs of `every` pages each, downloaded together as a ZIP (or directly when there is one). */
 export function splitPdf(pages: PdfPage[], every: number): Promise<void> {
   return run('Splitting PDF', async (progress) => {

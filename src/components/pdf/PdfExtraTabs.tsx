@@ -1,8 +1,8 @@
-import { Download, EyeOff, Lock, RotateCcw, ScanSearch, ScanText } from 'lucide-react';
+import { Download, EyeOff, Lock, LockOpen, RotateCcw, ScanSearch, ScanText } from 'lucide-react';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { decodeImage } from '../../features/image/decode';
-import { ocrPdf, savePdf } from '../../features/pdf/actions';
+import { ocrPdf, savePdf, unlockPdf } from '../../features/pdf/actions';
 import { readForm, type FieldValue, type FormInfo } from '../../features/pdf/forms';
 import { inspectSource, type Finding } from '../../features/pdf/inspect';
 import { refreshThumbnail } from '../../features/pdf/intake';
@@ -299,7 +299,41 @@ export function ProtectTab({ target, count, busy }: TabProps) {
       >
         Download protected PDF ({count})
       </Button>
-      <Note>To remove a password, add the locked PDF here and enter its password: files you save from it have none.</Note>
+      <Note>To remove a password instead, use the Unlock tool.</Note>
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------- Unlock */
+
+export function UnlockTab({ target, count, busy }: TabProps) {
+  return (
+    <>
+      <Note>
+        Removes the password and the printing, copying and editing limits. The copy you download opens with no password and allows
+        everything.
+      </Note>
+      <div className="rounded-xl border border-border bg-surface-2/40 p-3">
+        <p className="flex items-center gap-2 text-sm font-medium text-fg">
+          <LockOpen className="h-4 w-4 text-accent-text" aria-hidden />
+          Forgot the password?
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          A file that opens for you — but won't let you print, copy or edit — is unlocked here with no password needed. A file that asks
+          for a password before it opens can be unlocked only after you add it and type that password; this tool cannot recover a password
+          you don't have.
+        </p>
+      </div>
+      <Button
+        variant="primary"
+        className="w-full"
+        disabled={busy || !target.length}
+        onClick={() => void unlockPdf(target)}
+        icon={<LockOpen className="h-4 w-4" aria-hidden />}
+      >
+        Unlock &amp; download ({count})
+      </Button>
+      <Note>Everything happens in your browser. Nothing is uploaded, and no password is stored.</Note>
     </>
   );
 }

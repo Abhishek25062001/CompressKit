@@ -8,6 +8,8 @@
  * inline images are stepped over and never mistaken for operators, and every BT…ET object is cut.
  */
 
+import { loadPdfLib } from './documents';
+
 type Lib = typeof import('@cantoo/pdf-lib');
 type PDFDocument = import('@cantoo/pdf-lib').PDFDocument;
 type PDFDict = import('@cantoo/pdf-lib').PDFDict;
@@ -127,9 +129,9 @@ export function removeTextObjects(data: Uint8Array): Uint8Array {
  */
 export async function stripText(bytes: Uint8Array, password?: string): Promise<Uint8Array> {
   const lib: Lib = await import('@cantoo/pdf-lib');
-  const { PDFDocument, PDFName, PDFDict, PDFArray, PDFRawStream, PDFRef, decodePDFRawStream } = lib;
+  const { PDFName, PDFDict, PDFArray, PDFRawStream, PDFRef, decodePDFRawStream } = lib;
   // Loaded like openPdf does: a locked PDF is decrypted with its password, and saved unlocked.
-  const doc: PDFDocument = await PDFDocument.load(bytes, { password, updateMetadata: false });
+  const doc: PDFDocument = await loadPdfLib(bytes, password);
   const context = doc.context;
   const done = new Set<string>();
 

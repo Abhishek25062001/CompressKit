@@ -3,58 +3,99 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
   Eraser,
   Highlighter,
   ImagePlus,
+  Info,
   Italic,
   Loader2,
   MousePointer2,
   Move,
   PenLine,
-  ZoomIn,
-  ZoomOut,
+  Redo2,
   Square,
   TextCursorInput,
   Trash2,
   Type,
+  Undo2,
+  X,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import type { PageTextLine } from '../../features/docs/pdfExtract';
 import { canvasToBlob, createCanvas, getContext, releaseCanvas } from '../../features/image/canvas';
 import { decodeImage } from '../../features/image/decode';
+import { savePdf } from '../../features/pdf/actions';
 import { getOpenPdf } from '../../features/pdf/documents';
 import { EDIT_CSS_FONT, EDIT_LINE_HEIGHT } from '../../features/pdf/edits';
+import { useDialog } from '../../hooks/useDialog';
+import { usePagePreview } from '../../hooks/usePagePreview';
 import { usePdfStore } from '../../store/pdfStore';
 import { useUiStore } from '../../store/uiStore';
 import type { PageEdit, PdfPage } from '../../types/pdf';
 import { cn } from '../../utils/cn';
 import { createId } from '../../utils/id';
 import { Button } from '../common/Button';
-import { Modal } from '../common/Modal';
-import { usePagePreview } from '../../hooks/usePagePreview';
 
-type Tool = 'select' | 'replace' | 'text' | 'whiteout' | 'highlight' | 'box' | 'draw' | 'image';
+type Tool = 'select' | 'replace' | 'text' | 'image' | 'draw' | 'highlight' | 'box' | 'whiteout';
 type TextEdit = Extract<PageEdit, { kind: 'text' }>;
 type RectEdit = Extract<PageEdit, { kind: 'whiteout' | 'highlight' | 'box' }>;
 
 const TOOLS: { value: Tool; label: string; icon: LucideIcon; hint: string }[] = [
-  { value: 'select', label: 'Select', icon: MousePointer2, hint: 'Click an edit to change it. Drag to move it.' },
-  { value: 'replace', label: 'Edit text', icon: TextCursorInput, hint: 'Click a line of text on the page to retype it.' },
-  { value: 'text', label: 'Add text', icon: Type, hint: 'Click where the text should go, then type.' },
-  { value: 'whiteout', label: 'White-out', icon: Eraser, hint: 'Drag over what you want to hide.' },
-  { value: 'highlight', label: 'Highlight', icon: Highlighter, hint: 'Drag over the text to highlight.' },
-  { value: 'box', label: 'Box', icon: Square, hint: 'Drag to draw a box.' },
-  { value: 'draw', label: 'Draw', icon: PenLine, hint: 'Draw freehand with your mouse, finger or pen.' },
-  { value: 'image', label: 'Picture', icon: ImagePlus, hint: 'Pick a picture, then drag it into place.' },
+  { value: 'select', label: 'Select', icon: MousePointer2, hint: 'Pick a tool above, or tap a change on the page to move or restyle it.' },
+  { value: 'replace', label: 'Edit text', icon: TextCursorInput, hint: 'Tap any highlighted line to retype it. New text uses a standard font.' },
+  { value: 'text', label: 'Add text', icon: Type, hint: 'Tap the page where the text should go, then type.' },
+  { value: 'image', label: 'Image', icon: ImagePlus, hint: 'Tap the page to pick a picture, then drag it into place.' },
+  { value: 'draw', label: 'Draw', icon: PenLine, hint: 'Draw with your mouse, finger or pen.' },
+  { value: 'highlight', label: 'Highlight', icon: Highlighter, hint: 'Drag over the text to highlight it.' },
+  { value: 'box', label: 'Shape', icon: Square, hint: 'Drag to draw a rectangle.' },
+  { value: 'whiteout', label: 'White-out', icon: Eraser, hint: 'Drag over anything you want to hide.' },
 ];
 
 const COLORS = ['#000000', '#4b5563', '#dc2626', '#2563eb', '#16a34a', '#ca8a04', '#ffffff'];
 const HIGHLIGHTS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74'];
+const THICKNESS = [
+  { value: 0.002, label: 'Thin' },
+  { value: 0.004, label: 'Medium' },
+  { value: 0.008, label: 'Thick' },
+];
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
 const ZOOM_STEP = 0.25;
+const HISTORY_LIMIT = 100;
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+
+/** The last-used text style and colours, kept across pages so new edits look like the previous one. */
+interface EditStyle {
+  size: number;
+  color: string;
+  font: TextEdit['font'];
+  bold: boolean;
+  italic: boolean;
+  highlight: string;
+  ink: string;
+  thickness: number;
+  shape: string;
+}
+
+const DEFAULT_STYLE: EditStyle = {
+  size: 12,
+  color: '#000000',
+  font: 'sans',
+  bold: false,
+  italic: false,
+  highlight: HIGHLIGHTS[0],
+  ink: '#1d4ed8',
+  thickness: 0.004,
+  shape: '#dc2626',
+};
 
 type Drag =
   | { kind: 'move'; id: string; startX: number; startY: number; start: PageEdit }
@@ -107,7 +148,15 @@ async function readPicture(file: File) {
   return { blob, url: URL.createObjectURL(blob), ...size };
 }
 
-function IconButton({ label, icon: Icon, active, onClick, disabled }: { label: string; icon: LucideIcon; active?: boolean; onClick: () => void; disabled?: boolean }) {
+function IconButton({ label, icon: Icon, active, onClick, disabled, compact, round }: {
+  label: string;
+  icon: LucideIcon;
+  active?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  compact?: boolean;
+  round?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -117,7 +166,9 @@ function IconButton({ label, icon: Icon, active, onClick, disabled }: { label: s
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:opacity-40',
+        'inline-flex shrink-0 items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-35',
+        compact ? 'h-8 w-8' : 'h-9 w-9',
+        round ? 'rounded-full' : 'rounded-lg',
         active ? 'bg-accent-soft text-accent-text ring-1 ring-accent/40' : 'text-muted hover:bg-surface-2 hover:text-fg',
       )}
     >
@@ -128,7 +179,7 @@ function IconButton({ label, icon: Icon, active, onClick, disabled }: { label: s
 
 function Swatches({ colors, value, onChange, label }: { colors: string[]; value: string; onChange: (c: string) => void; label: string }) {
   return (
-    <div role="group" aria-label={label} className="flex items-center gap-1">
+    <div role="group" aria-label={label} className="flex shrink-0 items-center gap-1.5">
       {colors.map((c) => (
         <button
           key={c}
@@ -148,17 +199,174 @@ function Swatches({ colors, value, onChange, label }: { colors: string[]; value:
   );
 }
 
-function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
+const Divider = () => <span aria-hidden className="h-6 w-px shrink-0 bg-border" />;
+
+interface TextLook {
+  font: TextEdit['font'];
+  sizePt: number;
+  bold: boolean;
+  italic: boolean;
+  color: string;
+  align?: TextEdit['align'];
+}
+
+/** Font, size, style, alignment and colour, for the selected text box or the next one. */
+function TextControls({ value, onChange }: { value: TextLook; onChange: (patch: Partial<TextLook>) => void }) {
+  return (
+    <>
+      <select
+        aria-label="Font"
+        value={value.font}
+        onChange={(e) => onChange({ font: e.target.value as TextEdit['font'] })}
+        className="h-9 shrink-0 rounded-lg border border-border bg-surface px-2 text-sm text-fg"
+      >
+        <option value="sans">Helvetica</option>
+        <option value="serif">Times</option>
+        <option value="mono">Courier</option>
+      </select>
+      <div className="flex shrink-0 items-center rounded-lg border border-border bg-surface">
+        <button
+          type="button"
+          aria-label="Smaller text"
+          onClick={() => onChange({ sizePt: clamp(value.sizePt - 1, 4, 200) })}
+          className="h-9 w-8 text-muted hover:text-fg"
+        >
+          −
+        </button>
+        <input
+          type="number"
+          aria-label="Text size in points"
+          min={4}
+          max={200}
+          step={0.5}
+          value={value.sizePt}
+          onChange={(e) => onChange({ sizePt: clamp(Number(e.target.value) || 12, 4, 200) })}
+          className="tabular h-9 w-11 border-x border-border bg-transparent text-center text-sm text-fg [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button
+          type="button"
+          aria-label="Bigger text"
+          onClick={() => onChange({ sizePt: clamp(value.sizePt + 1, 4, 200) })}
+          className="h-9 w-8 text-muted hover:text-fg"
+        >
+          +
+        </button>
+      </div>
+      <div className="flex shrink-0 gap-0.5">
+        <IconButton label="Bold" icon={Bold} active={value.bold} onClick={() => onChange({ bold: !value.bold })} />
+        <IconButton label="Italic" icon={Italic} active={value.italic} onClick={() => onChange({ italic: !value.italic })} />
+      </div>
+      {value.align && (
+        <div className="flex shrink-0 gap-0.5">
+          <IconButton label="Align left" icon={AlignLeft} active={value.align === 'left'} onClick={() => onChange({ align: 'left' })} />
+          <IconButton label="Align center" icon={AlignCenter} active={value.align === 'center'} onClick={() => onChange({ align: 'center' })} />
+          <IconButton label="Align right" icon={AlignRight} active={value.align === 'right'} onClick={() => onChange({ align: 'right' })} />
+        </div>
+      )}
+      <Divider />
+      <Swatches colors={COLORS.slice(0, 6)} value={value.color} label="Text colour" onChange={(color) => onChange({ color })} />
+    </>
+  );
+}
+
+function ThicknessPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div role="group" aria-label="Line width" className="flex shrink-0 gap-0.5 rounded-lg border border-border bg-surface p-0.5">
+      {THICKNESS.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          aria-pressed={value === t.value}
+          onClick={() => onChange(t.value)}
+          className={cn('rounded-md px-2.5 py-1 text-xs font-medium', value === t.value ? 'bg-accent-soft text-accent-text' : 'text-muted hover:text-fg')}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Every page of the document, to jump between them without leaving the editor. */
+function PageRail({ current, editsHere, onPick }: { current: string; editsHere: number; onPick: (id: string) => void }) {
+  const pages = usePdfStore((s) => s.pages);
+  const activeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [current]);
+  return (
+    <nav aria-label="Pages" className="hidden w-32 shrink-0 overflow-y-auto border-r border-border bg-surface p-3 md:block lg:w-40">
+      <ol className="space-y-3">
+        {pages.map((p, i) => {
+          const active = p.id === current;
+          const edited = active ? editsHere > 0 : !!p.edits?.length;
+          return (
+            <li key={p.id}>
+              <button
+                ref={active ? activeRef : undefined}
+                type="button"
+                onClick={() => !active && onPick(p.id)}
+                aria-current={active ? 'page' : undefined}
+                aria-label={`Page ${i + 1}${edited ? ', edited' : ''}`}
+                className="group block w-full text-left"
+              >
+                <span
+                  className={cn(
+                    'relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-lg border bg-white p-1 transition-shadow',
+                    active ? 'border-accent ring-2 ring-accent' : 'border-border group-hover:border-border-strong',
+                  )}
+                >
+                  {p.thumbUrl ? (
+                    <img src={p.thumbUrl} alt="" draggable={false} className="h-full w-full object-contain" style={{ transform: `rotate(${p.rotation}deg)` }} />
+                  ) : (
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" aria-hidden />
+                  )}
+                  {edited && (
+                    <span className="absolute top-1 right-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-accent-fg" aria-hidden>
+                      <Check className="h-2.5 w-2.5" />
+                    </span>
+                  )}
+                </span>
+                <span className={cn('tabular mt-1 block text-center text-xs', active ? 'font-semibold text-fg' : 'text-muted')}>{i + 1}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+interface EditorProps {
+  page: PdfPage;
+  tool: Tool;
+  setTool: (tool: Tool) => void;
+  style: EditStyle;
+  setStyle: (update: (s: EditStyle) => EditStyle) => void;
+  saveRef: RefObject<(() => void) | null>;
+  onNavigate: (id: string) => void;
+  onClose: () => void;
+  onDownload: () => void;
+}
+
+function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onClose, onDownload }: EditorProps) {
   const preview = usePagePreview(page);
   const source = usePdfStore((s) => s.sources[page.sourceId]);
   const editImages = usePdfStore((s) => s.editImages);
+  const pageIds = usePdfStore((s) => s.pages.map((p) => p.id).join(','));
+  const busy = usePdfStore((s) => !!s.busy);
+  const order = pageIds.split(',');
+  const position = order.indexOf(page.id);
   const [edits, setEdits] = useState<PageEdit[]>(() => page.edits ?? []);
+  const [past, setPast] = useState<PageEdit[][]>([]);
+  const [future, setFuture] = useState<PageEdit[][]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tool, setTool] = useState<Tool>('select');
   const [lines, setLines] = useState<PageTextLine[] | null>(null);
   const [pageHeightPt, setPageHeightPt] = useState(842);
   const [box, setBox] = useState({ w: 0, h: 0 });
+  const [fit, setFit] = useState({ w: 0, h: 0 });
   const [zoom, setZoom] = useState(1);
+  const editsRef = useRef(edits);
   const boxRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -176,17 +384,57 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const sampler = useRef<{ ctx: CanvasRenderingContext2D; w: number; h: number } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  // The last-used text style and colours, so new edits look like the previous one.
-  const [style, setStyle] = useState({ size: 12, color: '#000000', font: 'sans' as TextEdit['font'], bold: false, italic: false, highlight: HIGHLIGHTS[0], ink: '#1d4ed8' });
-  const remember = (patch: Partial<typeof style>) => setStyle((s) => ({ ...s, ...patch }));
+  const remember = (patch: Partial<EditStyle>) => setStyle((s) => ({ ...s, ...patch }));
+  editsRef.current = edits;
 
   const current = edits.find((e) => e.id === selected) ?? null;
+
+  /** Remembers the page as it is now, so the next change can be undone. */
+  const checkpoint = () => {
+    setPast((p) => [...p.slice(-(HISTORY_LIMIT - 1)), editsRef.current]);
+    setFuture([]);
+  };
+  /** Forgets the last checkpoint if nothing changed after it, such as a tap that did not drag. */
+  const dropUnchanged = () => setPast((p) => (p.length && p[p.length - 1] === editsRef.current ? p.slice(0, -1) : p));
+  const undo = () => {
+    if (!past.length) return;
+    setFuture((f) => [editsRef.current, ...f]);
+    setEdits(past[past.length - 1]);
+    setPast((p) => p.slice(0, -1));
+    setSelected(null);
+  };
+  const redo = () => {
+    if (!future.length) return;
+    setPast((p) => [...p, editsRef.current]);
+    setEdits(future[0]);
+    setFuture((f) => f.slice(1));
+    setSelected(null);
+  };
+
   const update = (id: string, patch: Partial<PageEdit>) =>
     setEdits((list) => list.map((e) => (e.id === id ? ({ ...e, ...patch } as PageEdit) : e)));
+  /** A change made from the toolbar: one undo step each. */
+  const change = (id: string, patch: Partial<PageEdit>) => {
+    checkpoint();
+    update(id, patch);
+  };
   const remove = (id: string) => {
+    checkpoint();
     setEdits((list) => list.filter((e) => e.id !== id));
     setSelected(null);
   };
+
+  // The page's edits go to the store when the editor closes or moves to another page.
+  useEffect(() => {
+    saveRef.current = () => {
+      // Empty text boxes that cover nothing are dropped.
+      const kept = editsRef.current.filter((e) => !(e.kind === 'text' && !e.text.trim() && !e.background));
+      usePdfStore.getState().updatePage(page.id, { edits: kept });
+    };
+    return () => {
+      saveRef.current = null;
+    };
+  }, [page.id, saveRef]);
 
   // Page size in points, to show text sizes the way people know them.
   useEffect(() => {
@@ -196,16 +444,38 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       .then((p) => setPageHeightPt(p.getViewport({ scale: 1, rotation: (p.rotate + page.rotation) % 360 }).height));
   }, [source, page.index, page.rotation]);
 
+  // The room the page has, so it starts fitted to the screen.
+  useLayoutEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setFit({
+        w: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        h: el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const ready = fit.w > 0 && fit.h > 0;
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }));
     observer.observe(el);
     return () => observer.disconnect();
-  }, [preview, zoom]);
+  }, [preview, zoom, ready]);
 
-  const pageRatioRef = useRef(0.75);
-  const widthFor = (z: number) => `min(${z * 100}%, calc(62dvh * ${pageRatioRef.current} * ${z}))`;
+  const pageRatio = preview ? preview.width / preview.height : 0.75;
+  const fitRef = useRef(fit);
+  const pageRatioRef = useRef(pageRatio);
+  fitRef.current = fit;
+  pageRatioRef.current = pageRatio;
+  const widthFor = (z: number) => `${Math.max(1, Math.min(fitRef.current.w, fitRef.current.h * pageRatioRef.current)) * z}px`;
 
   /** Resizes the page in place, keeping the point under (clientX, clientY). No React render. */
   const applyZoom = (next: number, clientX: number, clientY: number) => {
@@ -314,6 +584,8 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       drag.current = null;
       setEdits((list) => list.filter((ed) => ed.id !== started.id));
       setSelected((id) => (id === started.id ? null : id));
+      // The checkpoint taken when the stroke began belongs to nothing now.
+      setPast((p) => p.slice(0, -1));
     } else {
       drag.current = null;
     }
@@ -357,6 +629,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
 
   const addText = (edit: Omit<TextEdit, 'id' | 'kind'>) => {
     const id = createId();
+    checkpoint();
     setEdits((list) => [...list, { id, kind: 'text', ...edit }]);
     setSelected(id);
     setFocusId(id);
@@ -370,6 +643,10 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       return;
     }
     if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.surface) return;
+    if (tool === 'image') {
+      fileRef.current?.click();
+      return;
+    }
     const p = point(e);
     const s = style;
     if (tool === 'text') {
@@ -389,7 +666,8 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     }
     if (tool === 'whiteout' || tool === 'highlight' || tool === 'box') {
       const id = createId();
-      const color = tool === 'whiteout' ? '#ffffff' : tool === 'highlight' ? s.highlight : s.color === '#ffffff' ? '#000000' : s.color;
+      const color = tool === 'whiteout' ? '#ffffff' : tool === 'highlight' ? s.highlight : s.shape;
+      checkpoint();
       setEdits((list) => [...list, { id, kind: tool, x: p.x, y: p.y, width: 0, height: 0, color }]);
       setSelected(id);
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -398,7 +676,8 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     }
     if (tool === 'draw') {
       const id = createId();
-      setEdits((list) => [...list, { id, kind: 'draw', strokes: [[[p.x, p.y]]], color: s.ink, thickness: 0.004 }]);
+      checkpoint();
+      setEdits((list) => [...list, { id, kind: 'draw', strokes: [[[p.x, p.y]]], color: s.ink, thickness: s.thickness }]);
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = { kind: 'draw', id };
       return;
@@ -416,6 +695,7 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     if (tool !== 'select') setTool('select');
     const p = point(e);
     boxRef.current!.setPointerCapture(e.pointerId);
+    checkpoint();
     drag.current = { kind, id: edit.id, startX: p.x, startY: p.y, start: edit };
   };
 
@@ -458,6 +738,8 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
             : ed,
         ),
       );
+    } else if (d?.kind === 'move' || d?.kind === 'resize') {
+      dropUnchanged();
     }
   };
 
@@ -481,7 +763,10 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
   };
 
   const onPicture = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file) {
+      setTool('select');
+      return;
+    }
     try {
       const picture = await readPicture(file);
       const id = createId();
@@ -490,17 +775,40 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       const width = 0.3;
       const height = preview ? (width * preview.width * aspect) / preview.height : width * aspect;
       const editId = createId();
+      checkpoint();
       setEdits((list) => [...list, { id: editId, kind: 'image', x: 0.35, y: clamp(0.4 - height / 2, 0, 0.9), width, height, imageId: id }]);
       setSelected(editId);
-      setTool('select');
     } catch {
       useUiStore.getState().pushNotice({ tone: 'error', title: "Couldn't open that picture", message: 'Try a JPG or PNG.' });
     }
+    setTool('select');
   };
 
+  // Shortcuts. Escape first lets go of the selection or tool; only then does it close the editor.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!selected || (e.target as HTMLElement).closest('textarea, input, select')) return;
+      const typing = !!(e.target as HTMLElement).closest('textarea, input, select');
+      const mod = e.metaKey || e.ctrlKey;
+      if (e.key === 'Escape' && (selected || tool !== 'select')) {
+        e.preventDefault();
+        if (typing) (e.target as HTMLElement).blur();
+        setSelected(null);
+        setTool('select');
+        return;
+      }
+      if (typing) return;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (!selected) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         remove(selected);
@@ -509,26 +817,34 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
       const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
       if (moves[e.key]) {
         e.preventDefault();
+        checkpoint();
         setEdits((list) => list.map((ed) => (ed.id === selected ? moveEdit(ed, ...moves[e.key]) : ed)));
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected]);
+    // Capture, so this runs before the dialog's own Escape handler.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
 
-  const save = () => {
-    // Empty text boxes that cover nothing are dropped.
-    const kept = edits.filter((e) => !(e.kind === 'text' && !e.text.trim() && !e.background));
-    usePdfStore.getState().updatePage(page.id, { edits: kept });
-    onClose();
+  const pickTool = (value: Tool) => {
+    setTool(value);
+    if (value !== 'select') setSelected(null);
+    if (value === 'image') fileRef.current?.click();
   };
 
-  const hint = TOOLS.find((t) => t.value === tool)!.hint;
-  const replaceUnavailable = tool === 'replace' && source?.kind !== 'pdf';
+  const replaceStatus =
+    tool !== 'replace'
+      ? null
+      : source?.kind !== 'pdf'
+        ? 'Photos have no text to edit. Use Add text and White-out instead.'
+        : !lines
+          ? 'Finding text…'
+          : lines.length === 0
+            ? 'No text found. This page may be a scan: use White-out and Add text.'
+            : null;
+  const hint = replaceStatus ?? (current ? null : TOOLS.find((t) => t.value === tool)!.hint);
   const px = (fraction: number) => fraction * box.h;
   const drawing = tool === 'whiteout' || tool === 'highlight' || tool === 'box' || tool === 'draw';
-  const pageRatio = preview ? preview.width / preview.height : 0.75;
-  pageRatioRef.current = pageRatio;
 
   const onViewPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -585,43 +901,124 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
     }
   };
 
-  return (
-    <Modal
-      open
-      size="wide"
-      onClose={onClose}
-      title="Edit page"
-      description="Changes are kept in this tab until you download the PDF."
-      footer={
+  const prevId = position > 0 ? order[position - 1] : null;
+  const nextId = position < order.length - 1 ? order[position + 1] : null;
+
+  // What the properties bar shows: the selected change's style, or the style the current tool will use.
+  let properties: ReactNode = null;
+  if (current?.kind === 'text') {
+    properties = (
+      <TextControls
+        value={{ font: current.font, sizePt: Math.round(current.size * pageHeightPt * 2) / 2, bold: current.bold, italic: current.italic, color: current.color, align: current.align }}
+        onChange={({ sizePt, align, ...look }) => {
+          remember({ ...look, ...(sizePt ? { size: sizePt } : {}) });
+          change(current.id, { ...look, ...(align ? { align } : {}), ...(sizePt ? { size: sizePt / pageHeightPt } : {}) });
+        }}
+      />
+    );
+    if (current.background) {
+      properties = (
         <>
-          <p className="mr-auto self-center text-xs text-muted">
-            {edits.length ? `${edits.length} change${edits.length === 1 ? '' : 's'} on this page` : 'No changes yet'}
-          </p>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={save}>
-            Save changes
-          </Button>
+          {properties}
+          <label className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted" title="Colour that covers the original text">
+            Cover
+            <input type="color" value={current.background} onChange={(e) => change(current.id, { background: e.target.value })} className="h-7 w-9 cursor-pointer rounded border border-border" />
+          </label>
         </>
-      }
-    >
-      <div className="space-y-3">
-        <div role="toolbar" aria-label="Edit tools" className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface-2 p-1">
+      );
+    }
+  } else if (current?.kind === 'highlight') {
+    properties = (
+      <Swatches colors={HIGHLIGHTS} value={current.color} label="Highlight colour" onChange={(color) => {
+        remember({ highlight: color });
+        change(current.id, { color });
+      }} />
+    );
+  } else if (current?.kind === 'box') {
+    properties = (
+      <Swatches colors={COLORS.slice(0, 6)} value={current.color} label="Shape colour" onChange={(color) => {
+        remember({ shape: color });
+        change(current.id, { color });
+      }} />
+    );
+  } else if (current?.kind === 'whiteout') {
+    properties = <Swatches colors={COLORS} value={current.color} label="Fill colour" onChange={(color) => change(current.id, { color })} />;
+  } else if (current?.kind === 'draw') {
+    properties = (
+      <>
+        <Swatches colors={COLORS.slice(0, 6)} value={current.color} label="Ink colour" onChange={(color) => {
+          remember({ ink: color });
+          change(current.id, { color });
+        }} />
+        <ThicknessPicker value={current.thickness} onChange={(thickness) => {
+          remember({ thickness });
+          change(current.id, { thickness });
+        }} />
+      </>
+    );
+  } else if (!current && tool === 'text') {
+    properties = (
+      <TextControls
+        value={{ font: style.font, sizePt: style.size, bold: style.bold, italic: style.italic, color: style.color }}
+        onChange={({ sizePt, ...look }) => remember({ ...look, ...(sizePt ? { size: sizePt } : {}) })}
+      />
+    );
+  } else if (!current && tool === 'draw') {
+    properties = (
+      <>
+        <Swatches colors={COLORS.slice(0, 6)} value={style.ink} label="Ink colour" onChange={(ink) => remember({ ink })} />
+        <ThicknessPicker value={style.thickness} onChange={(thickness) => remember({ thickness })} />
+      </>
+    );
+  } else if (!current && tool === 'highlight') {
+    properties = <Swatches colors={HIGHLIGHTS} value={style.highlight} label="Highlight colour" onChange={(highlight) => remember({ highlight })} />;
+  } else if (!current && tool === 'box') {
+    properties = <Swatches colors={COLORS.slice(0, 6)} value={style.shape} label="Shape colour" onChange={(shape) => remember({ shape })} />;
+  }
+
+  return (
+    <>
+      {/* Top bar: close, file, pages, undo and redo, finish. */}
+      <header className="flex h-14 shrink-0 items-center gap-1 border-b border-border bg-surface px-2 sm:gap-2 sm:px-3">
+        <IconButton label="Close editor (changes are kept)" icon={X} onClick={onClose} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-fg">Edit PDF</p>
+          <p className="truncate text-xs text-muted">{source?.name}</p>
+        </div>
+        <div className="flex shrink-0 items-center rounded-lg border border-border">
+          <IconButton label="Previous page" icon={ChevronLeft} disabled={!prevId} onClick={() => prevId && onNavigate(prevId)} compact />
+          <span className="tabular px-1 text-xs font-medium whitespace-nowrap text-fg" aria-live="polite">
+            <span className="hidden sm:inline">Page </span>
+            {position + 1} / {order.length}
+          </span>
+          <IconButton label="Next page" icon={ChevronRight} disabled={!nextId} onClick={() => nextId && onNavigate(nextId)} compact />
+        </div>
+        <Divider />
+        <IconButton label="Undo (Ctrl+Z)" icon={Undo2} disabled={!past.length} onClick={undo} />
+        <IconButton label="Redo (Ctrl+Shift+Z)" icon={Redo2} disabled={!future.length} onClick={redo} />
+        <Button variant="secondary" size="sm" className="ml-1 hidden sm:inline-flex" onClick={onClose}>
+          Done
+        </Button>
+        <Button variant="primary" size="sm" aria-label="Download PDF" onClick={onDownload} disabled={busy} icon={<Download className="h-4 w-4" aria-hidden />}>
+          <span className="hidden sm:inline">Download</span>
+        </Button>
+      </header>
+
+      {/* Tools: big, labelled, one tap each. */}
+      <div className="shrink-0 overflow-x-auto border-b border-border bg-surface">
+        <div role="toolbar" aria-label="Edit tools" className="mx-auto flex w-max gap-1 px-2 py-1.5">
           {TOOLS.map((t) => (
             <button
               key={t.value}
               type="button"
               aria-pressed={tool === t.value}
-              onClick={() => {
-                setTool(t.value);
-                if (t.value !== 'select') setSelected(null);
-                if (t.value === 'image') fileRef.current?.click();
-              }}
+              onClick={() => pickTool(t.value)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
-                tool === t.value ? 'bg-surface text-fg shadow-sm ring-1 ring-border' : 'text-muted hover:text-fg',
+                'flex min-w-16 flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-colors sm:min-w-[4.5rem]',
+                tool === t.value ? 'bg-accent-soft text-accent-text' : 'text-muted hover:bg-surface-2 hover:text-fg',
               )}
             >
-              <t.icon className={cn('h-3.5 w-3.5', tool === t.value && 'text-accent-text')} aria-hidden />
+              <t.icon className="h-5 w-5" aria-hidden />
               {t.label}
             </button>
           ))}
@@ -630,321 +1027,253 @@ function Editor({ page, onClose }: { page: PdfPage; onClose: () => void }) {
             e.target.value = '';
           }} />
         </div>
+      </div>
 
-        <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-2" aria-live="polite">
-          {current?.kind === 'text' ? (
-            <>
-              <select
-                aria-label="Font"
-                value={current.font}
-                onChange={(e) => {
-                  const font = e.target.value as TextEdit['font'];
-                  remember({ font });
-                  update(current.id, { font });
-                }}
-                className="h-8 rounded-lg border border-border bg-surface px-2 text-xs text-fg"
-              >
-                <option value="sans">Helvetica</option>
-                <option value="serif">Times</option>
-                <option value="mono">Courier</option>
-              </select>
-              <label className="inline-flex items-center gap-1 text-xs text-muted">
-                Size
-                <input
-                  type="number"
-                  min={4}
-                  max={200}
-                  step={0.5}
-                  value={Math.round(current.size * pageHeightPt * 2) / 2}
-                  onChange={(e) => {
-                    const pt = clamp(Number(e.target.value) || 12, 4, 200);
-                    remember({ size: pt });
-                    update(current.id, { size: pt / pageHeightPt });
-                  }}
-                  className="tabular h-8 w-16 rounded-lg border border-border bg-surface px-2 text-xs text-fg"
-                />
-              </label>
-              <div className="flex gap-0.5">
-                <IconButton label="Bold" icon={Bold} active={current.bold} onClick={() => {
-                  remember({ bold: !current.bold });
-                  update(current.id, { bold: !current.bold });
-                }} />
-                <IconButton label="Italic" icon={Italic} active={current.italic} onClick={() => {
-                  remember({ italic: !current.italic });
-                  update(current.id, { italic: !current.italic });
-                }} />
-                <IconButton label="Align left" icon={AlignLeft} active={current.align === 'left'} onClick={() => update(current.id, { align: 'left' })} />
-                <IconButton label="Align center" icon={AlignCenter} active={current.align === 'center'} onClick={() => update(current.id, { align: 'center' })} />
-                <IconButton label="Align right" icon={AlignRight} active={current.align === 'right'} onClick={() => update(current.id, { align: 'right' })} />
-              </div>
-              <Swatches colors={COLORS.slice(0, 6)} value={current.color} label="Text colour" onChange={(color) => {
-                remember({ color });
-                update(current.id, { color });
-              }} />
-              {current.background && (
-                <label className="inline-flex items-center gap-1.5 text-xs text-muted" title="Colour that covers the original text">
-                  Cover
-                  <input type="color" value={current.background} onChange={(e) => update(current.id, { background: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-border" />
-                </label>
-              )}
-            </>
-          ) : current?.kind === 'highlight' ? (
-            <Swatches colors={HIGHLIGHTS} value={current.color} label="Highlight colour" onChange={(color) => {
-              remember({ highlight: color });
-              update(current.id, { color });
-            }} />
-          ) : current?.kind === 'box' || current?.kind === 'whiteout' ? (
-            <Swatches colors={COLORS} value={current.color} label={current.kind === 'box' ? 'Box colour' : 'Fill colour'} onChange={(color) => update(current.id, { color })} />
-          ) : current?.kind === 'draw' ? (
-            <>
-              <Swatches colors={COLORS.slice(0, 6)} value={current.color} label="Ink colour" onChange={(color) => {
-                remember({ ink: color });
-                update(current.id, { color });
-              }} />
-              <select
-                aria-label="Line width"
-                value={String(current.thickness)}
-                onChange={(e) => update(current.id, { thickness: Number(e.target.value) })}
-                className="h-8 rounded-lg border border-border bg-surface px-2 text-xs text-fg"
-              >
-                <option value="0.002">Thin</option>
-                <option value="0.004">Medium</option>
-                <option value="0.008">Thick</option>
-              </select>
-            </>
-          ) : tool === 'draw' ? (
-            <Swatches colors={COLORS.slice(0, 6)} value={style.ink} label="Ink colour" onChange={(ink) => remember({ ink })} />
-          ) : (
-            <p className="text-xs text-muted">{replaceUnavailable ? 'Photos have no text to edit. Use Add text and White-out instead.' : hint}</p>
-          )}
-          {current && (
-            <Button variant="danger" size="sm" className="ml-auto" onClick={() => remove(current.id)} icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}>
-              Delete
-            </Button>
-          )}
+      {/* Properties of the selection, or of what the tool will make. */}
+      {(properties || current) && (
+        <div className="shrink-0 overflow-x-auto border-b border-border bg-surface-2/60">
+          <div className="mx-auto flex w-max min-w-full items-center justify-center gap-3 px-3 py-2" aria-live="polite">
+            {properties}
+            {current && (
+              <>
+                {properties && <Divider />}
+                <Button variant="danger" size="sm" onClick={() => remove(current.id)} icon={<Trash2 className="h-4 w-4" aria-hidden />}>
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
         </div>
+      )}
 
-        <div className="flex items-center justify-center gap-1">
-          <IconButton
-            label="Zoom out"
-            icon={ZoomOut}
-            disabled={zoom <= ZOOM_MIN}
-            onClick={() => {
-              const c = viewCenter();
-              glideZoom(shownRef.current - ZOOM_STEP, c.x, c.y);
-            }}
-          />
-          <span ref={zoomLabel} className="tabular min-w-12 text-center text-xs font-medium text-fg">
-            {Math.round(zoom * 100)}%
-          </span>
-          <IconButton
-            label="Zoom in"
-            icon={ZoomIn}
-            disabled={zoom >= ZOOM_MAX}
-            onClick={() => {
-              const c = viewCenter();
-              glideZoom(shownRef.current + ZOOM_STEP, c.x, c.y);
-            }}
-          />
-          {zoom !== 1 && (
+      <div className="flex min-h-0 flex-1">
+        <PageRail current={page.id} editsHere={edits.length} onPick={onNavigate} />
+
+        <main className="relative min-w-0 flex-1 bg-surface-2">
+          <div
+            ref={viewRef}
+            onPointerDown={onViewPointerDown}
+            onPointerMove={onViewPointerMove}
+            onPointerUp={onViewPointerUp}
+            onPointerCancel={onViewPointerUp}
+            className="absolute inset-0 flex touch-none overflow-auto overscroll-contain p-4 sm:p-8"
+          >
+            {ready && (
+              <div
+                ref={boxRef}
+                data-surface="1"
+                onPointerDown={onBoxDown}
+                onPointerMove={onMove}
+                onPointerUp={onUp}
+                onPointerCancel={onUp}
+                className={cn(
+                  'relative m-auto shrink-0 overflow-hidden bg-white shadow-[0_2px_12px_rgb(0_0_0/0.15)] select-none',
+                  drawing && 'touch-none',
+                  tool === 'text' && 'cursor-text',
+                  drawing && 'cursor-crosshair',
+                )}
+                style={{ width: widthFor(zoom), aspectRatio: preview ? `${preview.width} / ${preview.height}` : '3 / 4' }}
+              >
+                {preview ? (
+                  <img src={preview.url} alt="" draggable={false} data-surface="1" className="pointer-events-none absolute inset-0 h-full w-full" />
+                ) : (
+                  <p className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading page…
+                  </p>
+                )}
+
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
+                  {edits.map((ed) =>
+                    ed.kind === 'draw'
+                      ? ed.strokes.map((s, i) => (
+                          <polyline
+                            key={`${ed.id}-${i}`}
+                            points={s.map(([x, y]) => `${x},${y}`).join(' ')}
+                            fill="none"
+                            stroke={ed.color}
+                            strokeWidth={ed.thickness * box.w}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))
+                      : null,
+                  )}
+                </svg>
+
+                {edits.map((ed) => {
+                  if (ed.kind === 'draw') {
+                    const xs = ed.strokes.flat().map((p) => p[0]);
+                    const ys = ed.strokes.flat().map((p) => p[1]);
+                    const x = Math.min(...xs);
+                    const y = Math.min(...ys);
+                    // An invisible box over the drawing, to select and move it.
+                    return (
+                      <div
+                        key={ed.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Drawing. Drag to move, Delete removes it."
+                        onPointerDown={(e) => onItemDown(e, ed)}
+                        onFocus={() => setSelected(ed.id)}
+                        className={cn('absolute cursor-move rounded-sm', selected === ed.id && 'outline-1 outline-accent outline-dashed', tool === 'draw' && 'pointer-events-none')}
+                        style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${(Math.max(...xs) - x) * 100 + 0.5}%`, height: `${(Math.max(...ys) - y) * 100 + 0.5}%` }}
+                      />
+                    );
+                  }
+                  const isSel = selected === ed.id;
+                  const common = cn(
+                    'group absolute',
+                    tool === 'draw' && 'pointer-events-none',
+                    isSel ? 'outline-2 outline-accent outline-solid' : 'hover:outline-1 hover:outline-accent/60 hover:outline-dashed',
+                  );
+                  const handle = isSel && (
+                    <span
+                      aria-hidden
+                      onPointerDown={(e) => onItemDown(e, ed, 'resize')}
+                      className="absolute -right-2.5 -bottom-2.5 z-10 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-accent shadow"
+                    />
+                  );
+                  if (ed.kind === 'text') {
+                    const font = `${ed.italic ? 'italic ' : ''}${ed.bold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${EDIT_CSS_FONT[ed.font]}`;
+                    const textStyle = { font, color: ed.color, textAlign: ed.align } as const;
+                    return (
+                      <div
+                        key={ed.id}
+                        onPointerDown={(e) => onItemDown(e, ed)}
+                        className={cn(common, !isSel && 'cursor-move')}
+                        style={{
+                          left: `${ed.x * 100}%`,
+                          top: `${ed.y * 100}%`,
+                          width: `${ed.width * 100}%`,
+                          minHeight: ed.coverHeight ? `${ed.coverHeight * 100}%` : undefined,
+                          background: ed.background,
+                        }}
+                      >
+                        {isSel ? (
+                          <>
+                            <TextArea
+                              edit={ed}
+                              style={textStyle}
+                              autoFocus={focusId === ed.id}
+                              onFocused={() => setFocusId(null)}
+                              onFocus={checkpoint}
+                              onBlur={dropUnchanged}
+                              onChange={(text) => update(ed.id, { text })}
+                            />
+                            <span
+                              aria-hidden
+                              onPointerDown={(e) => onItemDown(e, ed)}
+                              className="absolute -top-3.5 -left-3.5 z-10 inline-flex h-7 w-7 cursor-move items-center justify-center rounded-full bg-accent text-accent-fg shadow"
+                            >
+                              <Move className="h-3.5 w-3.5" />
+                            </span>
+                          </>
+                        ) : (
+                          <div className="break-words whitespace-pre-wrap" style={textStyle}>
+                            {ed.text || <span className="text-gray-400">Type here</span>}
+                          </div>
+                        )}
+                        {handle}
+                      </div>
+                    );
+                  }
+                  const rectStyle = { left: `${ed.x * 100}%`, top: `${ed.y * 100}%`, width: `${ed.width * 100}%`, height: `${ed.height * 100}%` };
+                  return (
+                    <div
+                      key={ed.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${ed.kind === 'image' ? 'Picture' : ed.kind === 'whiteout' ? 'White-out' : ed.kind === 'highlight' ? 'Highlight' : 'Shape'}. Drag to move, Delete removes it.`}
+                      onFocus={() => setSelected(ed.id)}
+                      onPointerDown={(e) => onItemDown(e, ed)}
+                      className={cn(common, 'cursor-move')}
+                      style={{
+                        ...rectStyle,
+                        background: ed.kind === 'whiteout' ? ed.color : ed.kind === 'highlight' ? ed.color : undefined,
+                        mixBlendMode: ed.kind === 'highlight' ? 'multiply' : undefined,
+                        opacity: ed.kind === 'highlight' ? 0.55 : undefined,
+                        border: ed.kind === 'box' ? `${Math.max(1, (1.5 / pageHeightPt) * box.h)}px solid ${ed.color}` : undefined,
+                      }}
+                    >
+                      {ed.kind === 'image' && editImages[ed.imageId] && (
+                        <img src={editImages[ed.imageId].url} alt="" draggable={false} className="pointer-events-none h-full w-full" />
+                      )}
+                      {handle}
+                    </div>
+                  );
+                })}
+
+                {tool === 'replace' &&
+                  (lines ?? []).map((line, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`Edit text: ${line.text}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => onReplace(line)}
+                      className="absolute rounded-sm bg-accent/10 outline-1 outline-accent/40 transition-colors outline-dashed hover:bg-accent/25"
+                      style={{ left: `${line.x * 100}%`, top: `${line.y * 100}%`, width: `${line.width * 100}%`, height: `${line.height * 100}%` }}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {hint && (
+            <p className="pointer-events-none absolute inset-x-0 top-3 z-10 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-1.5 rounded-full bg-black/75 px-3 py-1.5 text-xs text-white shadow-lg" aria-live="polite">
+              {replaceStatus === 'Finding text…' ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden /> : <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+              {hint}
+            </p>
+          )}
+
+          <div className="absolute right-3 bottom-3 z-10 flex items-center gap-0.5 rounded-full border border-border bg-surface/95 p-1 shadow-lg backdrop-blur">
+            <IconButton
+              label="Zoom out"
+              icon={ZoomOut}
+              disabled={zoom <= ZOOM_MIN}
+              round
+              onClick={() => {
+                const c = viewCenter();
+                glideZoom(shownRef.current - ZOOM_STEP, c.x, c.y);
+              }}
+            />
             <button
               type="button"
+              title="Fit page"
               onClick={() => {
                 const c = viewCenter();
                 glideZoom(1, c.x, c.y);
               }}
-              className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-surface-2 hover:text-fg"
+              className="tabular min-w-12 rounded-full px-1 py-1.5 text-center text-xs font-medium text-fg hover:bg-surface-2"
             >
-              Fit
+              <span ref={zoomLabel}>{Math.round(zoom * 100)}%</span>
             </button>
-          )}
-        </div>
-        <p className="text-center text-[11px] text-subtle">Pinch or double-tap to zoom. Drag the page to move around.</p>
-
-        <div
-          ref={viewRef}
-          onPointerDown={onViewPointerDown}
-          onPointerMove={onViewPointerMove}
-          onPointerUp={onViewPointerUp}
-          onPointerCancel={onViewPointerUp}
-          className="max-h-[62dvh] touch-none overflow-auto overscroll-contain rounded-xl"
-        >
-        <div
-          ref={boxRef}
-          data-surface="1"
-          onPointerDown={onBoxDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          className={cn(
-            'relative mx-auto overflow-hidden rounded-xl border border-border bg-white select-none',
-            drawing && 'touch-none',
-            tool === 'text' && 'cursor-text',
-            drawing && 'cursor-crosshair',
-          )}
-          style={{
-            width: `min(${zoom * 100}%, calc(62dvh * ${pageRatio} * ${zoom}))`,
-            aspectRatio: preview ? `${preview.width} / ${preview.height}` : '3 / 4',
-          }}
-        >
-          {preview ? (
-            <img src={preview.url} alt="" draggable={false} data-surface="1" className="pointer-events-none absolute inset-0 h-full w-full" />
-          ) : (
-            <p className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading page…
-            </p>
-          )}
-
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
-            {edits.map((ed) =>
-              ed.kind === 'draw'
-                ? ed.strokes.map((s, i) => (
-                    <polyline
-                      key={`${ed.id}-${i}`}
-                      points={s.map(([x, y]) => `${x},${y}`).join(' ')}
-                      fill="none"
-                      stroke={ed.color}
-                      strokeWidth={ed.thickness * box.w}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  ))
-                : null,
-            )}
-          </svg>
-
-          {edits.map((ed) => {
-            if (ed.kind === 'draw') {
-              const xs = ed.strokes.flat().map((p) => p[0]);
-              const ys = ed.strokes.flat().map((p) => p[1]);
-              const x = Math.min(...xs);
-              const y = Math.min(...ys);
-              // An invisible box over the drawing, to select and move it.
-              return (
-                <div
-                  key={ed.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Drawing. Drag to move, Delete removes it."
-                  onPointerDown={(e) => onItemDown(e, ed)}
-                  onFocus={() => setSelected(ed.id)}
-                  className={cn('absolute cursor-move rounded-sm', selected === ed.id && 'outline-1 outline-accent outline-dashed', tool === 'draw' && 'pointer-events-none')}
-                  style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${(Math.max(...xs) - x) * 100 + 0.5}%`, height: `${(Math.max(...ys) - y) * 100 + 0.5}%` }}
-                />
-              );
-            }
-            const isSel = selected === ed.id;
-            const common = cn(
-              'group absolute',
-              tool === 'draw' && 'pointer-events-none',
-              isSel ? 'outline-2 outline-accent outline-solid' : 'hover:outline-1 hover:outline-accent/60 hover:outline-dashed',
-            );
-            const handle = isSel && (
-              <span
-                aria-hidden
-                onPointerDown={(e) => onItemDown(e, ed, 'resize')}
-                className="absolute -right-2 -bottom-2 z-10 h-4 w-4 cursor-nwse-resize rounded-full border-2 border-white bg-accent shadow"
-              />
-            );
-            if (ed.kind === 'text') {
-              const font = `${ed.italic ? 'italic ' : ''}${ed.bold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${EDIT_CSS_FONT[ed.font]}`;
-              const textStyle = { font, color: ed.color, textAlign: ed.align } as const;
-              return (
-                <div
-                  key={ed.id}
-                  onPointerDown={(e) => onItemDown(e, ed)}
-                  className={cn(common, !isSel && 'cursor-move')}
-                  style={{
-                    left: `${ed.x * 100}%`,
-                    top: `${ed.y * 100}%`,
-                    width: `${ed.width * 100}%`,
-                    minHeight: ed.coverHeight ? `${ed.coverHeight * 100}%` : undefined,
-                    background: ed.background,
-                  }}
-                >
-                  {isSel ? (
-                    <>
-                      <TextArea edit={ed} style={textStyle} autoFocus={focusId === ed.id} onFocused={() => setFocusId(null)} onChange={(text) => update(ed.id, { text })} />
-                      <span
-                        aria-hidden
-                        onPointerDown={(e) => onItemDown(e, ed)}
-                        className="absolute -top-3 -left-3 z-10 inline-flex h-6 w-6 cursor-move items-center justify-center rounded-full bg-accent text-accent-fg shadow"
-                      >
-                        <Move className="h-3 w-3" />
-                      </span>
-                    </>
-                  ) : (
-                    <div className="break-words whitespace-pre-wrap" style={textStyle}>
-                      {ed.text || <span className="text-gray-400">Type here</span>}
-                    </div>
-                  )}
-                  {handle}
-                </div>
-              );
-            }
-            const rectStyle = { left: `${ed.x * 100}%`, top: `${ed.y * 100}%`, width: `${ed.width * 100}%`, height: `${ed.height * 100}%` };
-            return (
-              <div
-                key={ed.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`${ed.kind === 'image' ? 'Picture' : ed.kind === 'whiteout' ? 'White-out' : ed.kind === 'highlight' ? 'Highlight' : 'Box'}. Drag to move, Delete removes it.`}
-                onFocus={() => setSelected(ed.id)}
-                onPointerDown={(e) => onItemDown(e, ed)}
-                className={cn(common, 'cursor-move')}
-                style={{
-                  ...rectStyle,
-                  background: ed.kind === 'whiteout' ? ed.color : ed.kind === 'highlight' ? ed.color : undefined,
-                  mixBlendMode: ed.kind === 'highlight' ? 'multiply' : undefined,
-                  opacity: ed.kind === 'highlight' ? 0.55 : undefined,
-                  border: ed.kind === 'box' ? `${Math.max(1, (1.5 / pageHeightPt) * box.h)}px solid ${ed.color}` : undefined,
-                }}
-              >
-                {ed.kind === 'image' && editImages[ed.imageId] && (
-                  <img src={editImages[ed.imageId].url} alt="" draggable={false} className="pointer-events-none h-full w-full" />
-                )}
-                {handle}
-              </div>
-            );
-          })}
-
-          {tool === 'replace' &&
-            (lines ?? []).map((line, i) => (
-              <button
-                key={i}
-                type="button"
-                aria-label={`Edit text: ${line.text}`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => onReplace(line)}
-                className="absolute rounded-sm bg-accent/10 outline-1 outline-accent/40 transition-colors outline-dashed hover:bg-accent/25"
-                style={{ left: `${line.x * 100}%`, top: `${line.y * 100}%`, width: `${line.width * 100}%`, height: `${line.height * 100}%` }}
-              />
-            ))}
-          {tool === 'replace' && source?.kind === 'pdf' && !lines && (
-            <p className="absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-black/70 px-3 py-1 text-xs text-white">Finding text…</p>
-          )}
-          {tool === 'replace' && lines?.length === 0 && (
-            <p className="absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-black/70 px-3 py-1 text-xs text-white">
-              No text found. This page may be a scan: use White-out and Add text.
-            </p>
-          )}
-        </div>
-        </div>
-        <p className="text-center text-xs text-muted">
-          Replaced text is covered and retyped in a standard font, so it may look slightly different from the original.
-        </p>
+            <IconButton
+              label="Zoom in"
+              icon={ZoomIn}
+              disabled={zoom >= ZOOM_MAX}
+              round
+              onClick={() => {
+                const c = viewCenter();
+                glideZoom(shownRef.current + ZOOM_STEP, c.x, c.y);
+              }}
+            />
+          </div>
+        </main>
       </div>
-    </Modal>
+    </>
   );
 }
 
 /** A textarea that grows with its text, styled like the text it edits. */
-function TextArea({ edit, style, autoFocus, onFocused, onChange }: {
+function TextArea({ edit, style, autoFocus, onFocused, onFocus, onBlur, onChange }: {
   edit: TextEdit;
   style: { font: string; color: string; textAlign: 'left' | 'center' | 'right' };
   autoFocus: boolean;
   onFocused: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
   onChange: (text: string) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -968,6 +1297,8 @@ function TextArea({ edit, style, autoFocus, onFocused, onChange }: {
       rows={1}
       placeholder="Type here"
       aria-label="Text"
+      onFocus={onFocus}
+      onBlur={onBlur}
       onChange={(e) => onChange(e.target.value)}
       className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 outline-none placeholder:text-gray-400"
       style={{ ...style, touchAction: 'auto' }}
@@ -975,11 +1306,54 @@ function TextArea({ edit, style, autoFocus, onFocused, onChange }: {
   );
 }
 
-/** Opens for the page whose Edit button was pressed. */
+/**
+ * The full-screen editor, opened on the page whose Edit button was pressed. Moving to another
+ * page, closing or downloading keeps every change; Undo takes back mistakes.
+ */
 export function EditDialog() {
   const pageId = usePdfStore((s) => s.editingPageId);
   const page = usePdfStore((s) => s.pages.find((p) => p.id === pageId));
-  const close = () => usePdfStore.getState().setEditingPage(null);
+  const [tool, setTool] = useState<Tool>('select');
+  const [style, setStyle] = useState<EditStyle>(DEFAULT_STYLE);
+  const saveRef = useRef<(() => void) | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const open = !!page;
+
+  const close = () => {
+    saveRef.current?.();
+    usePdfStore.getState().setEditingPage(null);
+  };
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  // A stable callback, so the dialog hook does not restart on every render.
+  const [onDialogClose] = useState(() => () => closeRef.current());
+  useDialog(open, onDialogClose, panelRef);
+
   if (!page) return null;
-  return <Editor key={page.id} page={page} onClose={close} />;
+  const navigate = (id: string) => {
+    saveRef.current?.();
+    usePdfStore.getState().setEditingPage(id);
+  };
+  const download = () => {
+    close();
+    void savePdf(usePdfStore.getState().pages);
+  };
+
+  return createPortal(
+    <div ref={panelRef} role="dialog" aria-modal="true" aria-label="Edit PDF" className="fixed inset-0 z-50 flex flex-col bg-bg">
+      <Editor
+        key={page.id}
+        page={page}
+        tool={tool}
+        setTool={setTool}
+        style={style}
+        setStyle={setStyle}
+        saveRef={saveRef}
+        onNavigate={navigate}
+        onClose={close}
+        onDownload={download}
+      />
+    </div>,
+    document.body,
+  );
 }

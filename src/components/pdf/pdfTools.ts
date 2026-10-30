@@ -23,7 +23,7 @@ import {
 import { usePdfSettingsStore } from '../../store/pdfStore';
 import type { PdfImageFormat } from '../../types/pdf';
 
-export type PdfTab = 'save' | 'edit' | 'split' | 'crop' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'clean' | 'ocr';
+export type PdfTab = 'save' | 'edit' | 'split' | 'crop' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'unlock' | 'clean' | 'ocr';
 
 export interface PdfToolInfo {
   value: PdfTab;
@@ -136,6 +136,15 @@ export const PDF_TOOLS: PdfToolInfo[] = [
     icon: Lock,
   },
   {
+    value: 'unlock',
+    label: 'Unlock',
+    name: 'Unlock PDF',
+    description: 'Remove the password and the printing, copying and editing limits from a PDF.',
+    dropTitle: 'Drop a password-protected PDF',
+    badges: PDF_ONLY,
+    icon: LockOpen,
+  },
+  {
     value: 'clean',
     label: 'Clean',
     name: 'Remove hidden data',
@@ -196,14 +205,6 @@ const PDF_SHORTCUTS: Record<string, PdfJob> = {
     badges: PDF_ONLY,
     icon: Stamp,
     apply: () => settings().update({ watermark: { ...settings().watermark, enabled: true } }),
-  },
-  unlock: {
-    tab: 'save',
-    name: 'Unlock PDF',
-    description: 'Add the locked PDF and type its password when asked. The copy you save has no password.',
-    dropTitle: 'Drop a password-protected PDF',
-    badges: PDF_ONLY,
-    icon: LockOpen,
   },
   jpg: {
     tab: 'images',

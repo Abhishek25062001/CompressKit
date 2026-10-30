@@ -120,6 +120,14 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
     });
   }, [variant]);
 
+  // Edit PDF goes straight into the editor once the first PDF is in, like other online editors.
+  useEffect(() => {
+    if (variant !== 'edit') return;
+    return usePdfStore.subscribe((state, previous) => {
+      if (previous.pages.length === 0 && state.pages.length > 0 && !state.editingPageId) state.setEditingPage(state.pages[0].id);
+    });
+  }, [variant]);
+
   // Paste photos or PDFs anywhere on the page while the PDF tool is open.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
