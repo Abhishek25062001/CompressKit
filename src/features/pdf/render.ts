@@ -1,3 +1,4 @@
+import type { PDFPageProxy } from 'pdfjs-dist';
 import { canvasToBlob, createCanvas, cropCanvas, getContext, releaseCanvas, type AnyCanvas } from '../image/canvas';
 import { decodeImage } from '../image/decode';
 import type { PdfPage, PdfSource, ScanSettings } from '../../types/pdf';
@@ -67,6 +68,30 @@ export async function renderPage(
   await pdfPage.render({ canvas, viewport, background: background ?? undefined }).promise;
   pdfPage.cleanup();
   return canvas;
+}
+
+/** Part of a page, in pixels of the page drawn at the requested width. */
+export interface PageRegion {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Starts drawing one part of a PDF page onto a new canvas, with the page as a whole `pixelsWide`
+ * across. Zooming stays sharp this way: only what is on screen is drawn, at the screen's own
+ * resolution, however large the whole page would be.
+ */
+export function renderPdfRegion(pdfPage: PDFPageProxy, extraRotation: number, pixelsWide: number, region: PageRegion) {
+  const rotation = (pdfPage.rotate + extraRotation) % 360;
+  const scale = pixelsWide / pdfPage.getViewport({ scale: 1, rotation }).width;
+  const viewport = pdfPage.getViewport({ scale, rotation, offsetX: -region.left, offsetY: -region.top });
+  const canvas = document.createElement('canvas');
+  canvas.width = region.width;
+  canvas.height = region.height;
+  const task = pdfPage.render({ canvas, viewport, background: '#ffffff' });
+  return { canvas, done: task.promise, cancel: () => task.cancel() };
 }
 
 function fillBehind(canvas: AnyCanvas, color: string): void {

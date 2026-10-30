@@ -43,6 +43,7 @@ import type { PageEdit, PdfPage } from '../../types/pdf';
 import { cn } from '../../utils/cn';
 import { createId } from '../../utils/id';
 import { Button } from '../common/Button';
+import { SharpPage } from './SharpPage';
 
 type Tool = 'select' | 'replace' | 'text' | 'image' | 'draw' | 'highlight' | 'box' | 'whiteout';
 type TextEdit = Extract<PageEdit, { kind: 'text' }>;
@@ -1075,7 +1076,10 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
                 style={{ width: widthFor(zoom), aspectRatio: preview ? `${preview.width} / ${preview.height}` : '3 / 4' }}
               >
                 {preview ? (
-                  <img src={preview.url} alt="" draggable={false} data-surface="1" className="pointer-events-none absolute inset-0 h-full w-full" />
+                  <>
+                    <img src={preview.url} alt="" draggable={false} data-surface="1" className="pointer-events-none absolute inset-0 h-full w-full" />
+                    <SharpPage page={page} previewWidth={preview.width} boxRef={boxRef} viewRef={viewRef} />
+                  </>
                 ) : (
                   <p className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-gray-500">
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading page…
