@@ -1,4 +1,4 @@
-import { Crop, Download, FilePen, Minimize2, PenLine, ScanSearch, Trash2 } from 'lucide-react';
+import { Crop, Download, FilePen, Minimize2, PenLine, Replace, RotateCcw, ScanSearch, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { cn } from '../../utils/cn';
 import { useShallow } from 'zustand/react/shallow';
@@ -293,10 +293,52 @@ function EditTab({ target, count, busy }: { target: PdfPage[]; count: string; bu
   });
   const first = usePdfStore((s) => (s.pages.find((p) => p.selected) ?? s.pages[0])?.id);
   const firstNumber = usePdfStore((s) => Math.max(1, s.pages.findIndex((p) => p.id === first) + 1));
-  const { setEditingPage, pages } = usePdfStore.getState();
+  const { setEditingPage, setBulkEditing, undoLastBulkEdit, pages } = usePdfStore.getState();
+  const lastBulkEdit = usePdfStore((s) => s.lastBulkEdit);
   const flattenCovered = usePdfSettingsStore((s) => s.flattenCovered);
   return (
     <>
+      <div className="rounded-xl border border-accent/30 bg-accent-soft/25 p-3.5 space-y-2.5">
+        <div className="flex items-start gap-2.5">
+          <div className="rounded-lg bg-accent-soft p-1.5 text-accent-text">
+            <Replace className="h-4 w-4" aria-hidden />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-fg">Bulk Find & Edit</p>
+            <p className="text-[11px] text-muted">
+              Scan the entire PDF to find and update repeated names, text or increment/decrement numbers in one click.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="w-full font-medium"
+          disabled={busy || !pages.length}
+          onClick={() => setBulkEditing(true)}
+          icon={<Replace className="h-3.5 w-3.5 text-accent-text" aria-hidden />}
+        >
+          Bulk Find & Replace / Numbers
+        </Button>
+      </div>
+
+      {lastBulkEdit && (
+        <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2/40 p-2.5 text-xs text-fg">
+          <div className="min-w-0 pr-2">
+            <p className="truncate font-medium">{lastBulkEdit.description}</p>
+            <p className="text-[11px] text-muted">{lastBulkEdit.affectedCount} occurrence{lastBulkEdit.affectedCount === 1 ? '' : 's'} updated</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={undoLastBulkEdit}
+            icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+          >
+            Undo
+          </Button>
+        </div>
+      )}
+
       <p className="flex gap-2 text-xs text-muted">
         <FilePen className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
         Open the editor to change text, add text and pictures, white out, highlight or draw. Move between pages inside it.

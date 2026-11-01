@@ -38,6 +38,7 @@ import {
   PenLine,
   Pilcrow,
   Presentation,
+  Replace,
   Scaling,
   ScanLine,
   ScanText,
@@ -434,6 +435,15 @@ export const FEATURES: Feature[] = [
     category: 'pdf',
     icon: FilePen,
     keywords: 'text annotate whiteout highlight',
+  },
+  {
+    key: 'bulk-edit-pdf',
+    name: 'Bulk edit PDF',
+    description: 'Find and replace repeated text, names, or update numbers across all PDF pages.',
+    to: '/pdf#bulk-edit',
+    category: 'pdf',
+    icon: Replace,
+    keywords: 'find replace bulk update numbers increment names repeated text search',
   },
   {
     key: 'sign-pdf',

@@ -17,6 +17,7 @@ import {
   Move,
   PenLine,
   Redo2,
+  Replace,
   RotateCw,
   Square,
   TextCursorInput,
@@ -457,6 +458,11 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
       saveRef.current = null;
     };
   }, [page.id, saveRef]);
+
+  // If external store edits change (e.g. from bulk edit), update local editor state
+  useEffect(() => {
+    setEdits(page.edits ?? []);
+  }, [page.edits]);
 
   // Page size in points, to show text sizes the way people know them.
   useEffect(() => {
@@ -1059,6 +1065,18 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
         <Divider />
         <IconButton label="Undo (Ctrl+Z)" icon={Undo2} disabled={!past.length} onClick={undo} />
         <IconButton label="Redo (Ctrl+Shift+Z)" icon={Redo2} disabled={!future.length} onClick={redo} />
+        <Divider />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            saveRef.current?.();
+            usePdfStore.getState().setBulkEditing(true);
+          }}
+          icon={<Replace className="h-3.5 w-3.5 text-accent-text" aria-hidden />}
+        >
+          <span className="hidden lg:inline">Bulk </span>Find & Replace
+        </Button>
         <Button variant="secondary" size="sm" className="ml-1 hidden sm:inline-flex" onClick={onClose}>
           Done
         </Button>

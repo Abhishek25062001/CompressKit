@@ -10,6 +10,7 @@ import { useRouteStore } from '../../store/routeStore';
 import { Button } from '../common/Button';
 import { ProgressBar } from '../common/ProgressBar';
 import { FileDropZone } from '../upload/DropZone';
+import { BulkEditDialog } from './BulkEditDialog';
 import { CropDialog } from './CropDialog';
 import { EditDialog } from './EditDialog';
 import { MergePanel } from './MergePanel';
@@ -160,6 +161,7 @@ export function PdfWorkspace({ variant = 'pdf' }: { variant?: 'pdf' | 'edit' | '
     <>
       <SignDialog />
       <EditDialog />
+      <BulkEditDialog />
       <CropDialog />
       <ScanDialog />
       <PasswordDialog />

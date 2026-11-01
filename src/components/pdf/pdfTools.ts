@@ -14,13 +14,14 @@ import {
   LockOpen,
   Minimize2,
   PenLine,
+  Replace,
   ScanLine,
   ScanText,
   Scissors,
   Stamp,
   type LucideIcon,
 } from 'lucide-react';
-import { usePdfSettingsStore } from '../../store/pdfStore';
+import { usePdfSettingsStore, usePdfStore } from '../../store/pdfStore';
 import type { PdfImageFormat } from '../../types/pdf';
 
 export type PdfTab = 'save' | 'edit' | 'split' | 'crop' | 'images' | 'compress' | 'sign' | 'scan' | 'forms' | 'protect' | 'unlock' | 'clean' | 'ocr';
@@ -180,6 +181,15 @@ const pagesAs = (imageFormat: PdfImageFormat) => () => settings().update({ image
  * above: the page names the job above the drop zone and opens its tab with the right setting on.
  */
 const PDF_SHORTCUTS: Record<string, PdfJob> = {
+  'bulk-edit': {
+    tab: 'edit',
+    name: 'Bulk edit PDF',
+    description: 'Find and replace text or update numbers across every page of your PDF at once.',
+    dropTitle: 'Drop a PDF to bulk edit',
+    badges: PDF_ONLY,
+    icon: Replace,
+    apply: () => usePdfStore.getState().setBulkEditing(true),
+  },
   organize: {
     tab: 'save',
     name: 'Organize pages',

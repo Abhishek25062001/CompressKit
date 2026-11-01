@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { FieldValue } from '../features/pdf/forms';
-import type { PageRotation, PdfPage, PdfSettings, PdfSource, SignatureAsset, SignaturePlacement } from '../types/pdf';
+import type { PageEdit, PageRotation, PdfPage, PdfSettings, PdfSource, SignatureAsset, SignaturePlacement } from '../types/pdf';
 import type { DocModel } from '../features/docs/model';
 import { createId } from '../utils/id';
 
@@ -21,6 +21,17 @@ interface PdfState {
   signingPageId: string | null;
   /** Page whose Edit PDF dialog is open. */
   editingPageId: string | null;
+  /** Whether the bulk find & replace / edit dialog is open. */
+  bulkEditing: boolean;
+  setBulkEditing: (open: boolean) => void;
+  /** Info about the last bulk edit, for undoing. */
+  lastBulkEdit: {
+    description: string;
+    affectedCount: number;
+    pageEditsBackup: Record<string, PageEdit[] | undefined>;
+  } | null;
+  setLastBulkEdit: (info: { description: string; affectedCount: number; pageEditsBackup: Record<string, PageEdit[] | undefined> } | null) => void;
+  undoLastBulkEdit: () => void;
   /** Page whose crop dialog is open. */
   croppingPageId: string | null;
   setCroppingPage: (id: string | null) => void;
@@ -74,6 +85,24 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   signingPageId: null,
   editingPageId: null,
   setEditingPage: (editingPageId) => set({ editingPageId }),
+  bulkEditing: false,
+  setBulkEditing: (bulkEditing) => set({ bulkEditing }),
+  lastBulkEdit: null,
+  setLastBulkEdit: (lastBulkEdit) => set({ lastBulkEdit }),
+  undoLastBulkEdit: () => {
+    const last = get().lastBulkEdit;
+    if (!last) return;
+    const { pageEditsBackup } = last;
+    set((s) => ({
+      pages: s.pages.map((p) => {
+        if (p.id in pageEditsBackup) {
+          return { ...p, edits: pageEditsBackup[p.id] ? [...pageEditsBackup[p.id]!] : [] };
+        }
+        return p;
+      }),
+      lastBulkEdit: null,
+    }));
+  },
   croppingPageId: null,
   setCroppingPage: (croppingPageId) => set({ croppingPageId }),
   editImages: {},

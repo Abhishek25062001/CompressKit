@@ -114,8 +114,9 @@ async function drawText(lib: Lib, doc: PDFDocument, page: PDFPage, edit: TextEdi
 
   if (edit.background) {
     const h = Math.max(textHeight, (edit.coverHeight ?? 0) * view.height);
+    const boxWidth = edit.coverWidth ? edit.coverWidth * view.width : width;
     drawBox(lib, view, place(0, h), -angle, (at, rotate) =>
-      page.drawRectangle({ x: at.x, y: at.y, width, height: h, rotate, color: rgbOf(lib, edit.background!) }),
+      page.drawRectangle({ x: at.x, y: at.y, width: boxWidth, height: h, rotate, color: rgbOf(lib, edit.background!) }),
     );
   }
 
