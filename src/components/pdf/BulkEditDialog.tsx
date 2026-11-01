@@ -1,7 +1,9 @@
 import {
   ArrowRight,
+  Calculator,
   Check,
   CheckSquare,
+  CornerDownRight,
   Hash,
   Loader2,
   Minus,
@@ -10,6 +12,8 @@ import {
   Search,
   Sparkles,
   Square,
+  TrendingDown,
+  TrendingUp,
   Type,
   Undo2,
 } from 'lucide-react';
@@ -17,11 +21,13 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   applyBulkMatches,
+  parseFinancialValue,
   scanPdfForMatches,
   type BulkMatchOccurrence,
   type BulkMode,
   type BulkSearchOptions,
   type NumberOperation,
+  type TransactionDirection,
 } from '../../features/pdf/bulkEdit';
 import { usePdfStore } from '../../store/pdfStore';
 import { cn } from '../../utils/cn';
@@ -39,7 +45,7 @@ export function BulkEditDialog() {
     })),
   );
 
-  const [mode, setMode] = useState<BulkMode>('text');
+  const [mode, setMode] = useState<BulkMode>('transaction');
 
   // Text search state
   const [textQuery, setTextQuery] = useState('');
@@ -47,11 +53,19 @@ export function BulkEditDialog() {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
 
+  // Transaction & Financial state
+  const [transQuery, setTransQuery] = useState('3100');
+  const [contextFilter, setContextFilter] = useState('Student Fees');
+  const [transDirection, setTransDirection] = useState<TransactionDirection>('auto');
+  const [newValueStr, setNewValueStr] = useState('3500');
+  const [adjustByStr, setAdjustByStr] = useState('+400');
+  const [updateBalances, setUpdateBalances] = useState(true);
+
   // Number search state
   const [findNumber, setFindNumber] = useState('100');
   const [findAllNumbers, setFindAllNumbers] = useState(false);
   const [numberOp, setNumberOp] = useState<NumberOperation>('add');
-  const [numberDelta, setNumberDelta] = useState<number>(5);
+  const [numberDeltaStr, setNumberDeltaStr] = useState('5');
 
   // Scope & results
   const [scope, setScope] = useState<'all' | 'selected'>('all');
@@ -60,27 +74,57 @@ export function BulkEditDialog() {
   const [scanProgress, setScanProgress] = useState('');
   const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
 
-  const searchInputId = useId();
-  const replaceInputId = useId();
-  const numInputId = useId();
-  const deltaInputId = useId();
+  const textSearchInputId = useId();
+  const textReplaceInputId = useId();
+  const transAmountInputId = useId();
+  const transContextInputId = useId();
+  const newValueInputId = useId();
+  const adjustByInputId = useId();
+  const numFindInputId = useId();
+  const numDeltaInputId = useId();
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setBulkEditing(false);
+  }, [setBulkEditing]);
+
+  // Synchronize New Value and Adjust By inputs when user types in either
+  const handleNewValueChange = (val: string) => {
+    setNewValueStr(val);
+    const parsedOriginal = parseFinancialValue(transQuery) || { number: parseFloat(transQuery.replace(/[^\d.]/g, '')) };
+    const parsedNew = parseFinancialValue(val) || { number: parseFloat(val.replace(/[^\d.]/g, '')) };
+
+    if (!Number.isNaN(parsedOriginal.number) && !Number.isNaN(parsedNew.number)) {
+      const diff = parsedNew.number - parsedOriginal.number;
+      setAdjustByStr(diff >= 0 ? `+${diff}` : `${diff}`);
+    }
+  };
+
+  const handleAdjustByChange = (val: string) => {
+    setAdjustByStr(val);
+    const parsedOriginal = parseFinancialValue(transQuery) || { number: parseFloat(transQuery.replace(/[^\d.]/g, '')) };
+    const diff = parseFloat(val);
+
+    if (!Number.isNaN(parsedOriginal.number) && !Number.isNaN(diff)) {
+      const calcNew = parsedOriginal.number + diff;
+      setNewValueStr(String(calcNew));
+    }
   };
 
   // Perform search / scanning across PDF pages
   const runScan = useCallback(async () => {
-    const isText = mode === 'text';
-    const effectiveQuery = isText ? textQuery.trim() : findNumber.trim();
-
-    if (isText && !effectiveQuery) {
+    if (mode === 'text' && !textQuery.trim()) {
       setMatches([]);
       setAppliedNotice(null);
       return;
     }
 
-    if (!isText && !findAllNumbers && !effectiveQuery) {
+    if (mode === 'transaction' && !transQuery.trim()) {
+      setMatches([]);
+      setAppliedNotice(null);
+      return;
+    }
+
+    if (mode === 'number' && !findAllNumbers && !findNumber.trim()) {
       setMatches([]);
       setAppliedNotice(null);
       return;
@@ -89,16 +133,25 @@ export function BulkEditDialog() {
     setScanning(true);
     setAppliedNotice(null);
 
+    const parsedNewAmount = parseFloat(newValueStr.replace(/[^\d.-]/g, ''));
+    const parsedAdjustBy = parseFloat(adjustByStr.replace(/[^\d.-]/g, ''));
+    const parsedDelta = parseFloat(numberDeltaStr) || 0;
+
     const options: BulkSearchOptions = {
       mode,
-      query: effectiveQuery,
+      query: mode === 'text' ? textQuery.trim() : mode === 'transaction' ? transQuery.trim() : findNumber.trim(),
       replacement: textReplacement,
+      contextFilter: mode === 'transaction' ? contextFilter.trim() : undefined,
+      transactionDirection: transDirection,
+      newAmount: Number.isNaN(parsedNewAmount) ? undefined : parsedNewAmount,
+      adjustBy: Number.isNaN(parsedAdjustBy) ? undefined : parsedAdjustBy,
+      updateBalances,
       numberOp,
-      numberDelta,
+      numberDelta: parsedDelta,
       caseSensitive,
       wholeWord,
       scope: hasSelectedPages ? scope : 'all',
-      findAllNumbers: !isText && findAllNumbers,
+      findAllNumbers: mode === 'number' && findAllNumbers,
     };
 
     try {
@@ -123,10 +176,16 @@ export function BulkEditDialog() {
     textReplacement,
     caseSensitive,
     wholeWord,
+    transQuery,
+    contextFilter,
+    transDirection,
+    newValueStr,
+    adjustByStr,
+    updateBalances,
     findNumber,
     findAllNumbers,
     numberOp,
-    numberDelta,
+    numberDeltaStr,
     scope,
     hasSelectedPages,
     pages,
@@ -165,10 +224,14 @@ export function BulkEditDialog() {
     const toApply = matches.filter((m) => m.selected);
     if (!toApply.length) return;
 
-    const desc =
-      mode === 'text'
-        ? `Replaced "${textQuery}" with "${textReplacement}"`
-        : `Adjusted numbers (${numberOp === 'add' ? `+${numberDelta}` : numberOp === 'subtract' ? `-${numberDelta}` : `to ${numberDelta}`})`;
+    let desc = '';
+    if (mode === 'text') {
+      desc = `Replaced "${textQuery}" with "${textReplacement}"`;
+    } else if (mode === 'transaction') {
+      desc = `Updated transaction to ${newValueStr} and recalculated balances (${adjustByStr})`;
+    } else {
+      desc = `Adjusted numbers (${numberOp === 'add' ? `+${numberDeltaStr}` : numberOp === 'subtract' ? `-${numberDeltaStr}` : `to ${numberDeltaStr}`})`;
+    }
 
     const count = applyBulkMatches(pages, toApply, desc);
     const affectedPages = new Set(toApply.map((m) => m.pageNumber)).size;
@@ -177,7 +240,6 @@ export function BulkEditDialog() {
       `Updated ${count} occurrence${count === 1 ? '' : 's'} across ${affectedPages} page${affectedPages === 1 ? '' : 's'}!`,
     );
 
-    // Re-scan to update the view
     void runScan();
   };
 
@@ -187,7 +249,7 @@ export function BulkEditDialog() {
     void runScan();
   };
 
-  // Group matches by page for clear layout
+  // Group matches by page
   const matchesByPage = matches.reduce<Record<number, BulkMatchOccurrence[]>>((acc, m) => {
     acc[m.pageNumber] = acc[m.pageNumber] || [];
     acc[m.pageNumber].push(m);
@@ -202,8 +264,8 @@ export function BulkEditDialog() {
     <Modal
       open={open}
       onClose={handleClose}
-      title="Bulk Edit PDF"
-      description="Find and edit repeated names, text or numerical values across all pages in one click."
+      title="Intelligent PDF Bulk Editor"
+      description="Update transactions with automatic balance recalculation, or bulk replace text and numbers."
       size="wide"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
@@ -215,7 +277,7 @@ export function BulkEditDialog() {
                 onClick={handleUndo}
                 icon={<RotateCcw className="h-4 w-4" aria-hidden />}
               >
-                Undo last bulk change
+                Undo last edit ({lastBulkEdit.affectedCount} values)
               </Button>
             )}
           </div>
@@ -237,7 +299,7 @@ export function BulkEditDialog() {
               }
             >
               {selectedCount > 0
-                ? `Apply to ${selectedCount} selected match${selectedCount === 1 ? '' : 'es'}`
+                ? `Apply to ${selectedCount} selected change${selectedCount === 1 ? '' : 's'}`
                 : 'Apply changes'}
             </Button>
           </div>
@@ -250,18 +312,34 @@ export function BulkEditDialog() {
           <button
             type="button"
             onClick={() => {
+              setMode('transaction');
+              setAppliedNotice(null);
+            }}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm',
+              mode === 'transaction'
+                ? 'bg-surface text-fg shadow-sm ring-1 ring-border'
+                : 'text-muted hover:text-fg',
+            )}
+          >
+            <Calculator className="h-4 w-4 text-accent-text" aria-hidden />
+            <span>Transactions & Balances</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               setMode('text');
               setAppliedNotice(null);
             }}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all sm:text-sm',
+              'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm',
               mode === 'text'
                 ? 'bg-surface text-fg shadow-sm ring-1 ring-border'
                 : 'text-muted hover:text-fg',
             )}
           >
             <Type className="h-4 w-4 text-accent-text" aria-hidden />
-            Find & Edit Text
+            <span>Find & Replace Text</span>
           </button>
           <button
             type="button"
@@ -270,35 +348,212 @@ export function BulkEditDialog() {
               setAppliedNotice(null);
             }}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all sm:text-sm',
+              'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm',
               mode === 'number'
                 ? 'bg-surface text-fg shadow-sm ring-1 ring-border'
                 : 'text-muted hover:text-fg',
             )}
           >
             <Hash className="h-4 w-4 text-accent-text" aria-hidden />
-            Bulk Number Editing / Increment
+            <span>Number Increment</span>
           </button>
         </div>
 
-        {/* Inputs panel according to Mode */}
-        {mode === 'text' ? (
+        {/* 1. TRANSACTION & BALANCE MODE */}
+        {mode === 'transaction' && (
+          <div className="space-y-4 rounded-xl border border-border bg-surface p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Find Amount */}
+              <div>
+                <label
+                  htmlFor={transAmountInputId}
+                  className="mb-1 block text-xs font-semibold text-muted uppercase tracking-wide"
+                >
+                  Transaction Amount to Find
+                </label>
+                <div className="relative flex items-center">
+                  <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted" />
+                  <input
+                    id={transAmountInputId}
+                    type="text"
+                    value={transQuery}
+                    onChange={(e) => setTransQuery(e.target.value)}
+                    placeholder="e.g. ₹3,100 or 3100"
+                    className="h-10 w-full rounded-xl border border-border bg-surface-2/30 pl-9 pr-3 text-sm font-semibold text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Context / Label filter (prevents modifying invoice numbers, dates, account numbers) */}
+              <div>
+                <label
+                  htmlFor={transContextInputId}
+                  className="mb-1 block text-xs font-semibold text-muted uppercase tracking-wide"
+                >
+                  Context Filter (protects unrelated numbers)
+                </label>
+                <input
+                  id={transContextInputId}
+                  type="text"
+                  value={contextFilter}
+                  onChange={(e) => setContextFilter(e.target.value)}
+                  placeholder="e.g. Student Fees or Fees (optional)"
+                  className="h-10 w-full rounded-xl border border-border bg-surface-2/30 px-3 text-sm text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Direction: Credit / Income vs Debit / Expense */}
+            <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-surface-2/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs font-medium text-fg">Transaction Type:</span>
+              <div className="flex rounded-lg border border-border bg-surface p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTransDirection('auto')}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium transition-colors',
+                    transDirection === 'auto'
+                      ? 'bg-accent-soft text-accent-text ring-1 ring-accent/30'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  Auto-detect
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransDirection('credit')}
+                  className={cn(
+                    'flex items-center gap-1 rounded-md px-3 py-1 font-medium transition-colors',
+                    transDirection === 'credit'
+                      ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/30 dark:text-emerald-400'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  Credit / Income (+)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransDirection('debit')}
+                  className={cn(
+                    'flex items-center gap-1 rounded-md px-3 py-1 font-medium transition-colors',
+                    transDirection === 'debit'
+                      ? 'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  <TrendingDown className="h-3 w-3" />
+                  Debit / Expense (−)
+                </button>
+              </div>
+            </div>
+
+            {/* Synchronized New Value and Adjust By inputs */}
+            <div className="grid gap-3 rounded-xl border border-accent/25 bg-accent-soft/10 p-3.5 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor={newValueInputId}
+                  className="mb-1 block text-xs font-semibold text-accent-text uppercase tracking-wide"
+                >
+                  New Value
+                </label>
+                <div className="relative flex items-center">
+                  <Sparkles className="pointer-events-none absolute left-3 h-4 w-4 text-accent-text" />
+                  <input
+                    id={newValueInputId}
+                    type="text"
+                    value={newValueStr}
+                    onChange={(e) => handleNewValueChange(e.target.value)}
+                    placeholder="e.g. 3500"
+                    className="h-10 w-full rounded-xl border border-border bg-surface pl-9 pr-3 text-sm font-semibold text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor={adjustByInputId}
+                  className="mb-1 block text-xs font-semibold text-accent-text uppercase tracking-wide"
+                >
+                  Or Adjust By (+/−)
+                </label>
+                <input
+                  id={adjustByInputId}
+                  type="text"
+                  value={adjustByStr}
+                  onChange={(e) => handleAdjustByChange(e.target.value)}
+                  placeholder="e.g. +400 or -600"
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              {/* Quick preset chips */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 pt-1">
+                <span className="text-[11px] text-muted">Quick adjustments:</span>
+                {[
+                  { label: '+100', delta: 100 },
+                  { label: '+400', delta: 400 },
+                  { label: '+500', delta: 500 },
+                  { label: '+1,000', delta: 1000 },
+                  { label: '-100', delta: -100 },
+                  { label: '-600', delta: -600 },
+                  { label: '-1,000', delta: -1000 },
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => handleAdjustByChange(chip.label)}
+                    className="rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted transition-colors hover:border-border-strong hover:text-fg"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Auto balance update toggle */}
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-fg">
+                <input
+                  type="checkbox"
+                  checked={updateBalances}
+                  onChange={(e) => setUpdateBalances(e.target.checked)}
+                  className="rounded border-border text-accent focus:ring-accent"
+                />
+                <span>Automatically update related Balances, Totals, and Net Amounts</span>
+              </label>
+
+              {hasSelectedPages && (
+                <div className="flex items-center gap-1.5 text-xs text-muted">
+                  <span>Scope:</span>
+                  <button
+                    type="button"
+                    onClick={() => setScope(scope === 'all' ? 'selected' : 'all')}
+                    className="font-medium text-accent-text underline-offset-2 hover:underline"
+                  >
+                    {scope === 'all' ? 'All pages' : 'Selected pages'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 2. TEXT REPLACE MODE */}
+        {mode === 'text' && (
           <div className="space-y-4 rounded-xl border border-border bg-surface p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label
-                  htmlFor={searchInputId}
-                  className="mb-1 block text-xs font-medium text-muted uppercase"
+                  htmlFor={textSearchInputId}
+                  className="mb-1 block text-xs font-semibold text-muted uppercase tracking-wide"
                 >
                   Find text or name
                 </label>
                 <div className="relative flex items-center">
-                  <Search
-                    className="pointer-events-none absolute left-3 h-4 w-4 text-muted"
-                    aria-hidden
-                  />
+                  <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted" />
                   <input
-                    id={searchInputId}
+                    id={textSearchInputId}
                     type="text"
                     value={textQuery}
                     onChange={(e) => setTextQuery(e.target.value)}
@@ -310,18 +565,15 @@ export function BulkEditDialog() {
 
               <div>
                 <label
-                  htmlFor={replaceInputId}
-                  className="mb-1 block text-xs font-medium text-muted uppercase"
+                  htmlFor={textReplaceInputId}
+                  className="mb-1 block text-xs font-semibold text-muted uppercase tracking-wide"
                 >
                   Replace with
                 </label>
                 <div className="relative flex items-center">
-                  <Sparkles
-                    className="pointer-events-none absolute left-3 h-4 w-4 text-accent-text"
-                    aria-hidden
-                  />
+                  <Sparkles className="pointer-events-none absolute left-3 h-4 w-4 text-accent-text" />
                   <input
-                    id={replaceInputId}
+                    id={textReplaceInputId}
                     type="text"
                     value={textReplacement}
                     onChange={(e) => setTextReplacement(e.target.value)}
@@ -332,7 +584,6 @@ export function BulkEditDialog() {
               </div>
             </div>
 
-            {/* Search toggles & scope */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex cursor-pointer items-center gap-1.5 text-muted hover:text-fg">
@@ -386,14 +637,17 @@ export function BulkEditDialog() {
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* 3. NUMBER INCREMENT MODE */}
+        {mode === 'number' && (
           <div className="space-y-4 rounded-xl border border-border bg-surface p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <label
-                    htmlFor={numInputId}
-                    className="block text-xs font-medium text-muted uppercase"
+                    htmlFor={numFindInputId}
+                    className="block text-xs font-semibold text-muted uppercase tracking-wide"
                   >
                     Find Number
                   </label>
@@ -408,7 +662,7 @@ export function BulkEditDialog() {
                   </label>
                 </div>
                 <input
-                  id={numInputId}
+                  id={numFindInputId}
                   type="text"
                   disabled={findAllNumbers}
                   value={findNumber}
@@ -419,7 +673,7 @@ export function BulkEditDialog() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted uppercase">
+                <label className="mb-1 block text-xs font-semibold text-muted uppercase tracking-wide">
                   Operation
                 </label>
                 <div className="grid grid-cols-3 gap-1">
@@ -427,7 +681,7 @@ export function BulkEditDialog() {
                     type="button"
                     onClick={() => setNumberOp('add')}
                     className={cn(
-                      'flex h-10 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all',
+                      'flex h-10 items-center justify-center gap-1 rounded-lg border text-xs font-semibold transition-all',
                       numberOp === 'add'
                         ? 'border-accent bg-accent-soft text-accent-text ring-1 ring-accent'
                         : 'border-border bg-surface-2/30 text-muted hover:text-fg',
@@ -440,7 +694,7 @@ export function BulkEditDialog() {
                     type="button"
                     onClick={() => setNumberOp('subtract')}
                     className={cn(
-                      'flex h-10 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all',
+                      'flex h-10 items-center justify-center gap-1 rounded-lg border text-xs font-semibold transition-all',
                       numberOp === 'subtract'
                         ? 'border-accent bg-accent-soft text-accent-text ring-1 ring-accent'
                         : 'border-border bg-surface-2/30 text-muted hover:text-fg',
@@ -453,13 +707,13 @@ export function BulkEditDialog() {
                     type="button"
                     onClick={() => setNumberOp('set')}
                     className={cn(
-                      'flex h-10 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all',
+                      'flex h-10 items-center justify-center gap-1 rounded-lg border text-xs font-semibold transition-all',
                       numberOp === 'set'
                         ? 'border-accent bg-accent-soft text-accent-text ring-1 ring-accent'
                         : 'border-border bg-surface-2/30 text-muted hover:text-fg',
                     )}
                   >
-                    Replace With
+                    Set Value
                   </button>
                 </div>
               </div>
@@ -468,45 +722,44 @@ export function BulkEditDialog() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <label
-                  htmlFor={deltaInputId}
-                  className="text-xs font-medium text-muted whitespace-nowrap uppercase"
+                  htmlFor={numDeltaInputId}
+                  className="text-xs font-semibold text-muted whitespace-nowrap uppercase tracking-wide"
                 >
                   {numberOp === 'add'
-                    ? 'Add (+):'
+                    ? 'Increase By (+):'
                     : numberOp === 'subtract'
-                      ? 'Subtract (-):'
-                      : 'New Value:'}
+                      ? 'Decrease By (−):'
+                      : 'Set Value:'}
                 </label>
                 <input
-                  id={deltaInputId}
-                  type="number"
-                  step="any"
-                  value={numberDelta}
-                  onChange={(e) => setNumberDelta(parseFloat(e.target.value) || 0)}
+                  id={numDeltaInputId}
+                  type="text"
+                  value={numberDeltaStr}
+                  onChange={(e) => setNumberDeltaStr(e.target.value)}
                   className="tabular h-9 w-24 rounded-lg border border-border bg-surface-2/30 px-2 text-center text-sm font-semibold text-fg focus:border-accent focus:outline-none"
                 />
               </div>
 
               {/* Quick Preset Buttons */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-muted">Quick presets:</span>
+                <span className="text-[11px] text-muted">Presets:</span>
                 {[
-                  { op: 'add' as const, delta: 5, label: '+5' },
-                  { op: 'add' as const, delta: 10, label: '+10' },
-                  { op: 'subtract' as const, delta: 2, label: '-2' },
-                  { op: 'subtract' as const, delta: 5, label: '-5' },
-                  { op: 'subtract' as const, delta: 10, label: '-10' },
+                  { op: 'add' as const, delta: '5', label: '+5' },
+                  { op: 'add' as const, delta: '10', label: '+10' },
+                  { op: 'subtract' as const, delta: '2', label: '-2' },
+                  { op: 'subtract' as const, delta: '5', label: '-5' },
+                  { op: 'subtract' as const, delta: '10', label: '-10' },
                 ].map((preset) => (
                   <button
                     key={`${preset.op}-${preset.delta}`}
                     type="button"
                     onClick={() => {
                       setNumberOp(preset.op);
-                      setNumberDelta(preset.delta);
+                      setNumberDeltaStr(preset.delta);
                     }}
                     className={cn(
                       'rounded-md border border-border px-2 py-1 text-xs font-medium transition-colors hover:bg-surface-2 hover:text-fg',
-                      numberOp === preset.op && numberDelta === preset.delta
+                      numberOp === preset.op && numberDeltaStr === preset.delta
                         ? 'bg-accent-soft text-accent-text ring-1 ring-accent/50'
                         : 'text-muted',
                     )}
@@ -519,12 +772,12 @@ export function BulkEditDialog() {
           </div>
         )}
 
-        {/* Success / Status Banner */}
+        {/* Applied Notice Banner */}
         {appliedNotice && (
           <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 shrink-0" />
-              <span>{appliedNotice}</span>
+              <span className="font-medium">{appliedNotice}</span>
             </div>
             {lastBulkEdit && (
               <button
@@ -533,7 +786,7 @@ export function BulkEditDialog() {
                 className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/30 dark:text-emerald-300"
               >
                 <Undo2 className="h-3 w-3" />
-                Undo
+                Undo Changes
               </button>
             )}
           </div>
@@ -543,7 +796,7 @@ export function BulkEditDialog() {
         <div className="flex items-center justify-between border-b border-border pb-2">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-fg">
-              Matching Occurrences
+              Matching Changes & Dependent Balances
             </p>
             {scanning ? (
               <span className="flex items-center gap-1.5 text-xs text-muted">
@@ -580,7 +833,7 @@ export function BulkEditDialog() {
           )}
         </div>
 
-        {/* Results Content List */}
+        {/* Results List */}
         <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
           {matches.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
@@ -588,22 +841,18 @@ export function BulkEditDialog() {
                 <>
                   <Loader2 className="h-8 w-8 animate-spin text-accent-text" />
                   <p className="mt-2 text-sm font-medium text-fg">Scanning PDF pages…</p>
-                  <p className="text-xs text-muted">Checking text and numbers across your document</p>
+                  <p className="text-xs text-muted">Analyzing document text and financial balances</p>
                 </>
               ) : (
                 <>
                   <Search className="h-8 w-8 text-muted/50" />
                   <p className="mt-2 text-sm font-medium text-fg">
-                    {(mode === 'text' && !textQuery.trim()) ||
-                    (mode === 'number' && !findAllNumbers && !findNumber.trim())
-                      ? 'Type search term or number above to scan'
-                      : 'No matching occurrences found'}
+                    No matching occurrences found
                   </p>
                   <p className="text-xs text-muted">
-                    {(mode === 'text' && !textQuery.trim()) ||
-                    (mode === 'number' && !findAllNumbers && !findNumber.trim())
-                      ? 'The system will search through all pages of the PDF automatically.'
-                      : 'Try adjusting your search query, case sensitivity, or check spelling.'}
+                    {mode === 'transaction'
+                      ? 'Ensure the transaction amount exists in the PDF, or clear the context filter.'
+                      : 'Type a search term or number above to scan your PDF.'}
                   </p>
                 </>
               )}
@@ -612,13 +861,13 @@ export function BulkEditDialog() {
             pageNumbers.map((pageNum) => {
               const pageMatches = matchesByPage[pageNum];
               return (
-                <div key={pageNum} className="rounded-xl border border-border bg-surface-2/20 p-3">
-                  <div className="mb-2 flex items-center justify-between">
+                <div key={pageNum} className="rounded-xl border border-border bg-surface-2/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-text">
                       Page {pageNum}
                     </span>
                     <span className="text-xs text-muted">
-                      {pageMatches.length} match{pageMatches.length === 1 ? '' : 'es'}
+                      {pageMatches.length} value{pageMatches.length === 1 ? '' : 's'} affected
                     </span>
                   </div>
 
@@ -639,6 +888,7 @@ export function BulkEditDialog() {
                           onClick={() => toggleMatch(m.id)}
                           className={cn(
                             'group flex cursor-pointer items-start gap-3 rounded-lg border p-2.5 transition-all',
+                            m.isDependentBalance && 'ml-4 border-l-2 border-l-accent bg-accent-soft/10',
                             m.selected
                               ? 'border-accent/40 bg-surface shadow-xs'
                               : 'border-border/50 bg-surface/50 opacity-60 hover:opacity-85',
@@ -653,13 +903,35 @@ export function BulkEditDialog() {
                           />
 
                           <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              {m.isDependentBalance ? (
+                                <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-text">
+                                  <CornerDownRight className="h-3 w-3" />
+                                  Dependent Balance Update
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                                  {m.direction === 'credit'
+                                    ? 'Credit / Income'
+                                    : m.direction === 'debit'
+                                      ? 'Debit / Expense'
+                                      : 'Transaction Amount'}
+                                </span>
+                              )}
+                              {m.contextTag && (
+                                <span className="text-[11px] text-muted truncate">
+                                  {m.contextTag}
+                                </span>
+                              )}
+                            </div>
+
                             {/* Before Preview */}
                             <div className="flex items-center gap-2 text-xs text-fg">
                               <span className="text-muted truncate">
                                 {m.startIndex > 20 && '…'}
                                 {beforeContext}
                               </span>
-                              <span className="shrink-0 rounded bg-red-500/10 px-1.5 py-0.5 font-medium text-red-600 line-through dark:text-red-400">
+                              <span className="shrink-0 rounded bg-red-500/10 px-1.5 py-0.5 font-semibold text-red-600 line-through dark:text-red-400">
                                 {m.matchedText}
                               </span>
                               <span className="text-muted truncate">
@@ -671,12 +943,12 @@ export function BulkEditDialog() {
                             {/* After Replacement Preview */}
                             <div className="flex items-center gap-2 text-xs">
                               <ArrowRight className="h-3 w-3 shrink-0 text-accent-text" />
-                              <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-400">
+                              <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 font-bold text-emerald-700 dark:text-emerald-400">
                                 {m.replacementText}
                               </span>
                               <span className="text-[11px] text-muted">
-                                (Preserves original {m.line.font} font, {Math.round(m.line.size * 1000) / 10}pt size
-                                {m.line.bold ? ', bold' : ''})
+                                (Preserves font: {m.piece?.fontFamily || m.line.fontFamily || m.line.font}, {Math.round((m.piece?.size || m.line.size) * 1000) / 10}pt
+                                {(m.piece?.bold ?? m.line.bold) ? ', bold' : ''})
                               </span>
                             </div>
                           </div>
