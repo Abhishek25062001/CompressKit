@@ -26,6 +26,7 @@ import {
   type BulkMatchOccurrence,
   type BulkMode,
   type BulkSearchOptions,
+  type FontWeightOption,
   type NumberOperation,
   type TransactionDirection,
 } from '../../features/pdf/bulkEdit';
@@ -55,17 +56,22 @@ export function BulkEditDialog() {
 
   // Transaction & Financial state
   const [transQuery, setTransQuery] = useState('3100');
-  const [contextFilter, setContextFilter] = useState('Student Fees');
+  const [contextFilter, setContextFilter] = useState('');
   const [transDirection, setTransDirection] = useState<TransactionDirection>('auto');
   const [newValueStr, setNewValueStr] = useState('3500');
   const [adjustByStr, setAdjustByStr] = useState('+400');
   const [updateBalances, setUpdateBalances] = useState(true);
+  const [propagateColumn, setPropagateColumn] = useState(true);
 
   // Number search state
   const [findNumber, setFindNumber] = useState('100');
   const [findAllNumbers, setFindAllNumbers] = useState(false);
   const [numberOp, setNumberOp] = useState<NumberOperation>('add');
   const [numberDeltaStr, setNumberDeltaStr] = useState('5');
+
+  // Font styling state
+  const [fontWeight, setFontWeight] = useState<FontWeightOption>('normal');
+  const [fontFamily, setFontFamily] = useState<string>('auto');
 
   // Scope & results
   const [scope, setScope] = useState<'all' | 'selected'>('all');
@@ -141,11 +147,14 @@ export function BulkEditDialog() {
       mode,
       query: mode === 'text' ? textQuery.trim() : mode === 'transaction' ? transQuery.trim() : findNumber.trim(),
       replacement: textReplacement,
-      contextFilter: mode === 'transaction' ? contextFilter.trim() : undefined,
+      contextFilter: mode === 'transaction' ? (contextFilter.trim() || undefined) : undefined,
       transactionDirection: transDirection,
       newAmount: Number.isNaN(parsedNewAmount) ? undefined : parsedNewAmount,
       adjustBy: Number.isNaN(parsedAdjustBy) ? undefined : parsedAdjustBy,
       updateBalances,
+      propagateColumn,
+      fontWeight,
+      fontFamily: fontFamily === 'auto' ? undefined : fontFamily,
       numberOp,
       numberDelta: parsedDelta,
       caseSensitive,
@@ -182,6 +191,9 @@ export function BulkEditDialog() {
     newValueStr,
     adjustByStr,
     updateBalances,
+    propagateColumn,
+    fontWeight,
+    fontFamily,
     findNumber,
     findAllNumbers,
     numberOp,
@@ -218,6 +230,24 @@ export function BulkEditDialog() {
     );
   };
 
+  const toggleMatchBold = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMatches((list) =>
+      list.map((m) => {
+        if (m.id !== id) return m;
+        const currentBold =
+          m.customBold !== undefined
+            ? m.customBold
+            : fontWeight === 'bold'
+              ? true
+              : fontWeight === 'normal'
+                ? false
+                : (m.piece?.bold ?? m.line.bold);
+        return { ...m, customBold: !currentBold };
+      }),
+    );
+  };
+
   const selectedCount = matches.filter((m) => m.selected).length;
 
   const handleApply = () => {
@@ -233,7 +263,10 @@ export function BulkEditDialog() {
       desc = `Adjusted numbers (${numberOp === 'add' ? `+${numberDeltaStr}` : numberOp === 'subtract' ? `-${numberDeltaStr}` : `to ${numberDeltaStr}`})`;
     }
 
-    const count = applyBulkMatches(pages, toApply, desc);
+    const count = applyBulkMatches(pages, toApply, desc, {
+      fontWeight,
+      fontFamily: fontFamily === 'auto' ? undefined : fontFamily,
+    });
     const affectedPages = new Set(toApply.map((m) => m.pageNumber)).size;
 
     setAppliedNotice(
@@ -511,17 +544,28 @@ export function BulkEditDialog() {
               </div>
             </div>
 
-            {/* Auto balance update toggle */}
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-fg">
-                <input
-                  type="checkbox"
-                  checked={updateBalances}
-                  onChange={(e) => setUpdateBalances(e.target.checked)}
-                  className="rounded border-border text-accent focus:ring-accent"
-                />
-                <span>Automatically update related Balances, Totals, and Net Amounts</span>
-              </label>
+            {/* Auto balance & Column propagation toggles */}
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-fg">
+                  <input
+                    type="checkbox"
+                    checked={propagateColumn}
+                    onChange={(e) => setPropagateColumn(e.target.checked)}
+                    className="rounded border-border text-accent focus:ring-accent"
+                  />
+                  <span>Propagate to subsequent running balances in column</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-fg">
+                  <input
+                    type="checkbox"
+                    checked={updateBalances}
+                    onChange={(e) => setUpdateBalances(e.target.checked)}
+                    className="rounded border-border text-accent focus:ring-accent"
+                  />
+                  <span>Automatically update related Balances, Totals, and Net Amounts</span>
+                </label>
+              </div>
 
               {hasSelectedPages && (
                 <div className="flex items-center gap-1.5 text-xs text-muted">
@@ -769,8 +813,92 @@ export function BulkEditDialog() {
                 ))}
               </div>
             </div>
+
+            {!findAllNumbers && (
+              <div className="pt-1">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-fg">
+                  <input
+                    type="checkbox"
+                    checked={propagateColumn}
+                    onChange={(e) => setPropagateColumn(e.target.checked)}
+                    className="rounded border-border text-accent focus:ring-accent"
+                  />
+                  <span>Propagate to column (running balances)</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Universal Font Styling Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-2/40 px-3.5 py-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Type className="h-4 w-4 text-accent-text" />
+            <span className="font-semibold text-fg">Font Style & Weight:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Weight Switcher */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted">Weight:</span>
+              <div className="flex rounded-lg border border-border bg-surface p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setFontWeight('normal')}
+                  className={cn(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    fontWeight === 'normal'
+                      ? 'bg-accent-soft text-accent-text ring-1 ring-accent/30 font-normal'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  Normal (400)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFontWeight('bold')}
+                  className={cn(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    fontWeight === 'bold'
+                      ? 'bg-accent-soft text-accent-text ring-1 ring-accent/30 font-bold'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  Bold (700)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFontWeight('auto')}
+                  className={cn(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    fontWeight === 'auto'
+                      ? 'bg-accent-soft text-accent-text ring-1 ring-accent/30'
+                      : 'text-muted hover:text-fg',
+                  )}
+                >
+                  Auto
+                </button>
+              </div>
+            </div>
+
+            {/* Font Family Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted">Font Family:</span>
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="h-7 rounded-lg border border-border bg-surface px-2 text-xs font-medium text-fg focus:border-accent focus:outline-none"
+              >
+                <option value="auto">Auto (Match Document)</option>
+                <option value="Arial">Arial / Sans-Serif</option>
+                <option value="Calibri">Calibri</option>
+                <option value="Segoe UI">Segoe UI</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         {/* Applied Notice Banner */}
         {appliedNotice && (
@@ -903,26 +1031,49 @@ export function BulkEditDialog() {
                           />
 
                           <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              {m.isDependentBalance ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-text">
-                                  <CornerDownRight className="h-3 w-3" />
-                                  Dependent Balance Update
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                                  {m.direction === 'credit'
-                                    ? 'Credit / Income'
-                                    : m.direction === 'debit'
-                                      ? 'Debit / Expense'
-                                      : 'Transaction Amount'}
-                                </span>
-                              )}
-                              {m.contextTag && (
-                                <span className="text-[11px] text-muted truncate">
-                                  {m.contextTag}
-                                </span>
-                              )}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                {m.isRunningBalanceCol ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300">
+                                    <CornerDownRight className="h-3 w-3" />
+                                    Running Balance Row
+                                  </span>
+                                ) : m.isDependentBalance ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-text">
+                                    <CornerDownRight className="h-3 w-3" />
+                                    Dependent Balance
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                                    {m.direction === 'credit'
+                                      ? 'Credit / Income'
+                                      : m.direction === 'debit'
+                                        ? 'Debit / Expense'
+                                        : 'Primary Match'}
+                                  </span>
+                                )}
+                                {m.contextTag && (
+                                  <span className="text-[11px] text-muted truncate">
+                                    {m.contextTag}
+                                  </span>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => toggleMatchBold(m.id, e)}
+                                title="Click to toggle Bold or Normal weight for this edit"
+                                className={cn(
+                                  'rounded border px-2 py-0.5 text-[10px] font-medium transition-colors',
+                                  (m.customBold !== undefined ? m.customBold : fontWeight === 'bold' ? true : fontWeight === 'normal' ? false : (m.piece?.bold ?? m.line.bold))
+                                    ? 'border-accent/40 bg-accent-soft font-bold text-accent-text'
+                                    : 'border-border bg-surface text-muted font-normal hover:text-fg',
+                                )}
+                              >
+                                {(m.customBold !== undefined ? m.customBold : fontWeight === 'bold' ? true : fontWeight === 'normal' ? false : (m.piece?.bold ?? m.line.bold))
+                                  ? 'Bold (700)'
+                                  : 'Normal (400)'}
+                              </button>
                             </div>
 
                             {/* Before Preview */}
@@ -943,12 +1094,19 @@ export function BulkEditDialog() {
                             {/* After Replacement Preview */}
                             <div className="flex items-center gap-2 text-xs">
                               <ArrowRight className="h-3 w-3 shrink-0 text-accent-text" />
-                              <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 font-bold text-emerald-700 dark:text-emerald-400">
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400',
+                                  (m.customBold !== undefined ? m.customBold : fontWeight === 'bold' ? true : fontWeight === 'normal' ? false : (m.piece?.bold ?? m.line.bold))
+                                    ? 'font-bold'
+                                    : 'font-normal',
+                                )}
+                              >
                                 {m.replacementText}
                               </span>
                               <span className="text-[11px] text-muted">
-                                (Preserves font: {m.piece?.fontFamily || m.line.fontFamily || m.line.font}, {Math.round((m.piece?.size || m.line.size) * 1000) / 10}pt
-                                {(m.piece?.bold ?? m.line.bold) ? ', bold' : ''})
+                                ({m.customFontFamily || (fontFamily !== 'auto' ? fontFamily : (m.piece?.fontFamily || m.line.fontFamily || 'Arial'))}, {Math.round((m.piece?.size || m.line.size) * 1000) / 10}pt,{' '}
+                                {(m.customBold !== undefined ? m.customBold : fontWeight === 'bold' ? true : fontWeight === 'normal' ? false : (m.piece?.bold ?? m.line.bold)) ? 'bold' : 'normal'})
                               </span>
                             </div>
                           </div>
