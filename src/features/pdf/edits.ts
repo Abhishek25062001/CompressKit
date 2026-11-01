@@ -76,7 +76,8 @@ async function rasterText(edit: TextEdit, lines: string[], width: number, size: 
   const lineHeight = size * EDIT_LINE_HEIGHT;
   const canvas = createCanvas(Math.max(1, Math.ceil(width * scale)), Math.max(1, Math.ceil(lines.length * lineHeight * scale)));
   const ctx = getContext(canvas);
-  ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size * scale}px ${EDIT_CSS_FONT[edit.font]}`;
+  const cssFont = edit.fontFamily ? `"${edit.fontFamily}", ${EDIT_CSS_FONT[edit.font]}` : EDIT_CSS_FONT[edit.font];
+  ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size * scale}px ${cssFont}`;
   ctx.fillStyle = edit.color;
   ctx.textAlign = edit.align;
   ctx.textBaseline = 'alphabetic';
@@ -96,11 +97,12 @@ async function drawText(lib: Lib, doc: PDFDocument, page: PDFPage, edit: TextEdi
   const top = edit.y * view.height;
   cache.charset ??= new Set(font.getCharacterSet());
   const encodable = [...edit.text.replace(/\n/g, '')].every((ch) => cache.charset!.has(ch.codePointAt(0)!));
+  const cssFont = edit.fontFamily ? `"${edit.fontFamily}", ${EDIT_CSS_FONT[edit.font]}` : EDIT_CSS_FONT[edit.font];
   const measure = encodable
     ? (s: string) => font.widthOfTextAtSize(s, size)
     : (() => {
         const ctx = getContext(createCanvas(1, 1));
-        ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size}px ${EDIT_CSS_FONT[edit.font]}`;
+        ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size}px ${cssFont}`;
         return (s: string) => ctx.measureText(s).width;
       })();
   const lines = wrapText(edit.text, width, measure);

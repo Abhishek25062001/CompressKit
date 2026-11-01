@@ -127,6 +127,19 @@ async function readPieces(page: PDFPageProxy, viewport: ReturnType<PDFPageProxy[
   return pieces;
 }
 
+export interface TextPieceInfo {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  size: number;
+  bold: boolean;
+  italic: boolean;
+  font: 'sans' | 'serif' | 'mono';
+  fontFamily?: string;
+}
+
 /** A line of existing text on a page, as fractions of the page as displayed. */
 export interface PageTextLine {
   text: string;
@@ -139,6 +152,8 @@ export interface PageTextLine {
   bold: boolean;
   italic: boolean;
   font: 'sans' | 'serif' | 'mono';
+  fontFamily?: string;
+  pieces?: TextPieceInfo[];
 }
 
 /**
@@ -159,6 +174,18 @@ export async function pageTextLines(page: PDFPageProxy, extraRotation: number): 
         const left = group[0].x;
         const right = Math.max(...group.map((p) => p.x + p.width));
         const main = group.reduce((a, b) => (b.text.length > a.text.length ? b : a));
+        const pieceInfos: TextPieceInfo[] = group.map((p) => ({
+          text: p.text,
+          x: p.x / viewport.width,
+          y: (line.y - p.size * 0.92) / viewport.height,
+          width: p.width / viewport.width,
+          height: (p.size * 1.2) / viewport.height,
+          size: p.size / viewport.height,
+          bold: p.bold,
+          italic: p.italic,
+          font: p.mono ? 'mono' : p.serif ? 'serif' : 'sans',
+          fontFamily: p.font,
+        }));
         out.push({
           text,
           x: left / viewport.width,
@@ -169,6 +196,8 @@ export async function pageTextLines(page: PDFPageProxy, extraRotation: number): 
           bold: main.bold,
           italic: main.italic,
           font: main.mono ? 'mono' : main.serif ? 'serif' : 'sans',
+          fontFamily: main.font,
+          pieces: pieceInfos,
         });
       }
       group = [];

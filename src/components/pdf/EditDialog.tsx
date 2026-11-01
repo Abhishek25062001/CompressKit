@@ -1219,7 +1219,8 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
                     />
                   );
                   if (ed.kind === 'text') {
-                    const font = `${ed.italic ? 'italic ' : ''}${ed.bold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${EDIT_CSS_FONT[ed.font]}`;
+                    const fontFam = ed.fontFamily ? `"${ed.fontFamily}", ${EDIT_CSS_FONT[ed.font]}` : EDIT_CSS_FONT[ed.font];
+                    const font = `${ed.italic ? 'italic ' : ''}${ed.bold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${fontFam}`;
                     const textStyle = { font, color: ed.color, textAlign: ed.align } as const;
                     return (
                       <div

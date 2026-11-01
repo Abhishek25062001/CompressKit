@@ -56,6 +56,7 @@ export type PageEdit =
       bold: boolean;
       italic: boolean;
       font: 'sans' | 'serif' | 'mono';
+      fontFamily?: string;
       align: 'left' | 'center' | 'right';
       /** Fill behind the text box, which covers what was there (used when replacing text). */
       background?: string;

@@ -1,23 +1,41 @@
-import type { PageTextLine } from '../docs/pdfExtract';
+import type { PageTextLine, TextPieceInfo } from '../docs/pdfExtract';
 import type { PageEdit, PdfPage, PdfSource } from '../../types/pdf';
 import { createId } from '../../utils/id';
 import { getOpenPdf } from './documents';
 import { refreshThumbnail } from './intake';
 import { usePdfStore } from '../../store/pdfStore';
 
-export type BulkMode = 'text' | 'number';
+export type BulkMode = 'text' | 'transaction' | 'number';
 export type NumberOperation = 'add' | 'subtract' | 'set';
+export type TransactionDirection = 'auto' | 'credit' | 'debit';
+
+export interface FinancialFormat {
+  raw: string;
+  prefix: string; // e.g. "₹", "$", "Rs. "
+  suffix: string; // e.g. "/-", " CR"
+  hasCommas: boolean;
+  decimals: number;
+  number: number;
+}
 
 export interface BulkSearchOptions {
   mode: BulkMode;
-  query: string;
-  replacement: string;
+  query: string; // text to find, or amount to find
+  replacement: string; // for text mode
+  // Transaction mode specific options
+  contextFilter?: string; // e.g. "Student Fees" or "Fees"
+  transactionDirection: TransactionDirection; // auto / credit / debit
+  newAmount?: number; // target new amount, e.g. 3500
+  adjustBy?: number; // delta difference, e.g. +400 or -600
+  updateBalances: boolean; // whether to find and update dependent balances
+  // Generic number mode options
   numberOp: NumberOperation;
   numberDelta: number;
+  findAllNumbers?: boolean;
+  // Common options
   caseSensitive: boolean;
   wholeWord: boolean;
   scope: 'all' | 'selected';
-  findAllNumbers?: boolean;
 }
 
 export interface BulkMatchOccurrence {
@@ -32,8 +50,15 @@ export interface BulkMatchOccurrence {
   startIndex: number;
   endIndex: number;
   line: PageTextLine;
+  piece?: TextPieceInfo; // piece-level precision if available
   existingEditId?: string;
   selected: boolean;
+  // Financial & transactional metadata
+  isTransaction?: boolean;
+  isDependentBalance?: boolean;
+  direction?: 'credit' | 'debit';
+  delta?: number;
+  contextTag?: string; // e.g. "Student Fees" or "Related Balance"
 }
 
 /** Cache extracted lines per page (key: `${page.id}_${page.rotation}`). */
@@ -78,37 +103,97 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Computes the replacement number string while preserving decimal formatting. */
-export function computeNumberReplacement(
-  matchedText: string,
-  op: NumberOperation,
-  delta: number,
-): string {
-  const numVal = parseFloat(matchedText);
-  if (Number.isNaN(numVal)) return matchedText;
+/** Parses financial formats like "₹3,100", "$10,000.50", "Rs. 2500/-", etc. */
+export function parseFinancialValue(str: string): FinancialFormat | null {
+  const match = /^\s*([^\d\s\-+]*?)\s*([-+]?\d[\d,]*(?:\.\d+)?)\s*([^\d\s]*)\s*$/.exec(str);
+  if (!match) return null;
 
-  let resultNum: number;
-  if (op === 'add') {
-    resultNum = numVal + delta;
-  } else if (op === 'subtract') {
-    resultNum = numVal - delta;
-  } else {
-    resultNum = delta;
-  }
+  const prefix = match[1] || '';
+  const numStr = match[2] || '';
+  const suffix = match[3] || '';
+  const cleanNumStr = numStr.replace(/,/g, '');
+  const number = parseFloat(cleanNumStr);
+  if (Number.isNaN(number)) return null;
 
-  // Preserve decimal precision if either original text or delta had decimals
-  const matchDecimals = matchedText.includes('.') ? (matchedText.split('.')[1] || '').length : 0;
-  const deltaStr = String(delta);
-  const deltaDecimals = deltaStr.includes('.') ? (deltaStr.split('.')[1] || '').length : 0;
-  const maxDecimals = Math.max(matchDecimals, deltaDecimals);
+  const hasCommas = numStr.includes(',');
+  const decimals = cleanNumStr.includes('.') ? (cleanNumStr.split('.')[1] || '').length : 0;
 
-  if (maxDecimals > 0) {
-    return resultNum.toFixed(maxDecimals);
-  }
-  return String(Math.round(resultNum));
+  return {
+    raw: str,
+    prefix,
+    suffix,
+    hasCommas,
+    decimals,
+    number,
+  };
 }
 
-/** Finds all matching occurrences on a single page given lines and existing edits. */
+/** Formats a numeric value using the original financial string's template (currency, commas, decimals). */
+export function formatFinancialValue(val: number, template: FinancialFormat): string {
+  const absVal = Math.abs(val);
+  const fixedStr = template.decimals > 0 ? absVal.toFixed(template.decimals) : String(Math.round(absVal));
+  const [intPart, decPart] = fixedStr.split('.');
+
+  let formattedInt = intPart;
+  if (template.hasCommas) {
+    // If prefix is Indian Rupee ₹ or Rs, format with Indian numbering system (e.g. 1,00,000)
+    const isIndian = /₹|rs/i.test(template.prefix);
+    if (isIndian && intPart.length > 3) {
+      const lastThree = intPart.substring(intPart.length - 3);
+      const otherNumbers = intPart.substring(0, intPart.length - 3);
+      formattedInt = `${otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}`;
+    } else {
+      formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+  }
+
+  const sign = val < 0 ? '-' : '';
+  const numFormatted = decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
+  return `${sign}${template.prefix}${numFormatted}${template.suffix}`;
+}
+
+/** Detects if context implies a Credit/Income vs Debit/Expense. */
+export function detectTransactionDirection(text: string): 'credit' | 'debit' {
+  const creditKeywords = /\b(fee|fees|income|credit|cr|deposit|receipt|received|sales|salary|bonus|inflow|\+)\b/i;
+  const debitKeywords = /\b(expense|expenses|debit|dr|payment|paid|withdrawal|outflow|charge|concession|discount|tax|deducted|refund|-)\b/i;
+
+  if (debitKeywords.test(text)) return 'debit';
+  if (creditKeywords.test(text)) return 'credit';
+  return 'credit'; // Default to credit / addition
+}
+
+/** Checks if a line is likely an unrelated reference, account number, or date. */
+export function isUnrelatedContext(text: string): boolean {
+  return /\b(account\s*(?:no|num|#)?|a\/c|ref|reference|invoice\s*(?:no|#)?|phone|mobile|pin|code|roll\s*(?:no|#)?|date|dob)\b/i.test(text);
+}
+
+/** Checks if a line is a balance or total line. */
+export function isBalanceOrTotalLine(text: string): boolean {
+  return /\b(balance|closing balance|net balance|total balance|current balance|total|total amount|grand total|subtotal|net amount|amount payable|amount due|remaining amount)\b/i.test(
+    text,
+  );
+}
+
+/** Finds the best matching piece in a line for a given substring match. */
+function findPieceForMatch(line: PageTextLine, startIndex: number, matchedText: string): TextPieceInfo | undefined {
+  if (!line.pieces?.length) return undefined;
+
+  // Check if a single piece contains the matched text
+  const direct = line.pieces.find((p) => p.text.includes(matchedText));
+  if (direct) return direct;
+
+  // Approximate by text position
+  let runningLen = 0;
+  for (const p of line.pieces) {
+    if (startIndex >= runningLen && startIndex <= runningLen + p.text.length) {
+      return p;
+    }
+    runningLen += p.text.length + 1;
+  }
+  return line.pieces[0];
+}
+
+/** Finds all matching occurrences on a single page. */
 export function findMatchesInPageLines(
   page: PdfPage,
   pageIndex: number,
@@ -118,7 +203,6 @@ export function findMatchesInPageLines(
   const matches: BulkMatchOccurrence[] = [];
   const existingEdits = page.edits ?? [];
 
-  // Helper to test if a base line is already covered by an existing text edit with background
   const isLineCovered = (line: PageTextLine) =>
     existingEdits.some(
       (e) =>
@@ -128,9 +212,6 @@ export function findMatchesInPageLines(
         e.x <= line.x + 0.05,
     );
 
-  // Targets to scan:
-  // 1. Uncovered base lines from the PDF document
-  // 2. Existing text edits (which represent current text on the page)
   interface ScanTarget {
     text: string;
     line: PageTextLine;
@@ -139,7 +220,6 @@ export function findMatchesInPageLines(
   }
 
   const targets: ScanTarget[] = [];
-
   lines.forEach((l, idx) => {
     if (!isLineCovered(l)) {
       targets.push({ text: l.text, line: l, lineIndex: idx });
@@ -160,6 +240,7 @@ export function findMatchesInPageLines(
           bold: ed.bold,
           italic: ed.italic,
           font: ed.font,
+          fontFamily: ed.fontFamily,
         },
         lineIndex: 10000 + idx,
         existingEditId: ed.id,
@@ -188,6 +269,7 @@ export function findMatchesInPageLines(
           regex.lastIndex++;
           continue;
         }
+        const piece = findPieceForMatch(t.line, m.index, m[0]);
         matches.push({
           id: `${page.id}-${t.lineIndex}-${m.index}`,
           pageId: page.id,
@@ -200,21 +282,152 @@ export function findMatchesInPageLines(
           startIndex: m.index,
           endIndex: m.index + m[0].length,
           line: t.line,
+          piece,
           existingEditId: t.existingEditId,
           selected: true,
         });
       }
     }
+  } else if (options.mode === 'transaction') {
+    // Transaction Mode: smart financial value search and balance awareness
+    const queryStr = options.query.trim();
+    if (!queryStr) return [];
+
+    // Parse the query to understand numeric amount and optional currency symbol
+    const parsedQuery = parseFinancialValue(queryStr);
+    const targetNum = parsedQuery ? parsedQuery.number : parseFloat(queryStr.replace(/[^\d.]/g, ''));
+    if (Number.isNaN(targetNum)) return [];
+
+    // Find occurrences of this amount in the lines
+    // Pattern to match currency/number tokens: e.g. ₹3,100 or 3,100 or 3100
+    const numRegex = /(?:[₹$€£]|Rs\.?|INR)?\s*[-+]?\d[\d,]*(?:\.\d+)?(?:\s*\/-)?/gi;
+
+    let transactionMatch: BulkMatchOccurrence | null = null;
+    let computedDelta = 0;
+
+    for (const t of targets) {
+      // If context filter is specified (e.g. "Student Fees"), check line relevance
+      if (options.contextFilter && options.contextFilter.trim()) {
+        const filterRegex = new RegExp(escapeRegExp(options.contextFilter.trim()), 'i');
+        if (!filterRegex.test(t.text)) continue;
+      }
+
+      // Check if this line is an unrelated ID/Account number unless explicitly asked
+      if (!options.contextFilter && isUnrelatedContext(t.text)) {
+        continue;
+      }
+
+      numRegex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = numRegex.exec(t.text)) !== null) {
+        const token = m[0].trim();
+        const parsedToken = parseFinancialValue(token);
+        if (!parsedToken) continue;
+
+        if (Math.abs(parsedToken.number - targetNum) < 0.001) {
+          // Found matching transaction amount
+          const piece = findPieceForMatch(t.line, m.index, token);
+
+          // Determine direction
+          const dir =
+            options.transactionDirection === 'auto'
+              ? detectTransactionDirection(t.text)
+              : options.transactionDirection;
+
+          // Calculate new amount and delta
+          let newAmount: number;
+          if (options.newAmount !== undefined) {
+            newAmount = options.newAmount;
+            computedDelta = newAmount - parsedToken.number;
+          } else if (options.adjustBy !== undefined) {
+            computedDelta = options.adjustBy;
+            newAmount = parsedToken.number + computedDelta;
+          } else {
+            newAmount = parsedToken.number;
+            computedDelta = 0;
+          }
+
+          const replacementText = formatFinancialValue(newAmount, parsedToken);
+
+          transactionMatch = {
+            id: `${page.id}-${t.lineIndex}-${m.index}`,
+            pageId: page.id,
+            pageIndex,
+            pageNumber: pageIndex + 1,
+            lineIndex: t.lineIndex,
+            originalLineText: t.text,
+            matchedText: token,
+            replacementText,
+            startIndex: m.index,
+            endIndex: m.index + m[0].length,
+            line: t.line,
+            piece,
+            existingEditId: t.existingEditId,
+            selected: true,
+            isTransaction: true,
+            direction: dir,
+            delta: computedDelta,
+            contextTag: t.text.slice(0, 30).trim(),
+          };
+          matches.push(transactionMatch);
+          break;
+        }
+      }
+      if (transactionMatch) break;
+    }
+
+    // If transaction found and updateBalances is enabled, find related balance and total lines!
+    if (transactionMatch && options.updateBalances && Math.abs(computedDelta) > 0.0001) {
+      const balanceChange =
+        transactionMatch.direction === 'debit' ? -computedDelta : computedDelta;
+
+      for (const t of targets) {
+        // Skip the transaction line itself
+        if (t.lineIndex === transactionMatch.lineIndex) continue;
+
+        if (isBalanceOrTotalLine(t.text)) {
+          numRegex.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = numRegex.exec(t.text)) !== null) {
+            const token = m[0].trim();
+            const parsedToken = parseFinancialValue(token);
+            if (!parsedToken) continue;
+
+            const updatedBal = parsedToken.number + balanceChange;
+            const replacementText = formatFinancialValue(updatedBal, parsedToken);
+            const piece = findPieceForMatch(t.line, m.index, token);
+
+            matches.push({
+              id: `${page.id}-${t.lineIndex}-${m.index}-dep`,
+              pageId: page.id,
+              pageIndex,
+              pageNumber: pageIndex + 1,
+              lineIndex: t.lineIndex,
+              originalLineText: t.text,
+              matchedText: token,
+              replacementText,
+              startIndex: m.index,
+              endIndex: m.index + m[0].length,
+              line: t.line,
+              piece,
+              existingEditId: t.existingEditId,
+              selected: true,
+              isDependentBalance: true,
+              delta: balanceChange,
+              contextTag: `Related: ${t.text.split(/[:\t-]/)[0]?.trim() || 'Balance'}`,
+            });
+          }
+        }
+      }
+    }
   } else {
-    // Number mode
+    // Number Mode (direct increment/decrement on numbers)
     const numQ = options.query.trim();
     let regex: RegExp;
 
     if (options.findAllNumbers || !numQ) {
-      // Find all standalone numbers (including negative and floating point)
       regex = /(?<![\w])-?\d+(?:\.\d+)?(?![\w])/g;
     } else {
-      // Find specific number
       const escapedNum = escapeRegExp(numQ);
       regex = new RegExp(`(?<![\\d.])${escapedNum}(?![\\d.])`, 'g');
     }
@@ -227,7 +440,25 @@ export function findMatchesInPageLines(
           regex.lastIndex++;
           continue;
         }
-        const repl = computeNumberReplacement(m[0], options.numberOp, options.numberDelta);
+
+        const numVal = parseFloat(m[0]);
+        let resultNum: number;
+        if (options.numberOp === 'add') {
+          resultNum = numVal + options.numberDelta;
+        } else if (options.numberOp === 'subtract') {
+          resultNum = numVal - options.numberDelta;
+        } else {
+          resultNum = options.numberDelta;
+        }
+
+        const matchDecimals = m[0].includes('.') ? (m[0].split('.')[1] || '').length : 0;
+        const deltaStr = String(options.numberDelta);
+        const deltaDecimals = deltaStr.includes('.') ? (deltaStr.split('.')[1] || '').length : 0;
+        const maxDecimals = Math.max(matchDecimals, deltaDecimals);
+
+        const repl = maxDecimals > 0 ? resultNum.toFixed(maxDecimals) : String(Math.round(resultNum));
+        const piece = findPieceForMatch(t.line, m.index, m[0]);
+
         matches.push({
           id: `${page.id}-${t.lineIndex}-${m.index}`,
           pageId: page.id,
@@ -240,6 +471,7 @@ export function findMatchesInPageLines(
           startIndex: m.index,
           endIndex: m.index + m[0].length,
           line: t.line,
+          piece,
           existingEditId: t.existingEditId,
           selected: true,
         });
@@ -337,9 +569,22 @@ export function applyBulkMatches(
         });
       } else {
         const line = first.line;
+        const piece = first.piece;
         const bg = '#ffffff';
+
+        // Precise positioning: if piece available, inherit exact properties
+        const font = piece?.font ?? line.font;
+        const fontFamily = piece?.fontFamily ?? line.fontFamily;
+        const bold = piece?.bold ?? line.bold;
+        const italic = piece?.italic ?? line.italic;
+        const size = piece?.size ?? line.size;
+
         const charRatio = line.text.length > 0 ? updatedText.length / line.text.length : 1;
         const width = Math.max(line.width + 0.02, (line.width + 0.02) * Math.max(1, charRatio));
+
+        // Detect if line is aligned right in table
+        const align: 'left' | 'center' | 'right' =
+          line.x > 0.6 && line.width < 0.25 ? 'right' : 'left';
 
         const newEdit: PageEdit = {
           id: createId(),
@@ -348,12 +593,13 @@ export function applyBulkMatches(
           y: line.y,
           width,
           text: updatedText,
-          size: line.size,
+          size,
           color: '#000000',
-          bold: line.bold,
-          italic: line.italic,
-          font: line.font,
-          align: 'left',
+          bold,
+          italic,
+          font,
+          fontFamily,
+          align,
           background: bg,
           coverHeight: line.height,
           coverWidth: line.width + 0.006,

@@ -15,8 +15,10 @@ export function useDialog(
   initialFocus?: () => HTMLElement | null | undefined,
 ): void {
   const initialFocusRef = useRef(initialFocus);
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
     initialFocusRef.current = initialFocus;
+    onCloseRef.current = onClose;
   });
 
   useEffect(() => {
@@ -25,14 +27,17 @@ export function useDialog(
     const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
     const raf = requestAnimationFrame(() => {
-      const target = initialFocusRef.current?.() ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-      target?.focus();
+      // Only set initial focus if focus is not already inside the panel
+      if (!panelRef.current?.contains(document.activeElement)) {
+        const target = initialFocusRef.current?.() ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+        target?.focus();
+      }
     });
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panelRef.current) return;
@@ -55,5 +60,5 @@ export function useDialog(
       document.body.style.overflow = overflow;
       previous?.focus?.();
     };
-  }, [open, onClose, panelRef]);
+  }, [open, panelRef]);
 }
