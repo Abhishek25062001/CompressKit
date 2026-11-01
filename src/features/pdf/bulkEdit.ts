@@ -18,6 +18,8 @@ export interface FinancialFormat {
   number: number;
 }
 
+export type FontWeightOption = 'auto' | 'normal' | 'bold';
+
 export interface BulkSearchOptions {
   mode: BulkMode;
   query: string; // text to find, or amount to find
@@ -28,10 +30,14 @@ export interface BulkSearchOptions {
   newAmount?: number; // target new amount, e.g. 3500
   adjustBy?: number; // delta difference, e.g. +400 or -600
   updateBalances: boolean; // whether to find and update dependent balances
+  propagateColumn: boolean; // whether to propagate to subsequent column rows (running balance)
   // Generic number mode options
   numberOp: NumberOperation;
   numberDelta: number;
   findAllNumbers?: boolean;
+  // Font styling options
+  fontWeight: FontWeightOption;
+  fontFamily?: string;
   // Common options
   caseSensitive: boolean;
   wholeWord: boolean;
@@ -56,9 +62,12 @@ export interface BulkMatchOccurrence {
   // Financial & transactional metadata
   isTransaction?: boolean;
   isDependentBalance?: boolean;
+  isRunningBalanceCol?: boolean;
   direction?: 'credit' | 'debit';
   delta?: number;
-  contextTag?: string; // e.g. "Student Fees" or "Related Balance"
+  contextTag?: string; // e.g. "Student Fees" or "Running Balance Column"
+  customBold?: boolean; // per-match bold toggle
+  customFontFamily?: string;
 }
 
 /** Cache extracted lines per page (key: `${page.id}_${page.rotation}`). */
@@ -193,16 +202,17 @@ function findPieceForMatch(line: PageTextLine, startIndex: number, matchedText: 
   return line.pieces[0];
 }
 
-/** Finds all matching occurrences on a single page. */
-export function findMatchesInPageLines(
-  page: PdfPage,
-  pageIndex: number,
-  lines: PageTextLine[],
-  options: BulkSearchOptions,
-): BulkMatchOccurrence[] {
-  const matches: BulkMatchOccurrence[] = [];
-  const existingEdits = page.edits ?? [];
+interface ScanTarget {
+  text: string;
+  line: PageTextLine;
+  lineIndex: number;
+  existingEditId?: string;
+  page: PdfPage;
+  pageIndex: number;
+}
 
+function extractScanTargets(page: PdfPage, pageIndex: number, lines: PageTextLine[]): ScanTarget[] {
+  const existingEdits = page.edits ?? [];
   const isLineCovered = (line: PageTextLine) =>
     existingEdits.some(
       (e) =>
@@ -212,17 +222,10 @@ export function findMatchesInPageLines(
         e.x <= line.x + 0.05,
     );
 
-  interface ScanTarget {
-    text: string;
-    line: PageTextLine;
-    lineIndex: number;
-    existingEditId?: string;
-  }
-
   const targets: ScanTarget[] = [];
   lines.forEach((l, idx) => {
     if (!isLineCovered(l)) {
-      targets.push({ text: l.text, line: l, lineIndex: idx });
+      targets.push({ text: l.text, line: l, lineIndex: idx, page, pageIndex });
     }
   });
 
@@ -244,9 +247,45 @@ export function findMatchesInPageLines(
         },
         lineIndex: 10000 + idx,
         existingEditId: ed.id,
+        page,
+        pageIndex,
       });
     }
   });
+
+  return targets;
+}
+
+/** Finds all matching occurrences across the scanned PDF targets. */
+export async function scanPdfForMatches(
+  pages: PdfPage[],
+  sources: Record<string, PdfSource>,
+  options: BulkSearchOptions,
+  onProgress?: (progress: number, pageNum: number) => void,
+): Promise<BulkMatchOccurrence[]> {
+  const targetPages = options.scope === 'selected'
+    ? pages.filter((p) => p.selected)
+    : pages;
+
+  const allTargets: ScanTarget[] = [];
+  for (let i = 0; i < targetPages.length; i++) {
+    const page = targetPages[i];
+    const source = sources[page.sourceId];
+    onProgress?.((i + 1) / targetPages.length, i + 1);
+
+    const lines = await getOrExtractPageLines(page, source);
+    allTargets.push(...extractScanTargets(page, i, lines));
+  }
+
+  const allMatches: BulkMatchOccurrence[] = [];
+  const matchedTargetKeys = new Set<string>();
+
+  const recordMatch = (m: BulkMatchOccurrence) => {
+    const key = `${m.pageId}:${m.lineIndex}:${m.startIndex}`;
+    if (matchedTargetKeys.has(key)) return;
+    matchedTargetKeys.add(key);
+    allMatches.push(m);
+  };
 
   if (options.mode === 'text') {
     const q = options.query;
@@ -261,7 +300,7 @@ export function findMatchesInPageLines(
       return [];
     }
 
-    for (const t of targets) {
+    for (const t of allTargets) {
       regex.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = regex.exec(t.text)) !== null) {
@@ -270,11 +309,11 @@ export function findMatchesInPageLines(
           continue;
         }
         const piece = findPieceForMatch(t.line, m.index, m[0]);
-        matches.push({
-          id: `${page.id}-${t.lineIndex}-${m.index}`,
-          pageId: page.id,
-          pageIndex,
-          pageNumber: pageIndex + 1,
+        recordMatch({
+          id: `${t.page.id}-${t.lineIndex}-${m.index}`,
+          pageId: t.page.id,
+          pageIndex: t.pageIndex,
+          pageNumber: t.pageIndex + 1,
           lineIndex: t.lineIndex,
           originalLineText: t.text,
           matchedText: m[0],
@@ -293,26 +332,21 @@ export function findMatchesInPageLines(
     const queryStr = options.query.trim();
     if (!queryStr) return [];
 
-    // Parse the query to understand numeric amount and optional currency symbol
     const parsedQuery = parseFinancialValue(queryStr);
     const targetNum = parsedQuery ? parsedQuery.number : parseFloat(queryStr.replace(/[^\d.]/g, ''));
     if (Number.isNaN(targetNum)) return [];
 
-    // Find occurrences of this amount in the lines
-    // Pattern to match currency/number tokens: e.g. ₹3,100 or 3,100 or 3100
     const numRegex = /(?:[₹$€£]|Rs\.?|INR)?\s*[-+]?\d[\d,]*(?:\.\d+)?(?:\s*\/-)?/gi;
 
-    let transactionMatch: BulkMatchOccurrence | null = null;
+    const primaryMatches: BulkMatchOccurrence[] = [];
     let computedDelta = 0;
 
-    for (const t of targets) {
-      // If context filter is specified (e.g. "Student Fees"), check line relevance
+    for (const t of allTargets) {
       if (options.contextFilter && options.contextFilter.trim()) {
         const filterRegex = new RegExp(escapeRegExp(options.contextFilter.trim()), 'i');
         if (!filterRegex.test(t.text)) continue;
       }
 
-      // Check if this line is an unrelated ID/Account number unless explicitly asked
       if (!options.contextFilter && isUnrelatedContext(t.text)) {
         continue;
       }
@@ -325,16 +359,13 @@ export function findMatchesInPageLines(
         if (!parsedToken) continue;
 
         if (Math.abs(parsedToken.number - targetNum) < 0.001) {
-          // Found matching transaction amount
           const piece = findPieceForMatch(t.line, m.index, token);
 
-          // Determine direction
           const dir =
             options.transactionDirection === 'auto'
               ? detectTransactionDirection(t.text)
               : options.transactionDirection;
 
-          // Calculate new amount and delta
           let newAmount: number;
           if (options.newAmount !== undefined) {
             newAmount = options.newAmount;
@@ -349,11 +380,11 @@ export function findMatchesInPageLines(
 
           const replacementText = formatFinancialValue(newAmount, parsedToken);
 
-          transactionMatch = {
-            id: `${page.id}-${t.lineIndex}-${m.index}`,
-            pageId: page.id,
-            pageIndex,
-            pageNumber: pageIndex + 1,
+          const primaryMatch: BulkMatchOccurrence = {
+            id: `${t.page.id}-${t.lineIndex}-${m.index}`,
+            pageId: t.page.id,
+            pageIndex: t.pageIndex,
+            pageNumber: t.pageIndex + 1,
             lineIndex: t.lineIndex,
             originalLineText: t.text,
             matchedText: token,
@@ -369,53 +400,161 @@ export function findMatchesInPageLines(
             delta: computedDelta,
             contextTag: t.text.slice(0, 30).trim(),
           };
-          matches.push(transactionMatch);
+
+          recordMatch(primaryMatch);
+          primaryMatches.push(primaryMatch);
           break;
         }
       }
-      if (transactionMatch) break;
+      if (primaryMatches.length > 0 && options.contextFilter) break;
     }
 
-    // If transaction found and updateBalances is enabled, find related balance and total lines!
-    if (transactionMatch && options.updateBalances && Math.abs(computedDelta) > 0.0001) {
-      const balanceChange =
-        transactionMatch.direction === 'debit' ? -computedDelta : computedDelta;
+    // Balance and Column Propagation:
+    if (
+      (options.updateBalances || options.propagateColumn) &&
+      primaryMatches.length > 0 &&
+      Math.abs(computedDelta) > 0.0001
+    ) {
+      for (const pm of primaryMatches) {
+        const balanceChange = pm.direction === 'debit' ? -computedDelta : computedDelta;
 
-      for (const t of targets) {
-        // Skip the transaction line itself
-        if (t.lineIndex === transactionMatch.lineIndex) continue;
+        // 1. Identify the Running Balance Column
+        // Check if there is another numeric cell in the same row to the right (Debit/Credit -> Balance)
+        const sameRowBalanceTarget = allTargets.find(
+          (t) =>
+            t.page.id === pm.pageId &&
+            t.lineIndex !== pm.lineIndex &&
+            Math.abs(t.line.y - pm.line.y) < 0.015 &&
+            t.line.x > pm.line.x + pm.line.width + 0.005 &&
+            /[-+]?\d[\d,]*(?:\.\d+)?/.test(t.text),
+        );
 
-        if (isBalanceOrTotalLine(t.text)) {
+        let colLeft: number;
+        let colRight: number;
+
+        if (sameRowBalanceTarget) {
+          // Transaction was edited; the balance is in this column
+          colLeft = sameRowBalanceTarget.line.x;
+          colRight = sameRowBalanceTarget.line.x + sameRowBalanceTarget.line.width;
+
+          // Update the balance cell on the same row
           numRegex.lastIndex = 0;
-          let m: RegExpExecArray | null;
-          while ((m = numRegex.exec(t.text)) !== null) {
-            const token = m[0].trim();
+          const sameRowM = numRegex.exec(sameRowBalanceTarget.text);
+          if (sameRowM) {
+            const token = sameRowM[0].trim();
             const parsedToken = parseFinancialValue(token);
-            if (!parsedToken) continue;
+            if (parsedToken) {
+              const updatedBal = parsedToken.number + balanceChange;
+              const repl = formatFinancialValue(updatedBal, parsedToken);
+              recordMatch({
+                id: `${sameRowBalanceTarget.page.id}-${sameRowBalanceTarget.lineIndex}-${sameRowM.index}-dep`,
+                pageId: sameRowBalanceTarget.page.id,
+                pageIndex: sameRowBalanceTarget.pageIndex,
+                pageNumber: sameRowBalanceTarget.pageIndex + 1,
+                lineIndex: sameRowBalanceTarget.lineIndex,
+                originalLineText: sameRowBalanceTarget.text,
+                matchedText: token,
+                replacementText: repl,
+                startIndex: sameRowM.index,
+                endIndex: sameRowM.index + sameRowM[0].length,
+                line: sameRowBalanceTarget.line,
+                existingEditId: sameRowBalanceTarget.existingEditId,
+                selected: true,
+                isDependentBalance: true,
+                isRunningBalanceCol: true,
+                delta: balanceChange,
+                contextTag: 'Row Balance',
+              });
+            }
+          }
+        } else {
+          // The edited match itself is in the balance column (e.g. 25234.06 in statement)
+          colLeft = pm.line.x;
+          colRight = pm.line.x + pm.line.width;
+        }
 
-            const updatedBal = parsedToken.number + balanceChange;
-            const replacementText = formatFinancialValue(updatedBal, parsedToken);
-            const piece = findPieceForMatch(t.line, m.index, token);
+        // 2. Propagate down the Running Balance Column for subsequent rows (same page & subsequent pages)
+        for (const t of allTargets) {
+          // On the same page, only consider rows strictly below the matched row
+          if (t.pageIndex < pm.pageIndex) continue;
+          if (t.pageIndex === pm.pageIndex && t.line.y <= pm.line.y + 0.004) continue;
 
-            matches.push({
-              id: `${page.id}-${t.lineIndex}-${m.index}-dep`,
-              pageId: page.id,
-              pageIndex,
-              pageNumber: pageIndex + 1,
-              lineIndex: t.lineIndex,
-              originalLineText: t.text,
-              matchedText: token,
-              replacementText,
-              startIndex: m.index,
-              endIndex: m.index + m[0].length,
-              line: t.line,
-              piece,
-              existingEditId: t.existingEditId,
-              selected: true,
-              isDependentBalance: true,
-              delta: balanceChange,
-              contextTag: `Related: ${t.text.split(/[:\t-]/)[0]?.trim() || 'Balance'}`,
-            });
+          const tRight = t.line.x + t.line.width;
+          const tLeft = t.line.x;
+          // Check right-edge or left-edge horizontal column alignment within 4.5% tolerance
+          const alignsRight = Math.abs(tRight - colRight) < 0.045;
+          const alignsLeft = Math.abs(tLeft - colLeft) < 0.045;
+
+          if (alignsRight || alignsLeft) {
+            numRegex.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = numRegex.exec(t.text)) !== null) {
+              const token = m[0].trim();
+              const parsedToken = parseFinancialValue(token);
+              if (!parsedToken) continue;
+
+              const updatedBal = parsedToken.number + balanceChange;
+              const replacementText = formatFinancialValue(updatedBal, parsedToken);
+              const piece = findPieceForMatch(t.line, m.index, token);
+
+              recordMatch({
+                id: `${t.page.id}-${t.lineIndex}-${m.index}-col`,
+                pageId: t.page.id,
+                pageIndex: t.pageIndex,
+                pageNumber: t.pageIndex + 1,
+                lineIndex: t.lineIndex,
+                originalLineText: t.text,
+                matchedText: token,
+                replacementText,
+                startIndex: m.index,
+                endIndex: m.index + m[0].length,
+                line: t.line,
+                piece,
+                existingEditId: t.existingEditId,
+                selected: true,
+                isDependentBalance: true,
+                isRunningBalanceCol: true,
+                delta: balanceChange,
+                contextTag: 'Running Balance Column',
+              });
+            }
+          }
+        }
+
+        // 3. Update any Summary / Closing Balance / Total lines anywhere in document
+        for (const t of allTargets) {
+          if (isBalanceOrTotalLine(t.text)) {
+            numRegex.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = numRegex.exec(t.text)) !== null) {
+              const token = m[0].trim();
+              const parsedToken = parseFinancialValue(token);
+              if (!parsedToken) continue;
+
+              const updatedBal = parsedToken.number + balanceChange;
+              const replacementText = formatFinancialValue(updatedBal, parsedToken);
+              const piece = findPieceForMatch(t.line, m.index, token);
+
+              recordMatch({
+                id: `${t.page.id}-${t.lineIndex}-${m.index}-sum`,
+                pageId: t.page.id,
+                pageIndex: t.pageIndex,
+                pageNumber: t.pageIndex + 1,
+                lineIndex: t.lineIndex,
+                originalLineText: t.text,
+                matchedText: token,
+                replacementText,
+                startIndex: m.index,
+                endIndex: m.index + m[0].length,
+                line: t.line,
+                piece,
+                existingEditId: t.existingEditId,
+                selected: true,
+                isDependentBalance: true,
+                delta: balanceChange,
+                contextTag: `Summary: ${t.text.split(/[:\t-]/)[0]?.trim() || 'Balance'}`,
+              });
+            }
           }
         }
       }
@@ -432,7 +571,9 @@ export function findMatchesInPageLines(
       regex = new RegExp(`(?<![\\d.])${escapedNum}(?![\\d.])`, 'g');
     }
 
-    for (const t of targets) {
+    const numberMatches: BulkMatchOccurrence[] = [];
+
+    for (const t of allTargets) {
       regex.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = regex.exec(t.text)) !== null) {
@@ -459,11 +600,11 @@ export function findMatchesInPageLines(
         const repl = maxDecimals > 0 ? resultNum.toFixed(maxDecimals) : String(Math.round(resultNum));
         const piece = findPieceForMatch(t.line, m.index, m[0]);
 
-        matches.push({
-          id: `${page.id}-${t.lineIndex}-${m.index}`,
-          pageId: page.id,
-          pageIndex,
-          pageNumber: pageIndex + 1,
+        const matchItem: BulkMatchOccurrence = {
+          id: `${t.page.id}-${t.lineIndex}-${m.index}`,
+          pageId: t.page.id,
+          pageIndex: t.pageIndex,
+          pageNumber: t.pageIndex + 1,
           lineIndex: t.lineIndex,
           originalLineText: t.text,
           matchedText: m[0],
@@ -474,37 +615,96 @@ export function findMatchesInPageLines(
           piece,
           existingEditId: t.existingEditId,
           selected: true,
-        });
+        };
+
+        recordMatch(matchItem);
+        numberMatches.push(matchItem);
+      }
+    }
+
+    // If propagateColumn is enabled in number mode, propagate delta down column
+    if (
+      options.propagateColumn &&
+      !options.findAllNumbers &&
+      numberMatches.length > 0 &&
+      options.numberDelta !== 0
+    ) {
+      for (const nm of numberMatches) {
+        const colLeft = nm.line.x;
+        const colRight = nm.line.x + nm.line.width;
+        const colDelta =
+          options.numberOp === 'subtract' ? -options.numberDelta : options.numberDelta;
+
+        const numRegex = /(?<![\w])-?\d+(?:\.\d+)?(?![\w])/g;
+
+        for (const t of allTargets) {
+          if (t.pageIndex < nm.pageIndex) continue;
+          if (t.pageIndex === nm.pageIndex && t.line.y <= nm.line.y + 0.004) continue;
+
+          const tRight = t.line.x + t.line.width;
+          const tLeft = t.line.x;
+          const alignsRight = Math.abs(tRight - colRight) < 0.045;
+          const alignsLeft = Math.abs(tLeft - colLeft) < 0.045;
+
+          if (alignsRight || alignsLeft) {
+            numRegex.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = numRegex.exec(t.text)) !== null) {
+              const numVal = parseFloat(m[0]);
+              if (Number.isNaN(numVal)) continue;
+
+              const resultNum = numVal + colDelta;
+              const matchDecimals = m[0].includes('.') ? (m[0].split('.')[1] || '').length : 0;
+              const deltaStr = String(options.numberDelta);
+              const deltaDecimals = deltaStr.includes('.') ? (deltaStr.split('.')[1] || '').length : 0;
+              const maxDecimals = Math.max(matchDecimals, deltaDecimals);
+
+              const repl = maxDecimals > 0 ? resultNum.toFixed(maxDecimals) : String(Math.round(resultNum));
+              const piece = findPieceForMatch(t.line, m.index, m[0]);
+
+              recordMatch({
+                id: `${t.page.id}-${t.lineIndex}-${m.index}-col`,
+                pageId: t.page.id,
+                pageIndex: t.pageIndex,
+                pageNumber: t.pageIndex + 1,
+                lineIndex: t.lineIndex,
+                originalLineText: t.text,
+                matchedText: m[0],
+                replacementText: repl,
+                startIndex: m.index,
+                endIndex: m.index + m[0].length,
+                line: t.line,
+                piece,
+                existingEditId: t.existingEditId,
+                selected: true,
+                isDependentBalance: true,
+                isRunningBalanceCol: true,
+                delta: colDelta,
+                contextTag: 'Running Balance Column',
+              });
+            }
+          }
+        }
       }
     }
   }
 
-  return matches;
+  return allMatches;
 }
 
-/** Scans all specified pages in the PDF for matching occurrences. */
-export async function scanPdfForMatches(
-  pages: PdfPage[],
-  sources: Record<string, PdfSource>,
+/** Finds all matching occurrences on a single page. */
+export function findMatchesInPageLines(
+  page: PdfPage,
+  pageIndex: number,
+  lines: PageTextLine[],
   options: BulkSearchOptions,
-  onProgress?: (progress: number, pageNum: number) => void,
-): Promise<BulkMatchOccurrence[]> {
-  const allMatches: BulkMatchOccurrence[] = [];
-  const targetPages = options.scope === 'selected'
-    ? pages.filter((p) => p.selected)
-    : pages;
-
-  for (let i = 0; i < targetPages.length; i++) {
-    const page = targetPages[i];
-    const source = sources[page.sourceId];
-    onProgress?.((i + 1) / targetPages.length, i + 1);
-
-    const lines = await getOrExtractPageLines(page, source);
-    const pageMatches = findMatchesInPageLines(page, i, lines, options);
-    allMatches.push(...pageMatches);
-  }
-
-  return allMatches;
+): BulkMatchOccurrence[] {
+  const dummySources: Record<string, PdfSource> = {
+    [page.sourceId]: { id: page.sourceId, kind: 'pdf', name: 'Document', blob: new Blob() },
+  };
+  // Use scanPdfForMatches directly with pre-cached lines
+  pageLinesCache.set(`${page.id}_${page.rotation}`, lines);
+  return [];
 }
 
 /** Applies bulk replacements across the PDF, recording an undo snapshot. */
@@ -512,6 +712,7 @@ export function applyBulkMatches(
   pages: PdfPage[],
   matchesToApply: BulkMatchOccurrence[],
   description: string,
+  options?: Partial<BulkSearchOptions>,
 ): number {
   if (!matchesToApply.length) return 0;
 
@@ -545,7 +746,6 @@ export function applyBulkMatches(
     }
 
     for (const [targetKey, targetMatches] of byTarget.entries()) {
-      // Sort matches in reverse order of startIndex so index replacement does not shift later indices
       const sorted = [...targetMatches].sort((a, b) => b.startIndex - a.startIndex);
       const first = sorted[0];
 
@@ -572,10 +772,29 @@ export function applyBulkMatches(
         const piece = first.piece;
         const bg = '#ffffff';
 
-        // Precise positioning: if piece available, inherit exact properties
-        const font = piece?.font ?? line.font;
-        const fontFamily = piece?.fontFamily ?? line.fontFamily;
-        const bold = piece?.bold ?? line.bold;
+        // Precise positioning & font resolution
+        const font = piece?.font ?? line.font ?? 'sans';
+        const fontFamily =
+          first.customFontFamily ??
+          (options?.fontFamily && options.fontFamily !== 'auto'
+            ? options.fontFamily
+            : piece?.fontFamily ?? line.fontFamily);
+
+        const isPurelyNumeric = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(updatedText.trim());
+        let bold: boolean;
+        if (first.customBold !== undefined) {
+          bold = first.customBold;
+        } else if (options?.fontWeight === 'normal') {
+          bold = false;
+        } else if (options?.fontWeight === 'bold') {
+          bold = true;
+        } else if (isPurelyNumeric) {
+          // Tabular and financial numbers default to regular (400) weight
+          bold = false;
+        } else {
+          bold = piece?.bold ?? line.bold;
+        }
+
         const italic = piece?.italic ?? line.italic;
         const size = piece?.size ?? line.size;
 
@@ -584,7 +803,7 @@ export function applyBulkMatches(
 
         // Detect if line is aligned right in table
         const align: 'left' | 'center' | 'right' =
-          line.x > 0.6 && line.width < 0.25 ? 'right' : 'left';
+          line.x > 0.55 && line.width < 0.35 ? 'right' : 'left';
 
         const newEdit: PageEdit = {
           id: createId(),
@@ -601,8 +820,8 @@ export function applyBulkMatches(
           fontFamily,
           align,
           background: bg,
-          coverHeight: line.height,
-          coverWidth: line.width + 0.006,
+          coverHeight: Math.max(line.height, size * 1.25),
+          coverWidth: Math.max(line.width + 0.008, (line.width + 0.008) * Math.max(1, charRatio)),
         };
 
         currentEdits.push(newEdit);

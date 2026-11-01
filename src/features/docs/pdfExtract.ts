@@ -73,8 +73,17 @@ const FONT_ALIASES: Record<string, string> = {
   Times: 'Times New Roman',
   'Times Roman': 'Times New Roman',
   Helvetica: 'Arial',
+  'Helvetica-Bold': 'Arial',
   Courier: 'Courier New',
   'Arial Unicode': 'Arial',
+  Calibri: 'Calibri',
+  'Calibri-Bold': 'Calibri',
+  SegoeUI: 'Segoe UI',
+  'Segoe UI': 'Segoe UI',
+  Roboto: 'Roboto',
+  Tahoma: 'Tahoma',
+  Verdana: 'Verdana',
+  ArialMT: 'Arial',
 };
 
 /** "BAAAAA+TimesNewRomanPS-BoldMT" → "Times New Roman". */
@@ -93,18 +102,18 @@ function fontFlags(page: PDFPageProxy, fontName: string, family: string | undefi
     if (page.commonObjs.has(fontName)) {
       const font = page.commonObjs.get(fontName) as { name?: string; bold?: boolean; black?: boolean; italic?: boolean };
       name = `${font.name ?? ''} ${name}`;
-      bold = !!(font.bold || font.black);
+      bold = !!font.bold;
       italic = !!font.italic;
     }
   } catch {
     // Font not loaded; fall back to the family name.
   }
   return {
-    bold: bold || /bold|black|heavy|semibold|demi/i.test(name),
+    bold: bold || /bold|heavy|semibold|demi/i.test(name),
     italic: italic || /italic|oblique/i.test(name),
     mono: /mono|courier|consol/i.test(name),
     serif: /times|serif|georgia|garamond|cambria|book/i.test(name) && !/sans/i.test(name),
-    font: cleanFontName(name.trim().split(' ')[0] ?? ''),
+    font: cleanFontName(name.trim().split(' ')[0] ?? '') ?? cleanFontName(fontName),
   };
 }
 
