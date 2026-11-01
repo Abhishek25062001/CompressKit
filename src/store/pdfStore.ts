@@ -23,7 +23,13 @@ interface PdfState {
   editingPageId: string | null;
   /** Whether the bulk find & replace / edit dialog is open. */
   bulkEditing: boolean;
-  setBulkEditing: (open: boolean) => void;
+  bulkEditInitial?: {
+    query?: string;
+    mode?: 'text' | 'transaction' | 'number';
+    adjustBy?: number;
+    newAmount?: number;
+  } | null;
+  setBulkEditing: (open: boolean, initial?: { query?: string; mode?: 'text' | 'transaction' | 'number'; adjustBy?: number; newAmount?: number } | null) => void;
   /** Info about the last bulk edit, for undoing. */
   lastBulkEdit: {
     description: string;
@@ -86,7 +92,8 @@ export const usePdfStore = create<PdfState>()((set, get) => ({
   editingPageId: null,
   setEditingPage: (editingPageId) => set({ editingPageId }),
   bulkEditing: false,
-  setBulkEditing: (bulkEditing) => set({ bulkEditing }),
+  bulkEditInitial: null,
+  setBulkEditing: (bulkEditing, initial = null) => set({ bulkEditing, bulkEditInitial: initial }),
   lastBulkEdit: null,
   setLastBulkEdit: (lastBulkEdit) => set({ lastBulkEdit }),
   undoLastBulkEdit: () => {

@@ -481,11 +481,14 @@ export async function scanPdfForMatches(
 
           const tRight = t.line.x + t.line.width;
           const tLeft = t.line.x;
-          // Check right-edge or left-edge horizontal column alignment within 4.5% tolerance
+          const colMinX = Math.min(colLeft, colRight) - 0.035;
+          const colMaxX = Math.max(colLeft, colRight) + 0.035;
+          // Check right-edge or left-edge horizontal column alignment within tolerance, or column bounds
           const alignsRight = Math.abs(tRight - colRight) < 0.045;
           const alignsLeft = Math.abs(tLeft - colLeft) < 0.045;
+          const overlapsCol = tLeft >= colMinX && tRight <= colMaxX;
 
-          if (alignsRight || alignsLeft) {
+          if (alignsRight || alignsLeft || overlapsCol) {
             numRegex.lastIndex = 0;
             let m: RegExpExecArray | null;
             while ((m = numRegex.exec(t.text)) !== null) {
@@ -643,10 +646,13 @@ export async function scanPdfForMatches(
 
           const tRight = t.line.x + t.line.width;
           const tLeft = t.line.x;
+          const colMinX = Math.min(colLeft, colRight) - 0.035;
+          const colMaxX = Math.max(colLeft, colRight) + 0.035;
           const alignsRight = Math.abs(tRight - colRight) < 0.045;
           const alignsLeft = Math.abs(tLeft - colLeft) < 0.045;
+          const overlapsCol = tLeft >= colMinX && tRight <= colMaxX;
 
-          if (alignsRight || alignsLeft) {
+          if (alignsRight || alignsLeft || overlapsCol) {
             numRegex.lastIndex = 0;
             let m: RegExpExecArray | null;
             while ((m = numRegex.exec(t.text)) !== null) {

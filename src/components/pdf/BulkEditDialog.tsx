@@ -93,7 +93,43 @@ export function BulkEditDialog() {
     setBulkEditing(false);
   }, [setBulkEditing]);
 
+  const bulkEditInitial = usePdfStore((s) => s.bulkEditInitial);
+  useEffect(() => {
+    if (!open) return;
+    if (bulkEditInitial) {
+      if (bulkEditInitial.mode) setMode(bulkEditInitial.mode);
+      if (bulkEditInitial.query) {
+        setTransQuery(bulkEditInitial.query);
+        setTextQuery(bulkEditInitial.query);
+        setFindNumber(bulkEditInitial.query);
+      }
+      if (bulkEditInitial.adjustBy !== undefined) {
+        const sign = bulkEditInitial.adjustBy >= 0 ? `+${bulkEditInitial.adjustBy}` : `${bulkEditInitial.adjustBy}`;
+        setAdjustByStr(sign);
+        if (bulkEditInitial.query) {
+          const parsed = parseFinancialValue(bulkEditInitial.query) || { number: parseFloat(bulkEditInitial.query.replace(/[^\d.]/g, '')) };
+          if (!Number.isNaN(parsed.number)) {
+            setNewValueStr(String(parsed.number + bulkEditInitial.adjustBy));
+          }
+        }
+      }
+      if (bulkEditInitial.newAmount !== undefined) {
+        setNewValueStr(String(bulkEditInitial.newAmount));
+      }
+    }
+  }, [open, bulkEditInitial]);
+
   // Synchronize New Value and Adjust By inputs when user types in either
+  const handleTransQueryChange = (val: string) => {
+    setTransQuery(val);
+    const parsedOriginal = parseFinancialValue(val) || { number: parseFloat(val.replace(/[^\d.]/g, '')) };
+    const diff = parseFloat(adjustByStr);
+    if (!Number.isNaN(parsedOriginal.number) && !Number.isNaN(diff)) {
+      const calcNew = parsedOriginal.number + diff;
+      setNewValueStr(String(calcNew));
+    }
+  };
+
   const handleNewValueChange = (val: string) => {
     setNewValueStr(val);
     const parsedOriginal = parseFinancialValue(transQuery) || { number: parseFloat(transQuery.replace(/[^\d.]/g, '')) };
@@ -410,7 +446,7 @@ export function BulkEditDialog() {
                     id={transAmountInputId}
                     type="text"
                     value={transQuery}
-                    onChange={(e) => setTransQuery(e.target.value)}
+                    onChange={(e) => handleTransQueryChange(e.target.value)}
                     placeholder="e.g. ₹3,100 or 3100"
                     className="h-10 w-full rounded-xl border border-border bg-surface-2/30 pl-9 pr-3 text-sm font-semibold text-fg placeholder:text-muted focus:border-accent focus:outline-none"
                   />

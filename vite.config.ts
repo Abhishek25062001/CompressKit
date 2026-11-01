@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { CATALOG, HOME_META, SITE_NAME } from './src/features/catalog';
+import { CATALOG, HOME_META, SITE_NAME } from './src/features/catalog.ts';
 
 const require = createRequire(import.meta.url);
 

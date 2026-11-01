@@ -61,7 +61,9 @@ interface Cache {
 }
 
 function fontFor(doc: PDFDocument, cache: Cache, edit: TextEdit): PDFFont {
-  const name = STANDARD[edit.font][(edit.bold ? 1 : 0) + (edit.italic ? 2 : 0)];
+  const isNum = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(edit.text.trim());
+  const bold = isNum ? false : edit.bold;
+  const name = STANDARD[edit.font][(bold ? 1 : 0) + (edit.italic ? 2 : 0)];
   let font = cache.fonts.get(name);
   if (!font) {
     font = doc.embedStandardFont(name as Parameters<PDFDocument['embedStandardFont']>[0]);
@@ -77,7 +79,9 @@ async function rasterText(edit: TextEdit, lines: string[], width: number, size: 
   const canvas = createCanvas(Math.max(1, Math.ceil(width * scale)), Math.max(1, Math.ceil(lines.length * lineHeight * scale)));
   const ctx = getContext(canvas);
   const cssFont = edit.fontFamily ? `"${edit.fontFamily}", ${EDIT_CSS_FONT[edit.font]}` : EDIT_CSS_FONT[edit.font];
-  ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size * scale}px ${cssFont}`;
+  const isNum = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(edit.text.trim());
+  const bold = isNum ? false : edit.bold;
+  ctx.font = `${edit.italic ? 'italic ' : ''}${bold ? '700' : '400'} ${size * scale}px ${cssFont}`;
   ctx.fillStyle = edit.color;
   ctx.textAlign = edit.align;
   ctx.textBaseline = 'alphabetic';
@@ -102,7 +106,9 @@ async function drawText(lib: Lib, doc: PDFDocument, page: PDFPage, edit: TextEdi
     ? (s: string) => font.widthOfTextAtSize(s, size)
     : (() => {
         const ctx = getContext(createCanvas(1, 1));
-        ctx.font = `${edit.italic ? 'italic ' : ''}${edit.bold ? '700' : '400'} ${size}px ${cssFont}`;
+        const isNum = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(edit.text.trim());
+        const bold = isNum ? false : edit.bold;
+        ctx.font = `${edit.italic ? 'italic ' : ''}${bold ? '700' : '400'} ${size}px ${cssFont}`;
         return (s: string) => ctx.measureText(s).width;
       })();
   const lines = wrapText(edit.text, width, measure);

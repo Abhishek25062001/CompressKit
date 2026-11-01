@@ -3,6 +3,7 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  Calculator,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -808,6 +809,8 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
 
   const onReplace = (line: PageTextLine) => {
     const background = sampler.current ? sampleBackground(sampler.current.ctx, sampler.current.w, sampler.current.h, line) : '#ffffff';
+    const isNumeric = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(line.text.trim());
+    const align: 'left' | 'center' | 'right' = line.x > 0.55 && line.width < 0.35 ? 'right' : 'left';
     addText({
       // Slightly wider than the line, so the new text wraps no sooner than the old.
       x: line.x - 0.002,
@@ -816,12 +819,14 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
       text: line.text,
       size: line.size,
       color: background === '#000000' ? '#ffffff' : '#000000',
-      bold: line.bold,
+      bold: isNumeric ? false : line.bold,
       italic: line.italic,
       font: line.font,
-      align: 'left',
+      fontFamily: line.fontFamily,
+      align,
       background,
       coverHeight: line.height,
+      coverWidth: line.width + 0.008,
     });
   };
 
@@ -996,6 +1001,25 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
         </>
       );
     }
+    const isNumericCurrent = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(current.text.trim());
+    if (isNumericCurrent) {
+      properties = (
+        <>
+          {properties}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              saveRef.current?.();
+              usePdfStore.getState().setBulkEditing(true, { query: current.text.trim(), mode: 'transaction' });
+            }}
+            icon={<Calculator className="h-3.5 w-3.5 text-accent-text" aria-hidden />}
+          >
+            Balance Recalc
+          </Button>
+        </>
+      );
+    }
   } else if (current?.kind === 'highlight') {
     properties = (
       <Swatches colors={HIGHLIGHTS} value={current.color} label="Highlight colour" onChange={(color) => {
@@ -1071,7 +1095,17 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
           size="sm"
           onClick={() => {
             saveRef.current?.();
-            usePdfStore.getState().setBulkEditing(true);
+            const selectedEdit = current?.kind === 'text' ? current : null;
+            const isNum = selectedEdit ? /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(selectedEdit.text.trim()) : false;
+            usePdfStore.getState().setBulkEditing(
+              true,
+              selectedEdit
+                ? {
+                    query: selectedEdit.text.trim(),
+                    mode: isNum ? 'transaction' : 'text',
+                  }
+                : null,
+            );
           }}
           icon={<Replace className="h-3.5 w-3.5 text-accent-text" aria-hidden />}
         >
@@ -1220,7 +1254,9 @@ function Editor({ page, tool, setTool, style, setStyle, saveRef, onNavigate, onC
                   );
                   if (ed.kind === 'text') {
                     const fontFam = ed.fontFamily ? `"${ed.fontFamily}", ${EDIT_CSS_FONT[ed.font]}` : EDIT_CSS_FONT[ed.font];
-                    const font = `${ed.italic ? 'italic ' : ''}${ed.bold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${fontFam}`;
+                    const isNum = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(ed.text.trim());
+                    const isBold = isNum ? false : ed.bold;
+                    const font = `${ed.italic ? 'italic ' : ''}${isBold ? '700' : '400'} ${px(ed.size)}px/${EDIT_LINE_HEIGHT} ${fontFam}`;
                     const textStyle = { font, color: ed.color, textAlign: ed.align } as const;
                     return (
                       <div
@@ -1422,11 +1458,7 @@ export function EditDialog() {
     saveRef.current?.();
     usePdfStore.getState().setEditingPage(null);
   };
-  const closeRef = useRef(close);
-  closeRef.current = close;
-  // A stable callback, so the dialog hook does not restart on every render.
-  const [onDialogClose] = useState(() => () => closeRef.current());
-  useDialog(open, onDialogClose, panelRef);
+  useDialog(open, close, panelRef);
 
   if (!page) return null;
   const navigate = (id: string) => {

@@ -84,6 +84,12 @@ const FONT_ALIASES: Record<string, string> = {
   Tahoma: 'Tahoma',
   Verdana: 'Verdana',
   ArialMT: 'Arial',
+  Mulish: 'Mulish',
+  'Mulish-SemiBold': 'Mulish',
+  'Mulish-Bold': 'Mulish',
+  'Mulish-Regular': 'Mulish',
+  Inter: 'Inter',
+  'Open Sans': 'Open Sans',
 };
 
 /** "BAAAAA+TimesNewRomanPS-BoldMT" → "Times New Roman". */
@@ -91,7 +97,7 @@ export function cleanFontName(raw: string): string | undefined {
   let n = raw.replace(/^[A-Z]{6}\+/, '').split(/[,-]/)[0];
   n = n.replace(/(PSMT|MT|PS)$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
   if (!n || /^(g_d\d|f\d|sans-serif|serif|monospace)/i.test(n)) return undefined;
-  return FONT_ALIASES[n] ?? n;
+  return FONT_ALIASES[n] ?? FONT_ALIASES[raw.replace(/^[A-Z]{6}\+/, '')] ?? n;
 }
 
 function fontFlags(page: PDFPageProxy, fontName: string, family: string | undefined) {
@@ -109,7 +115,7 @@ function fontFlags(page: PDFPageProxy, fontName: string, family: string | undefi
     // Font not loaded; fall back to the family name.
   }
   return {
-    bold: bold || /bold|heavy|semibold|demi/i.test(name),
+    bold: bold || /bold|heavy|black/i.test(name),
     italic: italic || /italic|oblique/i.test(name),
     mono: /mono|courier|consol/i.test(name),
     serif: /times|serif|georgia|garamond|cambria|book/i.test(name) && !/sans/i.test(name),
@@ -183,6 +189,7 @@ export async function pageTextLines(page: PDFPageProxy, extraRotation: number): 
         const left = group[0].x;
         const right = Math.max(...group.map((p) => p.x + p.width));
         const main = group.reduce((a, b) => (b.text.length > a.text.length ? b : a));
+        const isNumeric = /^[-+₹$€£\s\d,.]+(?:\/-)?$/i.test(text.trim());
         const pieceInfos: TextPieceInfo[] = group.map((p) => ({
           text: p.text,
           x: p.x / viewport.width,
@@ -190,7 +197,7 @@ export async function pageTextLines(page: PDFPageProxy, extraRotation: number): 
           width: p.width / viewport.width,
           height: (p.size * 1.2) / viewport.height,
           size: p.size / viewport.height,
-          bold: p.bold,
+          bold: isNumeric ? false : p.bold,
           italic: p.italic,
           font: p.mono ? 'mono' : p.serif ? 'serif' : 'sans',
           fontFamily: p.font,
@@ -202,7 +209,7 @@ export async function pageTextLines(page: PDFPageProxy, extraRotation: number): 
           width: (right - left) / viewport.width,
           height: (size * 1.2) / viewport.height,
           size: size / viewport.height,
-          bold: main.bold,
+          bold: isNumeric ? false : main.bold,
           italic: main.italic,
           font: main.mono ? 'mono' : main.serif ? 'serif' : 'sans',
           fontFamily: main.font,
