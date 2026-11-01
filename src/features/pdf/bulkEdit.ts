@@ -699,12 +699,50 @@ export function findMatchesInPageLines(
   lines: PageTextLine[],
   options: BulkSearchOptions,
 ): BulkMatchOccurrence[] {
-  const dummySources: Record<string, PdfSource> = {
-    [page.sourceId]: { id: page.sourceId, kind: 'pdf', name: 'Document', blob: new Blob() },
-  };
-  // Use scanPdfForMatches directly with pre-cached lines
   pageLinesCache.set(`${page.id}_${page.rotation}`, lines);
-  return [];
+  const targets = extractScanTargets(page, pageIndex, lines);
+  const matches: BulkMatchOccurrence[] = [];
+
+  if (options.mode === 'text' && options.query) {
+    const escaped = escapeRegExp(options.query);
+    const pattern = options.wholeWord ? `\\b${escaped}\\b` : escaped;
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern, options.caseSensitive ? 'g' : 'gi');
+    } catch {
+      return [];
+    }
+
+    for (const t of targets) {
+      regex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(t.text)) !== null) {
+        if (!m[0]) {
+          regex.lastIndex++;
+          continue;
+        }
+        const piece = findPieceForMatch(t.line, m.index, m[0]);
+        matches.push({
+          id: `${t.page.id}-${t.lineIndex}-${m.index}`,
+          pageId: t.page.id,
+          pageIndex: t.pageIndex,
+          pageNumber: t.pageIndex + 1,
+          lineIndex: t.lineIndex,
+          originalLineText: t.text,
+          matchedText: m[0],
+          replacementText: options.replacement,
+          startIndex: m.index,
+          endIndex: m.index + m[0].length,
+          line: t.line,
+          piece,
+          existingEditId: t.existingEditId,
+          selected: true,
+        });
+      }
+    }
+  }
+
+  return matches;
 }
 
 /** Applies bulk replacements across the PDF, recording an undo snapshot. */
