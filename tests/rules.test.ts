@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { DEFAULT_IMAGE_SETTINGS } from '../src/constants/presets';
 import { MAX_CUSTOM_SIDE, RESIZE_PRESETS } from '../src/constants/resizePresets';
-import { CATALOG, type ToolId } from '../src/features/catalog';
+import { CATALOG, SITE_URL, pageUrl, robotsTxt, sitemapXml, type ToolId } from '../src/features/catalog';
 import { FEATURES, searchFeatures } from '../src/features/directory';
 import { ANY_TOOL_ACCEPT, acceptsFile, matchTools } from '../src/features/handoff';
 import { computeTargetSize } from '../src/features/image/resize';
@@ -201,5 +201,32 @@ describe('resize limits', () => {
     assert.ok(fits(square, null));
     assert.ok(!fits(freehand, 1));
     assert.ok(!fits(null, 1));
+  });
+});
+
+describe('tool addresses', () => {
+  const locs = [...sitemapXml().matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+
+  test('the sitemap lists the home page and every tool page once', () => {
+    assert.deepEqual(locs, [`${SITE_URL}/`, ...CATALOG.map((t) => `${SITE_URL}${t.path}`)]);
+    assert.equal(new Set(locs).size, locs.length);
+  });
+
+  test('every address is a full https URL on the site, without a trailing slash or hash', () => {
+    for (const loc of locs) {
+      const url = new URL(loc);
+      assert.equal(url.origin, SITE_URL, loc);
+      assert.equal(url.hash, '', loc);
+      assert.ok(url.pathname === '/' || !url.pathname.endsWith('/'), loc);
+    }
+    assert.ok(SITE_URL.startsWith('https://') && !SITE_URL.endsWith('/'));
+  });
+
+  test('the switched-off background remover is not listed', () => {
+    assert.ok(locs.every((l) => !l.includes('background')));
+  });
+
+  test('robots.txt points at the sitemap', () => {
+    assert.ok(robotsTxt().includes(`Sitemap: ${pageUrl('/sitemap.xml')}`));
   });
 });

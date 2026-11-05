@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { CATALOG, HOME_META, SITE_NAME } from './src/features/catalog.ts';
+import { CATALOG, HOME_META, SITE_NAME, pageUrl, robotsTxt, sitemapXml } from './src/features/catalog.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -171,14 +171,27 @@ function onnxRuntimeGatherNdFix(): Plugin {
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Sets the page title and every description or title meta tag in an HTML document. */
-function withMeta(html: string, title: string, description: string): string {
+/**
+ * Sets the page title, every description or title meta tag, and the page's own address (canonical
+ * link and og:url) in an HTML document. A page without an address of its own (404) gets neither.
+ * Share images get the full address too, since link previews do not resolve relative ones.
+ */
+function withMeta(html: string, title: string, description: string, path: string | null): string {
   const t = escapeHtml(title);
   const d = escapeHtml(description);
-  return html
+  const out = html
+    .replace(/\s*<link\s+rel="canonical"[^>]*>/g, '')
+    .replace(/\s*<meta\s+property="og:url"[^>]*>/g, '')
     .replace(/<title>[^<]*<\/title>/, `<title>${t}</title>`)
     .replace(/(<meta\s+(?:name|property)="(?:og:title|twitter:title)"\s+content=")[^"]*"/g, `$1${t}"`)
-    .replace(/(<meta\s+(?:name|property)="(?:description|og:description|twitter:description)"\s+content=")[^"]*"/g, `$1${d}"`);
+    .replace(/(<meta\s+(?:name|property)="(?:description|og:description|twitter:description)"\s+content=")[^"]*"/g, `$1${d}"`)
+    .replace(/(<meta\s+(?:name|property)="(?:og:image|twitter:image)"\s+content=")\/([^"]*)"/g, (_, tag: string, file: string) => `${tag}${pageUrl(`/${file}`)}"`);
+  if (path === null) return out;
+  const url = escapeHtml(pageUrl(path));
+  return out.replace(
+    /\n([ \t]*)(<meta\s+property="og:type"[^>]*>)/,
+    `\n$1<link rel="canonical" href="${url}" />\n$1$2\n$1<meta property="og:url" content="${url}" />`,
+  );
 }
 
 /**
@@ -194,16 +207,18 @@ function toolPages(): Plugin {
       outDir = config.build.outDir;
     },
     transformIndexHtml(html) {
-      return withMeta(html, HOME_META.title, HOME_META.description);
+      return withMeta(html, HOME_META.title, HOME_META.description, '/');
     },
     writeBundle() {
       const index = readFileSync(join(outDir, 'index.html'), 'utf8');
       for (const tool of CATALOG) {
         const dir = join(outDir, tool.path.slice(1));
         mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, 'index.html'), withMeta(index, tool.title, tool.description));
+        writeFileSync(join(dir, 'index.html'), withMeta(index, tool.title, tool.description, tool.path));
       }
-      writeFileSync(join(outDir, '404.html'), withMeta(index, `Page not found | ${SITE_NAME}`, HOME_META.description));
+      writeFileSync(join(outDir, '404.html'), withMeta(index, `Page not found | ${SITE_NAME}`, HOME_META.description, null));
+      writeFileSync(join(outDir, 'sitemap.xml'), sitemapXml());
+      writeFileSync(join(outDir, 'robots.txt'), robotsTxt());
     },
   };
 }

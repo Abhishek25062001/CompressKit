@@ -363,3 +363,19 @@ export const LEGACY_HASHES: Record<string, string> = {
   // '#remove-background': '/remove-background', // Remove Background is switched off for now.
   '#pdf': '/pdf',
 };
+
+/** Where the site is published. Canonical links, og:url, the sitemap and robots.txt are built from it. */
+export const SITE_URL = 'https://compress-kit-iota.vercel.app';
+
+/** Full public address of a page, from its path ("/" for the home page). */
+export const pageUrl = (path: string): string => SITE_URL + (path === '/' ? '/' : path);
+
+/** The home page and every tool page, for search engines. Job links ("/resize#passport") share their tool's page. */
+export function sitemapXml(): string {
+  const urls = ['/', ...CATALOG.map((t) => t.path)].map((p) => `  <url><loc>${pageUrl(p)}</loc></url>`);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+}
+
+export function robotsTxt(): string {
+  return `User-agent: *\nAllow: /\n\nSitemap: ${pageUrl('/sitemap.xml')}\n`;
+}
