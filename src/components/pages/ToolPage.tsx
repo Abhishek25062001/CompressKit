@@ -10,6 +10,7 @@ import { HighlightGrid } from '../sections/HighlightGrid';
 import { PrivacyNote } from '../sections/Privacy';
 import { StepList } from '../sections/StepList';
 import { RelatedTools } from '../tools/RelatedTools';
+import { ToolErrorBoundary } from '../common/ToolErrorBoundary';
 import { ToolWorkspace } from '../workspace/ToolWorkspace';
 
 /** One page per tool: what it is, the tool itself, then how it works and what it can do. */
@@ -72,7 +73,9 @@ export function ToolPage({ id }: { id: ToolId }) {
         </header>
       </div>
 
-      <ToolWorkspace id={id} />
+      <ToolErrorBoundary resetKey={id}>
+        <ToolWorkspace id={id} />
+      </ToolErrorBoundary>
 
       <div className="mt-20 sm:mt-24">
         <StepList id="how-it-works" eyebrow="How it works" title={`${tool.name} in three steps`} steps={content.steps} />

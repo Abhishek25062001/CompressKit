@@ -1,25 +1,32 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { TOOL_BY_ID, type ToolId } from '../../features/catalog';
 import { TOOLS, ToolContext } from '../../features/tools';
 import { useQueueSummary } from '../../hooks/useQueueSummary';
 import { isConvertKind } from '../../store/docsStore';
 import type { ToolMode } from '../../types/media';
-import { ConvertWorkspace } from '../docs/ConvertWorkspace';
-import { DocxEditor } from '../docs/DocxEditor';
-import { PdfWorkspace } from '../pdf/PdfWorkspace';
 import { CompressionBar } from '../compression/CompressionBar';
 import { FileQueue } from '../files/FileQueue';
 import { CropDialog } from '../resize/CropDialog';
 import { CompletionSummary } from '../results/CompletionSummary';
-import { BackgroundSettingsPanel } from '../settings/BackgroundSettingsPanel';
 import { CleanInfoPanel } from '../settings/CleanInfoPanel';
 import { ConvertSettingsPanel } from '../settings/ConvertSettingsPanel';
 import { FileSettingsDialog } from '../settings/FileSettingsDialog';
 import { ResizeSettingsPanel } from '../settings/ResizeSettingsPanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
-import { TrimWorkspace } from '../trim/TrimWorkspace';
 import { DropZone } from '../upload/DropZone';
+
+const PdfWorkspace = lazy(() => import('../pdf/PdfWorkspace').then((m) => ({ default: m.PdfWorkspace })));
+const ConvertWorkspace = lazy(() => import('../docs/ConvertWorkspace').then((m) => ({ default: m.ConvertWorkspace })));
+const DocxEditor = lazy(() => import('../docs/DocxEditor').then((m) => ({ default: m.DocxEditor })));
+const TrimWorkspace = lazy(() => import('../trim/TrimWorkspace').then((m) => ({ default: m.TrimWorkspace })));
+const BackgroundSettingsPanel = lazy(() => import('../settings/BackgroundSettingsPanel').then((m) => ({ default: m.BackgroundSettingsPanel })));
+
+function ToolFallback() {
+  return (
+    <div className="mx-auto h-48 max-w-3xl animate-pulse rounded-3xl border-2 border-dashed border-border bg-surface/70" role="status" aria-label="Loading tool" />
+  );
+}
 
 function ToolPanel({ mode }: { mode: ToolMode }) {
   const tool = TOOLS[mode];
@@ -81,7 +88,9 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
             ) : mode === 'clean' ? (
               <CleanInfoPanel />
             ) : mode === 'background' ? (
-              <BackgroundSettingsPanel />
+              <Suspense fallback={<ToolFallback />}>
+                <BackgroundSettingsPanel />
+              </Suspense>
             ) : (
               <ResizeSettingsPanel />
             )}
@@ -96,19 +105,21 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
 export function ToolWorkspace({ id }: { id: ToolId }) {
   return (
     <section id="tool" aria-label={TOOL_BY_ID[id].name} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
-      {id === 'pdf' || id === 'edit-pdf' || id === 'merge' ? (
-        <PdfWorkspace variant={id === 'pdf' ? 'pdf' : id === 'edit-pdf' ? 'edit' : 'merge'} />
-      ) : isConvertKind(id) ? (
-        <ConvertWorkspace kind={id} />
-      ) : id === 'edit-docx' ? (
-        <DocxEditor />
-      ) : id === 'trim' ? (
-        <TrimWorkspace />
-      ) : (
-        <ToolContext value={TOOLS[id]}>
-          <ToolPanel mode={id} />
-        </ToolContext>
-      )}
+      <Suspense fallback={<ToolFallback />}>
+        {id === 'pdf' || id === 'edit-pdf' || id === 'merge' ? (
+          <PdfWorkspace variant={id === 'pdf' ? 'pdf' : id === 'edit-pdf' ? 'edit' : 'merge'} />
+        ) : isConvertKind(id) ? (
+          <ConvertWorkspace kind={id} />
+        ) : id === 'edit-docx' ? (
+          <DocxEditor />
+        ) : id === 'trim' ? (
+          <TrimWorkspace />
+        ) : (
+          <ToolContext value={TOOLS[id]}>
+            <ToolPanel mode={id} />
+          </ToolContext>
+        )}
+      </Suspense>
       <FileSettingsDialog />
       <CropDialog />
     </section>

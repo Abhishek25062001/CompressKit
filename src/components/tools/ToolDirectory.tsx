@@ -54,7 +54,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
 
       {/* Title + description */}
       <div className="relative mt-3 min-w-0 flex-1 sm:mt-4">
-        <h4
+        <h3
           className={cn(
             'font-semibold tracking-tight text-fg',
             // Slightly smaller on phones so long names still fit 2-up
@@ -62,7 +62,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
           )}
         >
           {feature.name}
-        </h4>
+        </h3>
         <p
           className={cn(
             'mt-1 line-clamp-2 text-muted sm:mt-1.5',
@@ -167,29 +167,14 @@ export function ToolDirectory() {
         IN_NATIVE_APP ? 'py-2' : 'pt-2 pb-6 sm:pt-3 sm:pb-8',
       )}
     >
-      {/* {IN_NATIVE_APP ? (
-        <h2 id="tools-title" className="sr-only">
-          All tools
-        </h2>
-      ) : (
-        <SectionHeading
-          id="tools-title"
-          eyebrow={
-            <span className="inline-flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden />
-              All tools
-            </span>
-          }
-          title={`${FEATURES.length} tools, sorted by what you're working on`}
-          description="Pick a category or scroll through them all. Each one runs entirely in your browser, works offline after your first visit, and never uploads your files."
-        />
-      )} */}
+      <h2 id="tools-title" className="sr-only">
+        All tools
+      </h2>
 
-      {/* Sticky filter bar */}
       <div
         className={cn(
           'sticky z-30 -mx-4 border-b border-border/60 bg-bg/80 backdrop-blur-xl sm:-mx-6',
-          IN_NATIVE_APP ? 'top-8 mb-5 px-4 py-2' : 'top-6 mb-8 px-4 py-3 sm:mb-10 sm:px-4',
+          IN_NATIVE_APP ? 'top-8 mb-5 px-4 py-2' : 'top-16 mb-8 px-4 py-3 sm:mb-10 sm:px-4',
         )}
       >
         <div
@@ -232,7 +217,7 @@ export function ToolDirectory() {
       {/* Groups */}
       <div
         ref={listRef}
-        className={cn('scroll-mt-36', IN_NATIVE_APP ? 'space-y-6' : 'space-y-10 sm:space-y-14 lg:space-y-16')}
+        className={cn('scroll-mt-40', IN_NATIVE_APP ? 'space-y-6' : 'space-y-10 sm:space-y-14 lg:space-y-16')}
       >
         {groups.map(({ category, features }) => (
           <section
@@ -245,7 +230,7 @@ export function ToolDirectory() {
                 <span className="hue-tile inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                   <category.icon className="h-3.5 w-3.5" aria-hidden />
                 </span>
-                <h3
+                <h2
                   id={`tools-${category.id}`}
                   className="flex items-baseline gap-2 text-[15px] font-semibold tracking-tight text-fg"
                 >
@@ -253,7 +238,7 @@ export function ToolDirectory() {
                   <span className="text-xs font-normal text-subtle tabular-nums">
                     {features.length}
                   </span>
-                </h3>
+                </h2>
               </div>
             ) : (
               <div className="mb-4 flex items-center gap-3 sm:mb-6 sm:gap-4">
@@ -261,7 +246,7 @@ export function ToolDirectory() {
                   <category.icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3
+                  <h2
                     id={`tools-${category.id}`}
                     className="flex items-baseline gap-2 text-base font-semibold tracking-tight text-fg sm:text-xl"
                   >
@@ -269,7 +254,7 @@ export function ToolDirectory() {
                     <span className="text-xs font-normal text-subtle tabular-nums sm:text-sm">
                       {features.length}
                     </span>
-                  </h3>
+                  </h2>
                   <p className="mt-0.5 line-clamp-2 text-xs text-muted sm:line-clamp-none sm:text-sm">
                     {category.description}
                   </p>
