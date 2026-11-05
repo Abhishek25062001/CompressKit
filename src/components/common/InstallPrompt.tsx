@@ -12,7 +12,7 @@ import {
 } from '../../utils/pwaInstall';
 import { Button } from './Button';
 
-type Mode = 'install' | 'ios-safari' | 'ios-other' | 'android-chrome' | 'android-other';
+type Mode = 'install' | 'ios-safari' | 'ios-chrome' | 'ios-browser' | 'ios-in-app' | 'android-chrome' | 'android-other';
 
 export function InstallPrompt() {
   const [mode, setMode] = useState<Mode | null>(null);
@@ -23,7 +23,8 @@ export function InstallPrompt() {
 
     const ios = iosInstallTarget();
     if (ios) {
-      setMode(ios === 'safari' ? 'ios-safari' : 'ios-other');
+      const iosMode = { safari: 'ios-safari', chrome: 'ios-chrome', browser: 'ios-browser', 'in-app': 'ios-in-app' } as const;
+      setMode(iosMode[ios]);
       return;
     }
 
@@ -101,7 +102,7 @@ export function InstallPrompt() {
 
 function titleFor(mode: Mode): string {
   if (mode === 'install') return 'Install ofctools';
-  if (mode === 'ios-other') return 'Open ofctools in Safari';
+  if (mode === 'ios-in-app') return 'Open ofctools in Chrome';
   if (mode === 'android-other') return 'Open ofctools in Chrome';
   return 'Add ofctools to your Home Screen';
 }
@@ -125,10 +126,36 @@ function PromptBody({ mode }: { mode: Mode }) {
       </ol>
     );
   }
-  if (mode === 'ios-other') {
+  if (mode === 'ios-chrome') {
+    return (
+      <ol className="mt-1.5 space-y-1 text-sm text-muted">
+        <li className="flex items-start gap-1.5">
+          <Share className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-text" aria-hidden />
+          <span>
+            Tap <span className="font-medium text-fg">Share</span> on the right of the address bar.
+          </span>
+        </li>
+        <li className="pl-5">
+          Tap <span className="font-medium text-fg">Add to Home Screen</span>. Scroll the share sheet if it is not in the first row.
+        </li>
+        <li className="pl-5">
+          Tap <span className="font-medium text-fg">Add</span>.
+        </li>
+      </ol>
+    );
+  }
+  if (mode === 'ios-browser') {
     return (
       <p className="mt-0.5 text-sm text-muted">
-        Open this page in Safari, tap <span className="font-medium text-fg">Share</span>, then{' '}
+        Tap <span className="font-medium text-fg">Share</span>, then <span className="font-medium text-fg">Add to Home Screen</span>, then{' '}
+        <span className="font-medium text-fg">Add</span>.
+      </p>
+    );
+  }
+  if (mode === 'ios-in-app') {
+    return (
+      <p className="mt-0.5 text-sm text-muted">
+        Open this page in Chrome or Safari, tap <span className="font-medium text-fg">Share</span>, then{' '}
         <span className="font-medium text-fg">Add to Home Screen</span>.
       </p>
     );

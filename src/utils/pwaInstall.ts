@@ -1,7 +1,10 @@
 /**
- * Chrome fires `beforeinstallprompt` only when it considers the site installable, and it often
- * skips its own popup. iOS Safari has no install event: the only path is Add to Home Screen.
+ * Android Chrome fires `beforeinstallprompt` when the site is installable, and often skips its own
+ * popup. iOS has no install event in any browser. Since iOS 16.4, Chrome, Safari, Edge, and
+ * Firefox can each add the site from their own Share menu. A page cannot open that menu itself.
  */
+
+export type IosInstallTarget = 'safari' | 'chrome' | 'browser' | 'in-app';
 
 const DISMISS_KEY = 'ofctools-install-dismissed';
 const DISMISS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -20,11 +23,13 @@ export function isStandalone(): boolean {
   );
 }
 
-export function iosInstallTarget(): 'safari' | 'other' | null {
+export function iosInstallTarget(): IosInstallTarget | null {
   const ua = navigator.userAgent;
   const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!ios) return null;
-  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|GSA\//.test(ua)) return 'other';
+  if (/CriOS/.test(ua)) return 'chrome';
+  if (/FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo/.test(ua)) return 'browser';
+  if (/Instagram|FBAN|FBAV|Line\/|Twitter|Snapchat|GSA\/|TikTok|Musical_ly/i.test(ua)) return 'in-app';
   return 'safari';
 }
 
