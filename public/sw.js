@@ -2,7 +2,16 @@
    It never touches user files, which are handled in memory and never requested over the network. */
 const CACHE = 'compresskit-v1';
 const SCOPE = self.registration.scope;
-const PRECACHE = ['', 'index.html', 'favicon.svg', 'manifest.webmanifest'].map((p) => new URL(p, SCOPE).href);
+const PRECACHE = [
+  '',
+  'index.html',
+  'favicon.svg',
+  'manifest.webmanifest',
+  'icons/apple-touch-icon.png',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'icons/icon-maskable-512.png',
+].map((p) => new URL(p, SCOPE).href);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

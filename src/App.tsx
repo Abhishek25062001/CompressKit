@@ -1,5 +1,6 @@
 import { MotionConfig } from 'framer-motion';
 import { useEffect, useRef } from 'react';
+import { InstallPrompt } from './components/common/InstallPrompt';
 import { Notices } from './components/common/Notices';
 import { Footer } from './components/layout/Footer';
 import { Header } from './components/layout/Header';
@@ -77,6 +78,7 @@ export default function App() {
         {page === 'tool' ? `Skip to ${tool!.name.toLowerCase()}` : 'Skip to content'}
       </a>
       <Header />
+      <InstallPrompt />
       <main id="main" tabIndex={-1} className="outline-none">
         {page === 'home' ? <HomePage /> : tool ? <ToolPage key={tool.id} id={tool.id} /> : <NotFoundPage />}
       </main>
