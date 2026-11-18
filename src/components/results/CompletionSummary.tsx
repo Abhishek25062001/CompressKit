@@ -120,7 +120,7 @@ export function CompletionSummary() {
               </p>
             </div>
           )}
-          {mode === 'clean' ? null : mode === 'background' ? (
+          {mode === 'clean' ? null : mode === 'background' || mode === 'watermark' ? (
             <div className="rounded-xl border border-accent/40 bg-accent-soft/60 px-3 py-3">
               <p className="tabular font-mono text-lg font-semibold text-accent-text">0</p>
               <p className="text-[11px] text-muted">uploads</p>

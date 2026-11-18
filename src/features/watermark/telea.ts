@@ -59,10 +59,6 @@ class MinHeap {
   }
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return n < min ? min : n > max ? max : n;
-}
-
 /**
  * Fills every pixel where `mask[i] !== 0` using neighbouring known pixels (Telea).
  * Mutates `rgba` in place. `mask` is one byte per pixel (non-zero = fill).
@@ -209,7 +205,4 @@ export function inpaintTelea(rgba: Uint8ClampedArray, width: number, height: num
       }
     }
   }
-
-  // Soften the seam: blend a 1px ring of filled pixels with their original neighbours.
-  void clamp;
 }

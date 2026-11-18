@@ -27,7 +27,8 @@ export function ResultPanel({ item }: { item: QueueItem }) {
   const outputKind = result.mime.startsWith('image/') ? 'image' : result.mime.startsWith('video/') ? 'video' : 'other';
 
   if (mode === 'clean') return <CleanResult item={item} />;
-  if (mode === 'background') {
+  if (mode === 'background' || mode === 'watermark') {
+    const resultLabel = mode === 'watermark' ? 'Clean' : 'Cut-out';
     return (
       <div className="space-y-4">
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -45,7 +46,14 @@ export function ResultPanel({ item }: { item: QueueItem }) {
         )}
         {/* A cropped cut-out no longer lines up with the photo, so it is shown on its own. */}
         {result.width === item.meta.width && result.height === item.meta.height ? (
-          <ImageCompare original={item.file} compressedUrl={result.url} width={result.width} height={result.height} resultLabel="Cut-out" resultTag="Cut-out" />
+          <ImageCompare
+            original={item.file}
+            compressedUrl={result.url}
+            width={result.width}
+            height={result.height}
+            resultLabel={resultLabel}
+            resultTag={resultLabel}
+          />
         ) : (
           <ConvertedPreview result={result} />
         )}
