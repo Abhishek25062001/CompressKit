@@ -9,15 +9,26 @@ import {
   INPUT_FORMATS,
   RESIZE_FORMAT_BADGES,
   RESIZE_INPUT_FORMATS,
+  WATERMARK_FORMAT_BADGES,
+  WATERMARK_INPUT_FORMATS,
   acceptAttribute,
 } from '../constants/formats';
-import { useBackgroundQueueStore, useCleanQueueStore, useConvertQueueStore, useQueueStore, useResizeQueueStore, type QueueStore } from '../store/queueStore';
+import {
+  useBackgroundQueueStore,
+  useCleanQueueStore,
+  useConvertQueueStore,
+  useQueueStore,
+  useResizeQueueStore,
+  useWatermarkQueueStore,
+  type QueueStore,
+} from '../store/queueStore';
 import type { ToolMode, WorkspaceTab } from '../types/media';
 import { BackgroundManager } from './background/backgroundManager';
 import { CleanManager } from './clean/cleanManager';
 import { compressionManager, conversionManager, resizeManager } from './compression/CompressionManager';
 import { downloadAll, downloadItem } from './compression/downloads';
 import { addFilesTo } from './compression/intake';
+import { WatermarkManager } from './watermark/watermarkManager';
 
 /** What the shared queue UI asks of the object that runs a tool's jobs. */
 export interface QueueManager {
@@ -110,12 +121,25 @@ export const backgroundTool: Tool = {
   verb: { base: 'Cut out', ing: 'Cutting out', past: 'cut out', noun: 'Background removal' },
 };
 
+export const watermarkTool: Tool = {
+  mode: 'watermark',
+  useQueue: useWatermarkQueueStore,
+  manager: new WatermarkManager(useWatermarkQueueStore),
+  addFiles: (files) => addFilesTo(useWatermarkQueueStore, WATERMARK_INPUT_FORMATS, files),
+  downloadItem: (id) => downloadItem(useWatermarkQueueStore, id),
+  downloadAll: (onProgress) => downloadAll(useWatermarkQueueStore, 'ofctools-clean', onProgress),
+  accept: acceptAttribute(WATERMARK_INPUT_FORMATS),
+  badges: WATERMARK_FORMAT_BADGES,
+  verb: { base: 'Remove', ing: 'Removing', past: 'cleaned', noun: 'Watermark removal' },
+};
+
 export const TOOLS: Record<ToolMode, Tool> = {
   compress: compressTool,
   convert: convertTool,
   resize: resizeTool,
   clean: cleanTool,
   background: backgroundTool,
+  watermark: watermarkTool,
 };
 
 export const ToolContext = createContext<Tool>(compressTool);

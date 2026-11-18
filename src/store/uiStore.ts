@@ -12,6 +12,10 @@ interface UiState {
   croppingFileId: string | null;
   openCrop: (id: string) => void;
   closeCrop: () => void;
+  /** File whose watermark mark editor is open. */
+  maskingFileId: string | null;
+  openMask: (id: string) => void;
+  closeMask: () => void;
   /** File whose individual settings dialog is open. */
   editingFileId: string | null;
   notices: Notice[];
@@ -32,6 +36,9 @@ export const useUiStore = create<UiState>()((set) => ({
   croppingFileId: null,
   openCrop: (id) => set({ croppingFileId: id }),
   closeCrop: () => set({ croppingFileId: null }),
+  maskingFileId: null,
+  openMask: (id) => set({ maskingFileId: id }),
+  closeMask: () => set({ maskingFileId: null }),
   editingFileId: null,
   notices: [],
   openFileSettings: (id) => set({ editingFileId: id }),

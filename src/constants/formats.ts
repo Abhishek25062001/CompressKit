@@ -62,6 +62,10 @@ export const CLEAN_INPUT_FORMATS: FormatDef[] = [
 /** Photos the background remover can cut out. It decodes them in a worker, which rules out HEIC. */
 export const BACKGROUND_INPUT_FORMATS: FormatDef[] = RESIZE_INPUT_FORMATS;
 
+/** Photos the watermark remover can clean. Same as resize: no HEIC in the mark editor's <img>. */
+export const WATERMARK_INPUT_FORMATS: FormatDef[] = RESIZE_INPUT_FORMATS;
+export const WATERMARK_FORMAT_BADGES = WATERMARK_INPUT_FORMATS.map((f) => f.label);
+
 export const FORMAT_BADGES = ['JPG', 'PNG', 'WebP', 'AVIF', 'MP4', 'MOV', 'WebM', 'MKV'];
 export const CLEAN_FORMAT_BADGES = CLEAN_INPUT_FORMATS.map((f) => f.label);
 export const RESIZE_FORMAT_BADGES = RESIZE_INPUT_FORMATS.map((f) => f.label);

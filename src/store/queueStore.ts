@@ -67,6 +67,7 @@ export const useConvertQueueStore = createQueueStore();
 export const useResizeQueueStore = createQueueStore();
 export const useCleanQueueStore = createQueueStore();
 export const useBackgroundQueueStore = createQueueStore();
+export const useWatermarkQueueStore = createQueueStore();
 
 /** Selectors kept outside components so they are stable references. */
 export const selectOrder = (s: QueueState) => s.order;

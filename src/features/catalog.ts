@@ -9,6 +9,7 @@ export type ToolId =
   | 'convert'
   | 'resize'
   | 'background'
+  | 'watermark'
   | 'trim'
   | 'clean'
   | 'pdf'
@@ -62,7 +63,7 @@ export const HOME_META = {
   // Remove Background is switched off for now; with it on, the description was:
   // 'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
   description:
-    'Compress, convert, resize and trim photos and videos, remove hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
+    'Compress, convert, resize and trim photos and videos, remove watermarks and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
 };
 
 export const CATALOG: ToolInfo[] = [
@@ -117,6 +118,18 @@ export const CATALOG: ToolInfo[] = [
   //   handles: ['image'],
   //   formats: 'JPG · PNG · WebP · AVIF · BMP',
   // },
+  {
+    id: 'watermark',
+    path: '/remove-watermark',
+    name: 'Remove watermark',
+    heading: 'Remove a watermark from a photo',
+    tagline: 'Mark a logo or stamp and fill it in on your device.',
+    description:
+      'Remove a logo, stamp or text watermark from a photo in your browser. Mark the area, and ofctools fills it from the surrounding pixels. Nothing is uploaded.',
+    title: 'Remove Watermark from Photos Online, Privately | ofctools',
+    handles: ['image'],
+    formats: 'JPG · PNG · WebP · AVIF · BMP',
+  },
   {
     id: 'trim',
     path: '/trim-video',

@@ -6,9 +6,9 @@ export type MediaKind = 'image' | 'video';
 
 /**
  * Which tool a queue belongs to: shrinking files, changing their format, cropping them to a size,
- * removing hidden details such as location, or cutting the subject out of a photo.
+ * removing hidden details such as location, cutting the subject out of a photo, or removing a watermark.
  */
-export type ToolMode = 'compress' | 'convert' | 'resize' | 'clean' | 'background';
+export type ToolMode = 'compress' | 'convert' | 'resize' | 'clean' | 'background' | 'watermark';
 
 /**
  * Tabs of the workspace: the queue tools, plus the video trimmer (one video on a timeline) and the
