@@ -178,6 +178,16 @@ function FileCardImpl({ id }: { id: string }) {
         </p>
       )}
 
+      {mode === 'watermark' && !item.crop && status === 'waiting' && (
+        <p className="flex items-center gap-2 border-t border-border bg-surface-2/60 px-4 py-2 text-xs text-muted">
+          <Eraser className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <button type="button" className="text-left font-medium text-accent-text underline-offset-2 hover:underline" onClick={() => openMask(id)}>
+            Mark the watermark
+          </button>
+          <span>on this photo (or the default bottom-right area is used).</span>
+        </p>
+      )}
+
       <AnimatePresence initial={false}>
         {expanded && result && status === 'completed' && (
           <motion.div

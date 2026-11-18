@@ -92,6 +92,13 @@ describe('accepted formats', () => {
     assert.ok(!takes('resize', 'a.mp4', 'video/mp4'));
   });
 
+  test('watermark takes the same photos as resize', () => {
+    assert.ok(takes('watermark', 'a.jpg', 'image/jpeg'));
+    assert.ok(takes('watermark', 'a.png'));
+    assert.ok(!takes('watermark', 'a.heic'));
+    assert.ok(!takes('watermark', 'a.mp4', 'video/mp4'));
+  });
+
   test('clean leaves out the containers phones never tag with a location', () => {
     assert.ok(takes('clean', 'a.mov'));
     assert.ok(!takes('clean', 'a.webm'));
