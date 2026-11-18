@@ -1,0 +1,76 @@
+import { MIME_EXTENSION, MIME_LABEL } from '../../constants/formats';
+import { useWatermarkSettingsStore } from '../../store/watermarkSettingsStore';
+import type { QueueStore } from '../../store/queueStore';
+import type { QueueItem } from '../../types/media';
+import type { WatermarkJobRequest } from '../../types/watermark';
+import type { WorkerResponse } from '../../types/worker';
+import { CompressionError } from '../../utils/errors';
+import { sanitizeBaseName } from '../../utils/filename';
+import { WorkerSlot } from '../compression/workerSlot';
+import { QueueRunner, type ProcessOutput, type ProgressFn } from '../compression/queueRunner';
+
+/** Suggested mark when the user has not drawn one yet: bottom-right, typical logo spot. */
+export const DEFAULT_WATERMARK_MASK = { x: 0.72, y: 0.86, width: 0.24, height: 0.1 };
+
+/**
+ * Runs the watermark remover's queue: one photo at a time on one worker.
+ */
+export class WatermarkManager extends QueueRunner {
+  private slot = new WorkerSlot(
+    () => new Worker(new URL('../../workers/watermark.worker.ts', import.meta.url), { type: 'module', name: 'compresskit-watermark' }),
+    5 * 60_000,
+  );
+
+  private cancelRunning: (() => void) | null = null;
+
+  constructor(queue: QueueStore) {
+    super(queue, 1);
+  }
+
+  protected override abort(id: string): void {
+    if (this.slot.jobId !== id) return;
+    this.slot.terminate();
+    this.cancelRunning?.();
+  }
+
+  protected override process(item: QueueItem, onProgress: ProgressFn): Promise<ProcessOutput> {
+    const rect = item.crop?.rect ?? DEFAULT_WATERMARK_MASK;
+    const settings = useWatermarkSettingsStore.getState();
+    const request: WatermarkJobRequest = {
+      type: 'remove-watermark',
+      jobId: item.id,
+      file: item.file,
+      mask: rect,
+      settings: { format: settings.format, expand: settings.expand },
+    };
+    return new Promise((resolve, reject) => {
+      this.cancelRunning = () => reject(new CompressionError('CANCELLED'));
+      this.slot.run<WorkerResponse>(item.id, request, {
+        onMessage: (msg) => {
+          if (msg.type === 'progress') onProgress(msg.progress, msg.stage);
+          else if (msg.type === 'error') reject(new CompressionError(msg.code, msg.detail));
+          else {
+            const ext = MIME_EXTENSION[msg.mime] ?? 'png';
+            const notes = [...msg.notes];
+            if (!item.crop) notes.unshift('Used the default bottom-right mark. Open Mark watermark to aim it.');
+            resolve({
+              result: {
+                blob: msg.blob,
+                fileName: `${sanitizeBaseName(item.name)}-clean.${ext}`,
+                mime: msg.mime,
+                formatLabel: MIME_LABEL[msg.mime] ?? ext.toUpperCase(),
+                size: msg.blob.size,
+                width: msg.width,
+                height: msg.height,
+                engine: 'canvas',
+                notes,
+                keptOriginal: false,
+              },
+            });
+          }
+        },
+        onCrash: (detail) => reject(new CompressionError('WORKER_CRASHED', detail)),
+      });
+    });
+  }
+}
