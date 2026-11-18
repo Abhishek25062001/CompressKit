@@ -7,6 +7,7 @@ import {
   Code,
   Combine,
   Crop,
+  Eraser,
   EyeOff,
   Feather,
   FileImage,
@@ -90,7 +91,7 @@ export interface Feature {
 /** Media first, then documents; this order also balances the launcher's four columns. */
 export const CATEGORIES: Category[] = [
   // Remove Background is switched off for now; with it on: 'Shrink, convert and clean up pictures, and cut out backgrounds.'
-  { id: 'photos', name: 'Photos', description: 'Shrink, convert and clean up pictures.', icon: Image },
+  { id: 'photos', name: 'Photos', description: 'Shrink, convert, clean up pictures and remove watermarks.', icon: Image },
   { id: 'resize', name: 'Resize & crop', description: 'Exact sizes for IDs, forms and social media, plus crop and rotate.', icon: Crop },
   { id: 'video', name: 'Videos', description: 'Shrink, convert, trim and split videos, or save just the sound.', icon: Film },
   { id: 'word', name: 'Word documents', description: 'Edit, create and join DOCX files without Office.', icon: SquarePen },
@@ -176,6 +177,15 @@ export const FEATURES: Feature[] = [
   //   icon: Palette,
   //   keywords: 'color background replace',
   // },
+  {
+    key: 'remove-watermark',
+    name: 'Remove watermark',
+    description: 'Mark a logo or stamp on a photo and fill it in from the surrounding pixels.',
+    to: '/remove-watermark',
+    category: 'photos',
+    icon: Eraser,
+    keywords: 'logo stamp text overlay erase inpaint clean photo picture',
+  },
   {
     key: 'photo-location',
     name: 'Remove photo location',
@@ -698,6 +708,7 @@ export const POPULAR_FEATURES: Feature[] = [
   'merge-pdf',
   'pdf-to-word',
   // 'remove-background', // Remove Background is switched off for now.
+  'remove-watermark',
   'passport-photo',
   'compress-pdf',
   'video-to-gif',

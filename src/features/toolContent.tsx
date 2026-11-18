@@ -129,6 +129,20 @@ export const TOOL_CONTENT: Record<ToolId, ToolContent> = {
       { icon: SplitSquareHorizontal, title: 'Compare the result', body: 'Slide between the original photo and the cut-out to check the edges.' },
     ],
   },
+  watermark: {
+    icon: Eraser,
+    steps: [
+      ['Add your photos', 'JPG, PNG, WebP, AVIF or BMP with a logo or stamp you want gone.'],
+      ['Mark the watermark', 'Drag a box over the logo or text. Cover it tightly.'],
+      ['Remove and download', 'The marked area is filled from the surrounding pixels, then you save the clean photo.'],
+    ],
+    highlights: [
+      { icon: Eraser, title: 'Mark, then fill', body: 'You choose exactly what to remove. Corner logos and small stamps come out cleanest.' },
+      { icon: ShieldCheck, title: 'Stays on your device', body: 'Nothing is uploaded. The fill runs in your browser, even offline after the first visit.' },
+      { icon: SplitSquareHorizontal, title: 'Compare the result', body: 'Slide between the original and the cleaned photo to check the patch.' },
+      { icon: Target, title: 'Only what you mark', body: 'The rest of the photo is untouched. Expand the mark a little if a hard edge remains.' },
+    ],
+  },
   trim: {
     icon: Scissors,
     steps: [

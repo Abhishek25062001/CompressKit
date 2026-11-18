@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ChevronDown, Crop, Download, RotateCw, SlidersHorizontal, Square, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Crop, Download, Eraser, RotateCw, SlidersHorizontal, Square, X } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTool } from '../../features/tools';
 import { useUiStore } from '../../store/uiStore';
@@ -17,6 +17,7 @@ function FileCardImpl({ id }: { id: string }) {
   const item = useQueue((s) => s.items[id]);
   const openSettings = useUiStore((s) => s.openFileSettings);
   const openCrop = useUiStore((s) => s.openCrop);
+  const openMask = useUiStore((s) => s.openMask);
   const [expanded, setExpanded] = useState(false);
   if (!item) return null;
 
@@ -50,6 +51,9 @@ function FileCardImpl({ id }: { id: string }) {
             {mode === 'resize' && item.crop && (
               <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Edited</span>
             )}
+            {mode === 'watermark' && item.crop && (
+              <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Marked</span>
+            )}
             {item.override && (
               <span className="shrink-0 rounded bg-surface-3 px-1.5 py-px text-[10px] font-medium text-muted">Custom</span>
             )}
@@ -64,7 +68,7 @@ function FileCardImpl({ id }: { id: string }) {
                 <span className="ml-1.5">{formatBytes(result.size)}</span>
               </span>
             )}
-            {result && status === 'completed' && mode === 'background' && (
+            {result && status === 'completed' && (mode === 'background' || mode === 'watermark') && (
               <span className="tabular text-xs text-muted">
                 → <span className="font-medium text-fg">{result.formatLabel}</span>
                 <span className="ml-1.5">
@@ -124,6 +128,11 @@ function FileCardImpl({ id }: { id: string }) {
           {!busy && mode === 'resize' && (
             <Button variant="ghost" size="icon" aria-label={`Crop ${item.name}`} onClick={() => openCrop(id)}>
               <Crop className="h-4 w-4" aria-hidden />
+            </Button>
+          )}
+          {!busy && mode === 'watermark' && (
+            <Button variant="ghost" size="icon" aria-label={`Mark watermark on ${item.name}`} onClick={() => openMask(id)}>
+              <Eraser className="h-4 w-4" aria-hidden />
             </Button>
           )}
           {!busy && mode === 'compress' && (

@@ -21,6 +21,8 @@ const ConvertWorkspace = lazy(() => import('../docs/ConvertWorkspace').then((m) 
 const DocxEditor = lazy(() => import('../docs/DocxEditor').then((m) => ({ default: m.DocxEditor })));
 const TrimWorkspace = lazy(() => import('../trim/TrimWorkspace').then((m) => ({ default: m.TrimWorkspace })));
 const BackgroundSettingsPanel = lazy(() => import('../settings/BackgroundSettingsPanel').then((m) => ({ default: m.BackgroundSettingsPanel })));
+const WatermarkSettingsPanel = lazy(() => import('../settings/WatermarkSettingsPanel').then((m) => ({ default: m.WatermarkSettingsPanel })));
+const MaskDialog = lazy(() => import('../watermark/MaskDialog').then((m) => ({ default: m.MaskDialog })));
 
 function ToolFallback() {
   return (
@@ -91,6 +93,10 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
               <Suspense fallback={<ToolFallback />}>
                 <BackgroundSettingsPanel />
               </Suspense>
+            ) : mode === 'watermark' ? (
+              <Suspense fallback={<ToolFallback />}>
+                <WatermarkSettingsPanel />
+              </Suspense>
             ) : (
               <ResizeSettingsPanel />
             )}
@@ -122,6 +128,9 @@ export function ToolWorkspace({ id }: { id: ToolId }) {
       </Suspense>
       <FileSettingsDialog />
       <CropDialog />
+      <Suspense fallback={null}>
+        <MaskDialog />
+      </Suspense>
     </section>
   );
 }

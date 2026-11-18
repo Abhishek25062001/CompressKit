@@ -127,7 +127,7 @@ export const watermarkTool: Tool = {
   manager: new WatermarkManager(useWatermarkQueueStore),
   addFiles: (files) => addFilesTo(useWatermarkQueueStore, WATERMARK_INPUT_FORMATS, files),
   downloadItem: (id) => downloadItem(useWatermarkQueueStore, id),
-  downloadAll: (onProgress) => downloadAll(useWatermarkQueueStore, 'ofctools-clean', onProgress),
+  downloadAll: (onProgress) => downloadAll(useWatermarkQueueStore, 'ofctools-no-watermark', onProgress),
   accept: acceptAttribute(WATERMARK_INPUT_FORMATS),
   badges: WATERMARK_FORMAT_BADGES,
   verb: { base: 'Remove', ing: 'Removing', past: 'cleaned', noun: 'Watermark removal' },
