@@ -5,6 +5,7 @@ import type { WatermarkFormat } from '../../types/watermark';
 import { formatBytes } from '../../utils/format';
 import { Button } from '../common/Button';
 import { Select, type SelectOption } from '../common/Select';
+import { Switch } from '../common/Switch';
 
 const FORMATS: SelectOption<WatermarkFormat>[] = [
   { value: 'original', label: 'Same as original' },
@@ -15,10 +16,10 @@ const FORMATS: SelectOption<WatermarkFormat>[] = [
 
 const EXPAND_OPTIONS: SelectOption<number>[] = [
   { value: 0, label: 'None' },
-  { value: 2, label: 'Tight (2 px)' },
-  { value: 4, label: 'Balanced (4 px)' },
-  { value: 8, label: 'Wide (8 px)' },
-  { value: 14, label: 'Extra (14 px)' },
+  { value: 4, label: 'Tight (4 px)' },
+  { value: 10, label: 'Default (10 px)' },
+  { value: 16, label: 'Wide (16 px)' },
+  { value: 24, label: 'Extra (24 px)' },
 ];
 
 const HAS_WEBGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
@@ -47,15 +48,22 @@ export function WatermarkSettingsPanel() {
           value={settings.expand}
           options={EXPAND_OPTIONS}
           onChange={(expand) => settings.update({ expand })}
-          hint="Keep this small so borders next to the mark are not filled over."
+          hint="Extra pixels around your box before soft-glow grow. 10 px suits sparkle stamps."
+        />
+
+        <Switch
+          label="Debug mask (magenta)"
+          checked={settings.debugMask}
+          onChange={(debugMask) => settings.update({ debugMask })}
+          description="Paint the final mask magenta and skip inpainting so you can check placement."
         />
 
         <div className="space-y-2 border-t border-border pt-4 text-xs text-muted">
           <p className="flex gap-2">
             <Eraser className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>
-              Press <span className="font-medium text-fg">Mark watermark</span>, cover only the logo or text (not nearby
-              lines), then remove. Your photos never leave this device.
+              Press <span className="font-medium text-fg">Mark watermark</span>, cover the logo or text, then remove. Soft
+              glow around sparkles is grown automatically. Your photos never leave this device.
             </span>
           </p>
           {MODEL_SIZE === null ? (

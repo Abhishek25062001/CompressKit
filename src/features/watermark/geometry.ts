@@ -179,3 +179,108 @@ export function fractionToPixels(
     y1: Math.min(height, Math.ceil((rect.y + rect.height) * height) + expand),
   };
 }
+
+/** Rec. 601 luminance 0–255. */
+export function luminance(r: number, g: number, b: number): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+/**
+ * Grow a seed mask into the soft halo of a bright/sparkle watermark: neighbouring pixels that are
+ * brighter than the local background, or smoother (lower contrast) while still at least as bright.
+ * Stops after `maxRadius` pixels from the seed so dark borders are not swallowed.
+ */
+export function growGlowMask(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  seed: Uint8Array,
+  options?: { maxRadius?: number; brightnessLift?: number },
+): Uint8Array {
+  const maxRadius = options?.maxRadius ?? 24;
+  const brightnessLift = options?.brightnessLift ?? 10;
+  const out = new Uint8Array(seed);
+  const dist = new Int16Array(width * height);
+  dist.fill(-1);
+
+  const queue: number[] = [];
+  for (let i = 0; i < seed.length; i++) {
+    if (!seed[i]) continue;
+    dist[i] = 0;
+    queue.push(i);
+  }
+  if (queue.length === 0) return out;
+
+  const localOutside = (cx: number, cy: number): { mean: number; contrast: number; count: number } => {
+    let sum = 0;
+    let min = 255;
+    let max = 0;
+    let count = 0;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const i = y * width + x;
+        if (out[i]) continue; // only background / not-yet-grown
+        const o = i * 4;
+        const L = luminance(rgba[o], rgba[o + 1], rgba[o + 2]);
+        sum += L;
+        if (L < min) min = L;
+        if (L > max) max = L;
+        count++;
+      }
+    }
+    return { mean: count ? sum / count : 0, contrast: count ? max - min : 0, count };
+  };
+
+  const localSelfContrast = (cx: number, cy: number): number => {
+    let min = 255;
+    let max = 0;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const o = (y * width + x) * 4;
+        const L = luminance(rgba[o], rgba[o + 1], rgba[o + 2]);
+        if (L < min) min = L;
+        if (L > max) max = L;
+      }
+    }
+    return max - min;
+  };
+
+  let head = 0;
+  while (head < queue.length) {
+    const i = queue[head++];
+    const d0 = dist[i];
+    if (d0 < 0 || d0 >= maxRadius) continue;
+    const x = i % width;
+    const y = (i / width) | 0;
+    for (const [dx, dy] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const ni = ny * width + nx;
+      if (out[ni] || dist[ni] >= 0) continue;
+      const o = ni * 4;
+      const L = luminance(rgba[o], rgba[o + 1], rgba[o + 2]);
+      const bg = localOutside(nx, ny);
+      if (bg.count < 3) continue;
+      const selfC = localSelfContrast(nx, ny);
+      const brighter = L >= bg.mean + brightnessLift;
+      const softGlow = L >= bg.mean - 2 && selfC <= Math.max(8, bg.contrast * 0.55);
+      if (!brighter && !softGlow) continue;
+      out[ni] = 1;
+      dist[ni] = d0 + 1;
+      queue.push(ni);
+    }
+  }
+  return out;
+}

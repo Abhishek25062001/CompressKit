@@ -1,6 +1,5 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
-import { DEFAULT_WATERMARK_MASK } from '../../features/watermark/watermarkManager';
-import { useObjectUrl } from '../../hooks/useObjectUrl';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { DEFAULT_WATERMARK_MASK } from '../../features/watermark/maskRect';
 import { useWatermarkQueueStore } from '../../store/queueStore';
 import { useUiStore } from '../../store/uiStore';
 import type { QueueItem } from '../../types/media';
@@ -69,10 +68,54 @@ interface Drag {
   boxHeight: number;
 }
 
+/**
+ * Oriented preview that matches removeWatermark: createImageBitmap(..., from-image) so fraction
+ * coords are relative to EXIF-oriented natural width/height, not a raw unoriented JPEG layout.
+ */
+function useOrientedPreview(file: File): { url: string | null; width: number; height: number } | null {
+  const [preview, setPreview] = useState<{ url: string; width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    void (async () => {
+      try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        if (cancelled) {
+          bitmap.close();
+          return;
+        }
+        const c = document.createElement('canvas');
+        c.width = bitmap.width;
+        c.height = bitmap.height;
+        const ctx = c.getContext('2d');
+        if (!ctx) {
+          bitmap.close();
+          return;
+        }
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        const blob = await new Promise<Blob | null>((resolve) => c.toBlob(resolve, 'image/png'));
+        if (cancelled || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreview({ url: objectUrl, width: c.width, height: c.height });
+      } catch {
+        if (!cancelled) setPreview(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  return preview;
+}
+
 function MaskEditor({ item, onClose }: { item: QueueItem; onClose: () => void }) {
-  const url = useObjectUrl(item.file);
+  const oriented = useOrientedPreview(item.file);
   const updateItem = useWatermarkQueueStore((s) => s.updateItem);
-  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  // Prefer the user's saved mark; only seed the editor with the default when they have none yet.
   const [rect, setRect] = useState<CropRect>(() => item.crop?.rect ?? DEFAULT_WATERMARK_MASK);
   const drag = useRef<Drag | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -144,8 +187,8 @@ function MaskEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
 
   const pct = (n: number) => `${n * 100}%`;
   const markPixels =
-    natural != null
-      ? `${Math.round(rect.width * natural.width)} × ${Math.round(rect.height * natural.height)}`
+    oriented != null
+      ? `${Math.round(rect.width * oriented.width)} × ${Math.round(rect.height * oriented.height)}`
       : null;
 
   return (
@@ -157,11 +200,11 @@ function MaskEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
       size="wide"
       footer={
         <>
-          <Button variant="ghost" onClick={() => setRect(DEFAULT_WATERMARK_MASK)} className="mr-auto" disabled={!natural}>
+          <Button variant="ghost" onClick={() => setRect(DEFAULT_WATERMARK_MASK)} className="mr-auto" disabled={!oriented}>
             Bottom right
           </Button>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={save} disabled={!natural}>
+          <Button variant="primary" onClick={save} disabled={!oriented}>
             Save mark
           </Button>
         </>
@@ -169,26 +212,21 @@ function MaskEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
     >
       <div className="space-y-3">
         <p className="text-sm text-muted">
-          Drag the box over the logo or text you want removed. Cover it tightly; a little margin is fine.
+          Drag the box over the logo or text you want removed. Cover it tightly; a little margin is fine. The preview
+          uses the same EXIF orientation as processing.
         </p>
         <div
           ref={boxRef}
           className="relative mx-auto w-full touch-none select-none"
           style={
-            natural
-              ? { aspectRatio: `${natural.width} / ${natural.height}`, maxWidth: `calc(55dvh * ${natural.width / natural.height})` }
+            oriented
+              ? { aspectRatio: `${oriented.width} / ${oriented.height}`, maxWidth: `calc(55dvh * ${oriented.width / oriented.height})` }
               : { aspectRatio: '4 / 3' }
           }
         >
           <div className="absolute inset-0 overflow-hidden rounded-xl border border-border bg-surface-2">
-            {url && (
-              <img
-                src={url}
-                alt=""
-                draggable={false}
-                onLoad={(e) => setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
-                className="absolute inset-0 h-full w-full object-contain"
-              />
+            {oriented?.url && (
+              <img src={oriented.url} alt="" draggable={false} className="absolute inset-0 h-full w-full object-contain" />
             )}
           </div>
           <div
@@ -229,7 +267,8 @@ function MaskEditor({ item, onClose }: { item: QueueItem; onClose: () => void })
           </div>
         </div>
         <p className="tabular text-center text-xs text-muted">
-          Marked area {markPixels ?? '…'} px · only this region is filled in
+          Marked area {markPixels ?? '…'} px
+          {oriented ? ` of oriented ${oriented.width} × ${oriented.height}` : ''} · expand + glow grow when removing
         </p>
       </div>
     </Modal>

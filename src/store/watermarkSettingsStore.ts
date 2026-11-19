@@ -9,7 +9,8 @@ interface WatermarkSettingsState extends WatermarkSettings {
 
 export const DEFAULT_WATERMARK_SETTINGS: WatermarkSettings = {
   format: 'original',
-  expand: 2,
+  expand: 10,
+  debugMask: false,
 };
 
 export const useWatermarkSettingsStore = create<WatermarkSettingsState>()(
@@ -21,9 +22,18 @@ export const useWatermarkSettingsStore = create<WatermarkSettingsState>()(
     }),
     {
       name: 'compresskit-watermark-settings',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ format: s.format, expand: s.expand }),
+      partialize: (s) => ({ format: s.format, expand: s.expand, debugMask: s.debugMask }),
+      migrate: (persisted, fromVersion) => {
+        const p = (persisted ?? {}) as Partial<WatermarkSettings>;
+        return {
+          format: p.format ?? DEFAULT_WATERMARK_SETTINGS.format,
+          // v1 used a 2 px default; move everyone to 10 so soft sparkle glows are covered.
+          expand: fromVersion < 2 ? 10 : typeof p.expand === 'number' ? p.expand : 10,
+          debugMask: p.debugMask === true,
+        };
+      },
     },
   ),
 );

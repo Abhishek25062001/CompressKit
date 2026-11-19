@@ -9,6 +9,7 @@ import {
   dilateMask,
   featherAlpha,
   fractionToPixels,
+  growGlowMask,
   maskBounds,
   maskDistance,
   rectHeight,
@@ -18,6 +19,7 @@ import { inpaintExemplar } from './inpaint';
 import { lamaAvailable, runLama } from './lama';
 
 const MAX_SIDE = 4096;
+const DEBUG_MAGENTA = { r: 255, g: 0, b: 255 } as const;
 
 export interface WatermarkOutput {
   blob: Blob;
@@ -110,11 +112,29 @@ function compositeCrop(
   }
 }
 
+/** Paint every masked pixel solid magenta (debug overlay). */
+function paintDebugMask(image: ImageData, mask: Uint8Array): number {
+  let count = 0;
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i]) continue;
+    const o = i * 4;
+    image.data[o] = DEBUG_MAGENTA.r;
+    image.data[o + 1] = DEBUG_MAGENTA.g;
+    image.data[o + 2] = DEBUG_MAGENTA.b;
+    image.data[o + 3] = 255;
+    count++;
+  }
+  return count;
+}
+
 export async function removeWatermark(job: WatermarkJobRequest, onProgress: ProgressFn): Promise<WatermarkOutput> {
   const { file, mask, settings } = job;
   const notes: string[] = [];
   onProgress(null, 'Reading photo');
 
+  // Decode with EXIF orientation applied so width/height match the oriented photo the mark editor
+  // uses (MaskDialog also creates an oriented bitmap). Fraction rects are never mapped from the
+  // on-screen CSS preview size.
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -123,11 +143,14 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
   }
 
   try {
+    const naturalWidth = bitmap.width;
+    const naturalHeight = bitmap.height;
     let { width, height } = bitmap;
     if (width < 8 || height < 8) throw new CompressionError('DECODE_FAILED', 'image too small');
 
+    let scale = 1;
     if (Math.max(width, height) > MAX_SIDE) {
-      const scale = MAX_SIDE / Math.max(width, height);
+      scale = MAX_SIDE / Math.max(width, height);
       width = Math.round(width * scale);
       height = Math.round(height * scale);
       notes.push(`This photo is very large, so the watermark was removed at ${width} × ${height}.`);
@@ -138,14 +161,42 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
     ctx.drawImage(bitmap, 0, 0, width, height);
     const image = ctx.getImageData(0, 0, width, height);
 
-    const box = fractionToPixels(mask, width, height, settings.expand);
+    // Map 0..1 rect onto the oriented decode size (after optional downscale). Expand is in output pixels.
+    const expandPx = Math.round(settings.expand * scale);
+    const box = fractionToPixels(mask, width, height, expandPx);
     if (rectWidth(box) < 2 || rectHeight(box) < 2) throw new CompressionError('UNKNOWN', 'watermark region too small');
 
-    // Original (undilated) mask — only this region is composited back.
-    const originalMask = new Uint8Array(width * height);
+    notes.push(
+      `Mask from oriented decode ${naturalWidth}×${naturalHeight}` +
+        (scale < 1 ? ` → work size ${width}×${height}` : '') +
+        `; rect (${mask.x.toFixed(3)}, ${mask.y.toFixed(3)}, ${mask.width.toFixed(3)}×${mask.height.toFixed(3)})` +
+        ` → px [${box.x0},${box.y0}]–[${box.x1},${box.y1}] expand ${expandPx}px.`,
+    );
+
+    // Seed = marked rectangle after expand.
+    const seedMask = new Uint8Array(width * height);
     for (let y = box.y0; y < box.y1; y++) {
-      for (let x = box.x0; x < box.x1; x++) originalMask[y * width + x] = 1;
+      for (let x = box.x0; x < box.x1; x++) seedMask[y * width + x] = 1;
     }
+
+    // Soft sparkle glow: grow into brighter / lower-contrast neighbours beyond the hard edge.
+    onProgress(0.08, 'Growing soft glow');
+    const originalMask = growGlowMask(image.data, width, height, seedMask);
+    const grown = originalMask.reduce((n, v) => n + v, 0) - seedMask.reduce((n, v) => n + v, 0);
+    if (grown > 0) notes.push(`Glow grow added ${grown} px beyond the expanded rectangle.`);
+
+    if (settings.debugMask) {
+      onProgress(0.5, 'Debug mask');
+      const painted = paintDebugMask(image, originalMask);
+      ctx.putImageData(image, 0, 0);
+      notes.unshift(
+        `Debug mask: ${painted} px painted magenta (expand + glow). Inpainting skipped so you can check placement.`,
+      );
+      const blob = await c.convertToBlob({ type: 'image/png' });
+      onProgress(1, 'Done');
+      return { blob, mime: 'image/png', width, height, notes, engine: 'canvas' };
+    }
+
     const dilated = dilateMask(originalMask, width, height, MASK_DILATE);
     const dilBounds = maskBounds(dilated, width, height);
     if (!dilBounds) throw new CompressionError('UNKNOWN', 'empty watermark mask');
@@ -157,7 +208,6 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
 
     if (lamaAvailable(job)) {
       try {
-        // Model sees the dilated mask so edges are covered; we still paste only the original mask.
         const result = await runLama(job, crop.rgba, crop.dilated, crop.sw, crop.sh, onProgress);
         filled = result.rgba;
         engine = result.device;

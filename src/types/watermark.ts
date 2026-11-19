@@ -11,6 +11,11 @@ export interface WatermarkSettings {
    * into the surroundings.
    */
   expand: number;
+  /**
+   * When true, paint the final mask magenta and skip inpainting so you can see exactly which
+   * pixels would be filled (after expand + glow grow).
+   */
+  debugMask: boolean;
 }
 
 export interface WatermarkJobRequest {

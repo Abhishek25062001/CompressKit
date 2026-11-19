@@ -11,9 +11,9 @@ import { CompressionError } from '../../utils/errors';
 import { sanitizeBaseName } from '../../utils/filename';
 import { WorkerSlot } from '../compression/workerSlot';
 import { QueueRunner, type ProcessOutput, type ProgressFn } from '../compression/queueRunner';
+import { resolveMaskRect } from './maskRect';
 
-/** Suggested mark when the user has not drawn one yet: bottom-right, typical logo spot. */
-export const DEFAULT_WATERMARK_MASK = { x: 0.72, y: 0.86, width: 0.24, height: 0.1 };
+export { DEFAULT_WATERMARK_MASK, resolveMaskRect } from './maskRect';
 
 /** Byte sizes of the LaMa models this build can download (null when not shipped). */
 export const INPAINT_MODEL_BYTES = {
@@ -47,14 +47,14 @@ export class WatermarkManager extends QueueRunner {
   }
 
   protected override process(item: QueueItem, onProgress: ProgressFn): Promise<ProcessOutput> {
-    const rect = item.crop?.rect ?? DEFAULT_WATERMARK_MASK;
+    const { rect, usedDefault } = resolveMaskRect(item);
     const settings = useWatermarkSettingsStore.getState();
     const request: WatermarkJobRequest = {
       type: 'remove-watermark',
       jobId: item.id,
       file: item.file,
       mask: rect,
-      settings: { format: settings.format, expand: settings.expand },
+      settings: { format: settings.format, expand: settings.expand, debugMask: settings.debugMask },
       models: { gpu: withAbsoluteUrls(inpaintModels.gpu), cpu: withAbsoluteUrls(inpaintModels.cpu) },
       runtime: { wasm: new URL(ortWasmUrl, window.location.href).href },
     };
@@ -67,7 +67,7 @@ export class WatermarkManager extends QueueRunner {
           else {
             const ext = MIME_EXTENSION[msg.mime] ?? 'png';
             const notes = [...msg.notes];
-            if (!item.crop) notes.unshift('Used the default bottom-right mark. Open Mark watermark to aim it.');
+            if (usedDefault) notes.unshift('Used the default bottom-right mark. Open Mark watermark to aim it.');
             const engine = msg.engine === 'webgpu' || msg.engine === 'wasm' ? msg.engine : 'canvas';
             resolve({
               result: {
