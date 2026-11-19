@@ -51,7 +51,7 @@ function letterboxPixels(source: ImageBitmap, srcW: number, srcH: number): {
   layout: LetterboxLayout;
 } {
   const layout = letterboxLayout(srcW, srcH, SIZE);
-  const { c, ctx } = canvas(SIZE, SIZE);
+  const { ctx } = canvas(SIZE, SIZE);
   ctx.fillStyle = `rgb(${PAD_RGB.r}, ${PAD_RGB.g}, ${PAD_RGB.b})`;
   ctx.fillRect(0, 0, SIZE, SIZE);
   ctx.drawImage(source, 0, 0, srcW, srcH, layout.padX, layout.padY, layout.contentW, layout.contentH);
