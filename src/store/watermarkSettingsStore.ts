@@ -9,7 +9,7 @@ interface WatermarkSettingsState extends WatermarkSettings {
 
 export const DEFAULT_WATERMARK_SETTINGS: WatermarkSettings = {
   format: 'original',
-  expand: 6,
+  expand: 2,
 };
 
 export const useWatermarkSettingsStore = create<WatermarkSettingsState>()(

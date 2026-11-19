@@ -3,12 +3,14 @@ import type { CropRect } from '../../types/resize';
 import type { WatermarkJobRequest, WatermarkFormat } from '../../types/watermark';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../compression/queueRunner';
-import { inpaintTelea } from './telea';
+import { inpaintExemplar, maskDistance } from './inpaint';
 
 /** Larger photos are scaled down before inpainting so the fill stays responsive. */
 const MAX_SIDE = 4096;
-/** How far outside the marked box the algorithm looks for colour samples. */
-const SAMPLE_PAD = 24;
+/** How far outside the marked box the algorithm looks for texture samples. */
+const SAMPLE_PAD = 64;
+/** Soft rim (px) so the fill blends into the photo instead of a hard rectangle. */
+const FEATHER = 4;
 
 export interface WatermarkOutput {
   blob: Blob;
@@ -32,7 +34,7 @@ function resolveFormat(file: File, format: WatermarkFormat): { mime: string; lab
     const mime = file.type || 'image/png';
     if (mime === 'image/jpeg' || mime === 'image/pjpeg') return { mime: IMAGE_MIME.jpeg, label: 'JPG' };
     if (mime === 'image/webp') return { mime: IMAGE_MIME.webp, label: 'WebP' };
-    if (mime === 'image/avif') return { mime: IMAGE_MIME.png, label: 'PNG' }; // browsers rarely encode AVIF here
+    if (mime === 'image/avif') return { mime: IMAGE_MIME.png, label: 'PNG' };
     return { mime: IMAGE_MIME.png, label: 'PNG' };
   }
   return { mime: IMAGE_MIME[format], label: format === 'jpeg' ? 'JPG' : format.toUpperCase() };
@@ -78,7 +80,6 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
     const box = maskBounds(mask, width, height, settings.expand);
     if (box.w < 2 || box.h < 2) throw new CompressionError('UNKNOWN', 'watermark region too small');
 
-    // Work on a padded crop so Telea has enough known pixels around the mark.
     const sx0 = Math.max(0, box.x0 - SAMPLE_PAD);
     const sy0 = Math.max(0, box.y0 - SAMPLE_PAD);
     const sx1 = Math.min(width, box.x1 + SAMPLE_PAD);
@@ -104,22 +105,37 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
       }
     }
 
-    onProgress(0.25, 'Removing watermark');
-    const radius = Math.min(8, Math.max(3, Math.round(Math.min(box.w, box.h) / 8)));
-    inpaintTelea(crop, sw, sh, cropMask, radius);
+    onProgress(0.2, 'Removing watermark');
+    const patchRadius = Math.min(5, Math.max(3, Math.round(Math.min(box.w, box.h) / 10)));
+    const searchRadius = Math.min(80, Math.max(32, Math.round(Math.max(box.w, box.h) * 1.5)));
+    inpaintExemplar(crop, sw, sh, cropMask, { patchRadius, searchRadius });
 
-    onProgress(0.85, 'Writing photo');
+    onProgress(0.85, 'Blending');
+    const dist = maskDistance(cropMask, sw, sh);
     for (let y = 0; y < sh; y++) {
       const dstY = sy0 + y;
       for (let x = 0; x < sw; x++) {
         const dstX = sx0 + x;
-        if (dstX < box.x0 || dstX >= box.x1 || dstY < box.y0 || dstY >= box.y1) continue;
-        const src = (y * sw + x) * 4;
+        const mi = y * sw + x;
+        if (!cropMask[mi]) continue;
+        const src = mi * 4;
         const dst = (dstY * width + dstX) * 4;
-        image.data[dst] = crop[src];
-        image.data[dst + 1] = crop[src + 1];
-        image.data[dst + 2] = crop[src + 2];
-        image.data[dst + 3] = crop[src + 3];
+        // Feather the outer rim so the patch does not leave a hard rectangle.
+        const d = dist[mi];
+        const alpha = d >= FEATHER ? 1 : Math.max(0, d / FEATHER);
+        if (alpha <= 0) continue;
+        if (alpha >= 1) {
+          image.data[dst] = crop[src];
+          image.data[dst + 1] = crop[src + 1];
+          image.data[dst + 2] = crop[src + 2];
+          image.data[dst + 3] = crop[src + 3];
+        } else {
+          const inv = 1 - alpha;
+          image.data[dst] = Math.round(crop[src] * alpha + image.data[dst] * inv);
+          image.data[dst + 1] = Math.round(crop[src + 1] * alpha + image.data[dst + 1] * inv);
+          image.data[dst + 2] = Math.round(crop[src + 2] * alpha + image.data[dst + 2] * inv);
+          image.data[dst + 3] = Math.round(crop[src + 3] * alpha + image.data[dst + 3] * inv);
+        }
       }
     }
     ctx.putImageData(image, 0, 0);
@@ -127,7 +143,7 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
     const { mime } = resolveFormat(file, settings.format);
     const quality = mime === IMAGE_MIME.jpeg ? 0.92 : mime === IMAGE_MIME.webp ? 0.92 : undefined;
     const blob = await c.convertToBlob({ type: mime, quality });
-    notes.push('Mark the watermark tightly for the cleanest result. Large or busy marks may leave a soft patch.');
+    notes.push('Mark only the watermark — avoid covering important lines or borders when you can.');
 
     onProgress(1, 'Done');
     return { blob, mime, width, height, notes };

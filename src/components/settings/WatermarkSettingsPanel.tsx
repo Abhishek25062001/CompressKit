@@ -13,10 +13,10 @@ const FORMATS: SelectOption<WatermarkFormat>[] = [
 
 const EXPAND_OPTIONS: SelectOption<number>[] = [
   { value: 0, label: 'None' },
-  { value: 3, label: 'Tight (3 px)' },
-  { value: 6, label: 'Balanced (6 px)' },
-  { value: 12, label: 'Wide (12 px)' },
-  { value: 20, label: 'Extra (20 px)' },
+  { value: 2, label: 'Tight (2 px)' },
+  { value: 4, label: 'Balanced (4 px)' },
+  { value: 8, label: 'Wide (8 px)' },
+  { value: 14, label: 'Extra (14 px)' },
 ];
 
 export function WatermarkSettingsPanel() {
@@ -46,15 +46,15 @@ export function WatermarkSettingsPanel() {
           value={settings.expand}
           options={EXPAND_OPTIONS}
           onChange={(expand) => settings.update({ expand })}
-          hint="A little extra around the box helps blend hard logo edges."
+          hint="Keep this small so borders next to the mark are not filled over."
         />
 
         <div className="space-y-2 border-t border-border pt-4 text-xs text-muted">
           <p className="flex gap-2">
             <Eraser className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>
-              Press <span className="font-medium text-fg">Mark watermark</span> on each photo, cover the logo or text, then
-              remove. Corner logos and small stamps work best. Your photos never leave this device.
+              Press <span className="font-medium text-fg">Mark watermark</span>, cover only the logo or text (not nearby
+              lines), then remove. The fill copies texture from around the mark. Your photos never leave this device.
             </span>
           </p>
         </div>
