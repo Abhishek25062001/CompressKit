@@ -2,6 +2,8 @@
 
 Downloaded by `npm run model` into `/models` (gitignored). Served in ≤20 MB parts via Vite `virtual:background-model`. The service worker caches `/models/…` parts for offline reuse after the first download.
 
+Hair / fine edges need a **soft float matte**: the pipeline letterboxes (no stretch), runs at 1024×1024, unletterboxes, bicubic-upscales float alpha, guided-filters with the photo as guide, then blur-fusion decontaminates edge colours. See `cutout.ts` / `matte.ts`.
+
 ## Files
 
 | Role | Model | File | Size |
@@ -11,10 +13,10 @@ Downloaded by `npm run model` into `/models` (gitignored). Served in ≤20 MB pa
 
 Pinned downloads (see `scripts/fetch-model.mjs`):
 
-- BiRefNet: `onnx-community/BiRefNet_lite-ONNX@de15b22…` → `onnx/model_fp16.onnx`
-- IS-Net: `imgly/isnet-general-onnx@440dea9…` → `onnx/model_fp16.onnx`
+- BiRefNet: `onnx-community/BiRefNet_lite-ONNX@de15b22…` → `onnx/model_fp16.onnx` (MIT)
+- IS-Net: `imgly/isnet-general-onnx@440dea9…` → `onnx/model_fp16.onnx` (MIT export)
 
-Each browser downloads **one** of these on first use (GPU preferred when WebGPU + `shader-f16` are available).
+Each browser downloads **one** of these on first use (GPU preferred when WebGPU + `shader-f16` are available). Both are hair-capable general-use segmenters; BiRefNet-lite is preferred for detail.
 
 ## Inspected ONNX I/O
 
@@ -24,15 +26,14 @@ Verified by decoding the ModelProto with `onnx-proto`:
 
 - **Input** `input_image`: `float32` `[1, 3, 1024, 1024]`
   - RGB, ImageNet mean/std: mean `[123.675, 116.28, 103.53]`, std `[58.395, 57.12, 57.375]` on 0–255 pixels
-- **Output** `output_image`: `float32` `[1, 1, 1024, 1024]` — logits; α = sigmoid(logit) × 255
+  - Letterbox pad filled with ImageNet-mean grey `(123,116,104)` so normalised pad ≈ 0
+- **Output** `output_image`: `float32` `[1, 1, 1024, 1024]` — logits; α = sigmoid(logit) ∈ [0,1]
 
 ### IS-Net (WASM)
 
 - **Input** `input`: `float32` `[1, 3, 1024, 1024]`
   - RGB normalized as `(x − 128) / 256`
-- **Output** `output`: `float32` `[1, 1, 1024, 1024]` — foreground map; stretched so min→0 and max→255 (reference DIS post-process)
-
-Inference always runs at **1024×1024**. The matte is edge-refined (contrast curve + 1 px feather), then **bicubic-upscaled** to the photo’s work resolution and applied as alpha.
+- **Output** `output`: `float32` `[1, 1, 1024, 1024]` — foreground map; stretched so min→0 and max→1 (reference DIS post-process)
 
 ## License
 

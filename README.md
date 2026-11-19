@@ -207,7 +207,7 @@ Prepared by `npm run model` into `/models` (gitignored). Details and inspected O
 | WebGPU | BiRefNet lite (fp16, WebGPU-patched) | ~109 MB | MIT |
 | WASM / CPU | IS-Net general (DIS, fp16) | ~84 MB | MIT (export); DIS often Apache-2.0 |
 
-Both graphs take `float32` `[1, 3, 1024, 1024]` RGB and emit a `[1, 1, 1024, 1024]` matte. Inference runs at 1024; the matte is refined and bicubic-upscaled to full resolution. The first photo downloads one model from this site; the service worker caches `/models/…` parts for offline use.
+Both graphs take `float32` `[1, 3, 1024, 1024]` RGB and emit a `[1, 1, 1024, 1024]` soft matte (BiRefNet: sigmoid logits; IS-Net: min–max stretch). Pipeline: **letterbox** (no stretch) → infer at 1024 → unletterbox → bicubic float upscale → **guided filter** (guide = photo, radius ~12 @ 1536 px, eps `1e-4`) → **blur-fusion** FG colour for fringe pixels → unpremultiplied RGBA. No binary threshold. The first photo downloads one model; the service worker caches `/models/…` parts for offline use.
 
 ## 📜 License
 

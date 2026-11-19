@@ -1,0 +1,17 @@
+{
+  "description": "Synthetic before/after pairs for soft-matte quality checks. Before = contaminated RGBA; after = expected soft float alpha (0–1). Real photos can be dropped here later with the same naming.",
+  "cases": [
+    {
+      "id": "soft-portrait",
+      "width": 48,
+      "height": 64,
+      "note": "Tall portrait with soft elliptical fringe (hair-like)."
+    },
+    {
+      "id": "wide-product",
+      "width": 64,
+      "height": 40,
+      "note": "Wide product-like oval on cyan; tests letterbox pad top/bottom."
+    }
+  ]
+}

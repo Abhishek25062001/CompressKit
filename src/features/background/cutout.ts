@@ -1,11 +1,26 @@
 import type { BackgroundJobRequest } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
-import { applyMatteToRgba, matteBounds, refineMatteEdges, resizeMatteBicubic } from './matte';
+import {
+  MODEL_INPUT_SIZE,
+  compositeUnpremultiplied,
+  guidedFilter,
+  guidedFilterRadius,
+  letterboxLayout,
+  lumaFloat,
+  matteBoundsFloat,
+  resizeMatteFloatBicubic,
+  smoothstepAlpha,
+  unletterboxMatte,
+  type LetterboxLayout,
+} from './matte';
 import { findSubject, MASK_SIZE as SIZE, type Device } from './model';
 
 /** Larger photos are scaled down to this many pixels, which keeps canvases within browser limits. */
 const MAX_PIXELS = 40_000_000;
+
+/** Letterbox pad colour ≈ ImageNet mean so normalised padding is near zero for BiRefNet. */
+const PAD_RGB = { r: 123, g: 116, b: 104 } as const;
 
 const MIME = { png: 'image/png', webp: 'image/webp', jpeg: 'image/jpeg' } as const;
 
@@ -27,11 +42,20 @@ function canvas(width: number, height: number) {
   return { c, ctx };
 }
 
-/** The photo squeezed into the model's square, as RGBA pixels. */
-function squarePixels(source: ImageBitmap): Uint8ClampedArray {
-  const { ctx } = canvas(SIZE, SIZE);
-  ctx.drawImage(source, 0, 0, SIZE, SIZE);
-  return ctx.getImageData(0, 0, SIZE, SIZE).data;
+/**
+ * Aspect-preserving letterbox into the model square (no stretch). Returns RGBA for the square
+ * and the layout needed to crop the matte back.
+ */
+function letterboxPixels(source: ImageBitmap, srcW: number, srcH: number): {
+  rgba: Uint8ClampedArray;
+  layout: LetterboxLayout;
+} {
+  const layout = letterboxLayout(srcW, srcH, SIZE);
+  const { c, ctx } = canvas(SIZE, SIZE);
+  ctx.fillStyle = `rgb(${PAD_RGB.r}, ${PAD_RGB.g}, ${PAD_RGB.b})`;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.drawImage(source, 0, 0, srcW, srcH, layout.padX, layout.padY, layout.contentW, layout.contentH);
+  return { rgba: ctx.getImageData(0, 0, SIZE, SIZE).data, layout };
 }
 
 function flattenColor(settings: BackgroundJobRequest['settings']): 'transparent' | string {
@@ -60,25 +84,38 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
       notes.push(`This photo is very large, so the cut-out was made at ${width} × ${height}.`);
     }
 
-    // Inference always at the model's fixed 1024×1024 input (verified from the ONNX graphs).
-    const subject = await findSubject(job, squarePixels(bitmap), onProgress);
+    // (1) Letterbox — never stretch. (2) Inference at MODEL_INPUT_SIZE (1024).
+    const { rgba: modelRgba, layout } = letterboxPixels(bitmap, width, height);
+    const subject = await findSubject(job, modelRgba, onProgress);
     notes.push(...subject.notes);
+    notes.push(
+      `Letterboxed ${width}×${height} → ${layout.contentW}×${layout.contentH} inside ${MODEL_INPUT_SIZE}² (pad ${layout.padX},${layout.padY}).`,
+    );
 
-    onProgress(0.85, 'Refining edges');
-    const refined = refineMatteEdges(subject.alpha, SIZE, SIZE);
+    // (3) Crop pad, gentle smoothstep only (no binary threshold), bicubic upscale as float alpha.
+    onProgress(0.82, 'Upscaling matte');
+    const cropped = unletterboxMatte(subject.alpha, layout);
+    const softened = smoothstepAlpha(cropped, 0.04, 0.96);
+    let fullMatte = resizeMatteFloatBicubic(softened, layout.contentW, layout.contentH, width, height);
 
-    onProgress(0.9, 'Upscaling matte');
-    // Bicubic upscale to the full-resolution work size, then apply as alpha (not CSS preview size).
-    const fullMatte = resizeMatteBicubic(refined, SIZE, SIZE, width, height);
-
-    onProgress(0.93, 'Cutting out');
+    // (4) Guided filter with the original photo as guide (runs in this worker).
+    onProgress(0.88, 'Refining edges');
     const { c, ctx } = canvas(width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
     const image = ctx.getImageData(0, 0, width, height);
-    applyMatteToRgba(image.data, fullMatte, width, height, { background: flattenColor(settings) });
+    const radius = guidedFilterRadius(width);
+    fullMatte = guidedFilter(lumaFloat(image.data, width, height), fullMatte, width, height, radius, 1e-4);
+    notes.push(`Guided filter radius ${radius} px (eps 1e-4) at ${width}×${height}.`);
+
+    // (5) Blur-fusion FG colour for semi-transparent edges → unpremultiplied RGBA.
+    onProgress(0.93, 'Cutting out');
+    compositeUnpremultiplied(image.data, fullMatte, width, height, {
+      background: flattenColor(settings),
+      blurRadius: Math.max(4, Math.round(radius * 1.25)),
+    });
     ctx.putImageData(image, 0, 0);
 
-    const box = matteBounds(fullMatte, width, height);
+    const box = matteBoundsFloat(fullMatte, width, height);
     if (!box) notes.push('No clear subject was found in this photo, so most of it may have been removed.');
     let crop = { x: 0, y: 0, w: width, h: height };
     if (settings.trim && box) {
@@ -96,7 +133,6 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
     const final = canvas(crop.w, crop.h);
     final.ctx.drawImage(c, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
 
-    // PNG / WebP keep alpha when transparent; JPEG always flattens (applyMatteToRgba already did).
     const format = settings.background === 'transparent' && settings.format === 'jpeg' ? 'png' : settings.format;
     const mime = MIME[format];
     const blob = await final.c.convertToBlob({ type: mime, quality: format === 'png' ? undefined : 0.92 });
@@ -105,7 +141,7 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
         `Your browser cannot write ${format.toUpperCase()}, so the result was saved as ${blob.type.split('/')[1].toUpperCase()}.`,
       );
     }
-    notes.push('Matte refined with a contrast curve and 1 px feather, then bicubic-upscaled to full resolution.');
+    notes.push('Soft float matte (bicubic + guided filter + blur-fusion), no binary threshold.');
     return { blob, mime: blob.type, width: crop.w, height: crop.h, notes, device: subject.device };
   } finally {
     bitmap.close();

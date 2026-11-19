@@ -19,19 +19,19 @@ interface ModelSpec {
   /** Per-channel mean and spread of the 0–255 pixel values, as the model was trained. */
   mean: readonly [number, number, number];
   std: readonly [number, number, number];
-  /** The model's output as alpha values, 0–255. */
-  toAlpha(values: Float32Array): Uint8ClampedArray;
+  /** Soft float alpha 0–1 (no binary threshold). */
+  toAlpha(values: Float32Array): Float32Array;
 }
 
 /** BiRefNet outputs logits; their sigmoid is the chance that a pixel belongs to the subject. */
-function fromLogits(values: Float32Array): Uint8ClampedArray {
-  const alpha = new Uint8ClampedArray(values.length);
-  for (let i = 0; i < values.length; i++) alpha[i] = 255 / (1 + Math.exp(-values[i]));
+function fromLogits(values: Float32Array): Float32Array {
+  const alpha = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i++) alpha[i] = 1 / (1 + Math.exp(-values[i]));
   return alpha;
 }
 
-/** IS-Net outputs a foreground map, stretched so its weakest and strongest values span 0–255 (as in its reference code). */
-function stretched(values: Float32Array): Uint8ClampedArray {
+/** IS-Net outputs a foreground map, stretched so its weakest and strongest values span 0–1 (as in its reference code). */
+function stretched(values: Float32Array): Float32Array {
   let min = Infinity;
   let max = -Infinity;
   for (const v of values) {
@@ -44,8 +44,8 @@ function stretched(values: Float32Array): Uint8ClampedArray {
     max = 1;
   }
   const range = max - min;
-  const alpha = new Uint8ClampedArray(values.length);
-  for (let i = 0; i < values.length; i++) alpha[i] = ((values[i] - min) / range) * 255;
+  const alpha = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i++) alpha[i] = (values[i] - min) / range;
   return alpha;
 }
 
@@ -159,7 +159,7 @@ function toTensorData(rgba: Uint8ClampedArray, { mean, std }: ModelSpec): Float3
   return out;
 }
 
-async function predict({ ort, session, device }: Engine, rgba: Uint8ClampedArray): Promise<Uint8ClampedArray> {
+async function predict({ ort, session, device }: Engine, rgba: Uint8ClampedArray): Promise<Float32Array> {
   const spec = SPECS[device];
   const input = new ort.Tensor('float32', toTensorData(rgba, spec), [1, 3, MASK_SIZE, MASK_SIZE]);
   try {
@@ -176,8 +176,8 @@ async function predict({ ort, session, device }: Engine, rgba: Uint8ClampedArray
 }
 
 export interface SubjectMask {
-  /** MASK_SIZE × MASK_SIZE alpha values, 0–255: how much each pixel belongs to the subject. */
-  alpha: Uint8ClampedArray;
+  /** MASK_SIZE × MASK_SIZE soft alpha, 0–1 (letterboxed square). */
+  alpha: Float32Array;
   device: Device;
   notes: string[];
 }
