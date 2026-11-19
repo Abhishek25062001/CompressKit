@@ -32,11 +32,13 @@ export class ToolErrorBoundary extends Component<Props, State> {
 
   render() {
     if (!this.state.error) return this.props.children;
+    const detail = this.state.error.message?.trim();
     return (
       <div className="mx-auto max-w-xl px-4 sm:px-6">
         <div className="card p-6 text-center">
           <p className="text-sm font-medium text-fg">This tool hit a problem</p>
           <p className="mt-2 text-sm text-muted">The rest of ofctools is still open. Try again, or go back to all tools.</p>
+          {detail ? <p className="mt-3 break-words rounded-xl bg-surface-2 px-3 py-2 font-mono text-xs text-muted">{detail}</p> : null}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <Button variant="primary" size="sm" onClick={() => this.setState({ error: null })}>
               Try again

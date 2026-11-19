@@ -14,15 +14,15 @@ import { ConvertSettingsPanel } from '../settings/ConvertSettingsPanel';
 import { FileSettingsDialog } from '../settings/FileSettingsDialog';
 import { ResizeSettingsPanel } from '../settings/ResizeSettingsPanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
+import { WatermarkSettingsPanel } from '../settings/WatermarkSettingsPanel';
 import { DropZone } from '../upload/DropZone';
+import { MaskDialog } from '../watermark/MaskDialog';
 
 const PdfWorkspace = lazy(() => import('../pdf/PdfWorkspace').then((m) => ({ default: m.PdfWorkspace })));
 const ConvertWorkspace = lazy(() => import('../docs/ConvertWorkspace').then((m) => ({ default: m.ConvertWorkspace })));
 const DocxEditor = lazy(() => import('../docs/DocxEditor').then((m) => ({ default: m.DocxEditor })));
 const TrimWorkspace = lazy(() => import('../trim/TrimWorkspace').then((m) => ({ default: m.TrimWorkspace })));
 const BackgroundSettingsPanel = lazy(() => import('../settings/BackgroundSettingsPanel').then((m) => ({ default: m.BackgroundSettingsPanel })));
-const WatermarkSettingsPanel = lazy(() => import('../settings/WatermarkSettingsPanel').then((m) => ({ default: m.WatermarkSettingsPanel })));
-const MaskDialog = lazy(() => import('../watermark/MaskDialog').then((m) => ({ default: m.MaskDialog })));
 
 function ToolFallback() {
   return (
@@ -94,9 +94,7 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
                 <BackgroundSettingsPanel />
               </Suspense>
             ) : mode === 'watermark' ? (
-              <Suspense fallback={<ToolFallback />}>
-                <WatermarkSettingsPanel />
-              </Suspense>
+              <WatermarkSettingsPanel />
             ) : (
               <ResizeSettingsPanel />
             )}
@@ -109,8 +107,11 @@ function ToolPanel({ mode }: { mode: ToolMode }) {
 
 /** The tool itself, as shown on its page: the drop zone and, once files are added, its queue and settings. */
 export function ToolWorkspace({ id }: { id: ToolId }) {
+  const tool = id in TOOLS ? TOOLS[id as ToolMode] : null;
+  const info = TOOL_BY_ID[id];
+
   return (
-    <section id="tool" aria-label={TOOL_BY_ID[id].name} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
+    <section id="tool" aria-label={info?.name ?? id} className="mx-auto max-w-6xl scroll-mt-20 px-4 sm:px-6">
       <Suspense fallback={<ToolFallback />}>
         {id === 'pdf' || id === 'edit-pdf' || id === 'merge' ? (
           <PdfWorkspace variant={id === 'pdf' ? 'pdf' : id === 'edit-pdf' ? 'edit' : 'merge'} />
@@ -120,17 +121,17 @@ export function ToolWorkspace({ id }: { id: ToolId }) {
           <DocxEditor />
         ) : id === 'trim' ? (
           <TrimWorkspace />
-        ) : (
-          <ToolContext value={TOOLS[id]}>
-            <ToolPanel mode={id} />
+        ) : tool ? (
+          <ToolContext value={tool}>
+            <ToolPanel mode={tool.mode} />
           </ToolContext>
+        ) : (
+          <div className="card p-6 text-center text-sm text-muted">This tool is not available in this build.</div>
         )}
       </Suspense>
       <FileSettingsDialog />
       <CropDialog />
-      <Suspense fallback={null}>
-        <MaskDialog />
-      </Suspense>
+      {id === 'watermark' ? <MaskDialog /> : null}
     </section>
   );
 }
