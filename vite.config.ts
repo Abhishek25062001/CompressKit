@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
@@ -246,6 +246,34 @@ function withMeta(html: string, title: string, description: string, path: string
  * and description, so links and search results show the right text before any script runs, and
  * the site works on any static host without rewrite rules. 404.html serves unknown addresses.
  */
+/**
+ * Writes cache-manifest.json: every content-hashed file of this build (assets/, models/, ocr/).
+ * The service worker deletes cached copies that are not on it, so engines, models and scripts
+ * from earlier deployments do not pile up in the visitor's storage.
+ */
+function cacheManifest(): Plugin {
+  let outDir = 'dist';
+  let isBuild = false;
+  const list = (dir: string, prefix: string): string[] =>
+    existsSync(dir)
+      ? readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+          e.isDirectory() ? list(join(dir, e.name), `${prefix}${e.name}/`) : [`${prefix}${e.name}`],
+        )
+      : [];
+  return {
+    name: 'ofctools-cache-manifest',
+    configResolved(config) {
+      outDir = config.build.outDir;
+      isBuild = config.command === 'build';
+    },
+    closeBundle() {
+      if (!isBuild || !existsSync(join(outDir, 'index.html'))) return;
+      const files = ['assets', 'models', 'ocr'].flatMap((d) => list(join(outDir, d), `${d}/`)).sort();
+      writeFileSync(join(outDir, 'cache-manifest.json'), JSON.stringify({ files }));
+    },
+  };
+}
+
 function toolPages(): Plugin {
   let outDir = 'dist';
   return {
@@ -272,7 +300,7 @@ function toolPages(): Plugin {
 
 // ofctools is a fully static, client-side app. No server code, no env vars.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), selfHostedInpaintModel(), onnxRuntimeGatherNdFix(), toolPages()],
+  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), selfHostedInpaintModel(), onnxRuntimeGatherNdFix(), toolPages(), cacheManifest()],
   worker: {
     // Module workers let the video worker dynamically import the FFmpeg core.
     format: 'es',

@@ -25,12 +25,42 @@ self.addEventListener('install', (event) => {
   );
 });
 
+/* Hashed files (scripts, engines, OCR data, model parts) that are not part of the current build
+   are deleted, so each deployment does not leave another copy behind. The list is written at build
+   time (cache-manifest.json). Pages and icons keep their names and are refreshed in place. */
+const HASHED = ['/assets/', '/models/', '/ocr/'];
+let lastPrune = 0;
+
+async function pruneStale() {
+  const res = await fetch(new URL('cache-manifest.json', SCOPE).href, { cache: 'no-store' });
+  if (!res.ok) return;
+  const { files } = await res.json();
+  if (!Array.isArray(files) || files.length === 0) return;
+  const keep = new Set(files.map((f) => new URL(f, SCOPE).pathname));
+  for (const name of [CACHE, MODEL_CACHE]) {
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      const { pathname } = new URL(request.url);
+      if (HASHED.some((p) => pathname.includes(p)) && !keep.has(pathname)) await cache.delete(request);
+    }
+  }
+}
+
+/** At most once an hour while the service worker is alive; offline or a missing list skips it. */
+function pruneSoon() {
+  const now = Date.now();
+  if (now - lastPrune < 3_600_000) return Promise.resolve();
+  lastPrune = now;
+  return pruneStale().catch(() => undefined);
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== MODEL_CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(pruneSoon),
   );
 });
 
@@ -47,6 +77,8 @@ self.addEventListener('fetch', (event) => {
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(new URL('index.html', SCOPE).href, copy));
+          // A page from the network may come from a new deployment: drop what it no longer uses.
+          event.waitUntil(pruneSoon());
           return res;
         })
         .catch(() => caches.match(new URL('index.html', SCOPE).href)),

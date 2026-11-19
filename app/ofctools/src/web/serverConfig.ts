@@ -40,9 +40,11 @@ const MIME_TYPES: Record<string, string> = {
 /**
  * Lighttpd configuration text.
  *
- * `Cache-Control: no-cache` makes the WebView ask "has this changed?" before reusing a stored
- * copy. Without it a page stored before an app update could keep pointing at script files the
- * update removed. The check is a request to this same phone, so it costs next to nothing.
+ * `Cache-Control: no-store` keeps the WebView from storing its own copy of every file it loads.
+ * The files are already on the phone, so a copy would only take space: the AI models, the video
+ * engine and the OCR data are tens to hundreds of MB each, and they would pile up as tools are
+ * used. Reading them again from this same phone costs next to nothing, and nothing stored can go
+ * stale after an app update.
  */
 export function buildServerConfig(): string {
   const types = Object.entries(MIME_TYPES)
@@ -50,7 +52,7 @@ export function buildServerConfig(): string {
     .join(',\n');
   return [
     'server.modules += ("mod_setenv")',
-    'setenv.add-response-header = ("Cache-Control" => "no-cache")',
+    'setenv.add-response-header = ("Cache-Control" => "no-store")',
     `mimetype.assign = (\n${types}\n)`,
   ].join('\n');
 }
