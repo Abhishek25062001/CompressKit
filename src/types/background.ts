@@ -49,6 +49,11 @@ export interface BackgroundJobRequest {
   runtime: { wasm: string; threads: number; memArena: boolean; memPattern: boolean };
   /** Skip the graphics card: it failed earlier in this page, so the processor model runs. */
   forceCpu: boolean;
+  /**
+   * Keep model parts in Cache Storage. False inside the Android/iOS app, where they are already
+   * files on the phone and a cache would store a second copy (100+ MB per model).
+   */
+  cacheModel: boolean;
 }
 
 /** Sent instead of a result when the graphics card cannot start or run the model; the page retries on the processor in a fresh worker. */

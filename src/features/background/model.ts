@@ -68,7 +68,8 @@ export const MODEL_CACHE = 'ofctools-models-v1';
 /** Thrown when the graphics card cannot start or run the model; the page retries on the processor in a fresh worker. */
 export class GpuFailedError extends Error {}
 
-async function openCache(): Promise<Cache | null> {
+async function openCache(enabled: boolean): Promise<Cache | null> {
+  if (!enabled) return null;
   try {
     return typeof caches === 'undefined' ? null : await caches.open(MODEL_CACHE);
   } catch {
@@ -81,8 +82,8 @@ async function openCache(): Promise<Cache | null> {
  * were stored), otherwise from the network, checked against the SHA-256 and then cached. The caller
  * must drop the buffer once the session is created.
  */
-async function loadModelBytes(model: ModelFiles, onProgress: ProgressFn): Promise<Uint8Array<ArrayBuffer>> {
-  const cache = await openCache();
+async function loadModelBytes(model: ModelFiles, cacheModel: boolean, onProgress: ProgressFn): Promise<Uint8Array<ArrayBuffer>> {
+  const cache = await openCache(cacheModel);
   const cached = cache ? await Promise.all(model.parts.map((url) => cache.match(url))) : [];
   const fromCache = cache !== null && cached.every((r) => r?.ok);
   const bytes = new Uint8Array(model.size);
@@ -152,7 +153,7 @@ async function loadRuntime(job: BackgroundJobRequest): Promise<typeof Ort> {
  */
 async function createSession(ort: typeof Ort, job: BackgroundJobRequest, model: ModelFiles, device: Device, onProgress: ProgressFn): Promise<Engine> {
   // The bytes are only a parameter of this callback, never a variable of the awaiting function.
-  const session = await loadModelBytes(model, onProgress).then((bytes) => {
+  const session = await loadModelBytes(model, job.cacheModel, onProgress).then((bytes) => {
     onProgress(null, 'Starting AI model');
     return ort.InferenceSession.create(bytes, {
       executionProviders: [device],

@@ -8,6 +8,7 @@ import type { QueueItem } from '../../types/media';
 import type { WorkerResponse } from '../../types/worker';
 import { CompressionError } from '../../utils/errors';
 import { sanitizeBaseName } from '../../utils/filename';
+import { IN_NATIVE_APP } from '../../utils/nativeApp';
 import { WorkerSlot } from '../compression/workerSlot';
 import { QueueRunner, type ProcessOutput, type ProgressFn } from '../compression/queueRunner';
 import { beginRun, MEMLOG, printMemTable, recordMain, recordSample, type MemlogMessage } from './memlog';
@@ -117,6 +118,7 @@ export class BackgroundManager extends QueueRunner {
       models: { gpu: withAbsoluteUrls(backgroundModels.gpu), cpu: withAbsoluteUrls(backgroundModels.cpu) },
       runtime: { wasm: new URL(ortWasmUrl, window.location.href).href, ...runtimeOptions() },
       forceCpu,
+      cacheModel: !IN_NATIVE_APP,
     };
     return new Promise((resolve, reject) => {
       this.cancelRunning = () => reject(new CompressionError('CANCELLED'));
