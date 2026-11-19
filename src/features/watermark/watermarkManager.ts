@@ -1,6 +1,9 @@
+import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
+import inpaintModels from 'virtual:inpaint-model';
 import { MIME_EXTENSION, MIME_LABEL } from '../../constants/formats';
 import { useWatermarkSettingsStore } from '../../store/watermarkSettingsStore';
 import type { QueueStore } from '../../store/queueStore';
+import type { ModelFiles } from '../../types/background';
 import type { QueueItem } from '../../types/media';
 import type { WatermarkJobRequest } from '../../types/watermark';
 import type { WorkerResponse } from '../../types/worker';
@@ -12,8 +15,18 @@ import { QueueRunner, type ProcessOutput, type ProgressFn } from '../compression
 /** Suggested mark when the user has not drawn one yet: bottom-right, typical logo spot. */
 export const DEFAULT_WATERMARK_MASK = { x: 0.72, y: 0.86, width: 0.24, height: 0.1 };
 
+/** Byte sizes of the LaMa models this build can download (null when not shipped). */
+export const INPAINT_MODEL_BYTES = {
+  gpu: inpaintModels.gpu?.size ?? null,
+  cpu: inpaintModels.cpu?.size ?? null,
+};
+
+const absolute = (path: string) => new URL(path, new URL(import.meta.env.BASE_URL, window.location.href)).href;
+const withAbsoluteUrls = (model: ModelFiles | null): ModelFiles | null =>
+  model && { ...model, parts: model.parts.map(absolute) };
+
 /**
- * Runs the watermark remover's queue: one photo at a time on one worker.
+ * Runs the watermark remover's queue: one photo at a time on one worker (keeps LaMa loaded).
  */
 export class WatermarkManager extends QueueRunner {
   private slot = new WorkerSlot(
@@ -42,6 +55,8 @@ export class WatermarkManager extends QueueRunner {
       file: item.file,
       mask: rect,
       settings: { format: settings.format, expand: settings.expand },
+      models: { gpu: withAbsoluteUrls(inpaintModels.gpu), cpu: withAbsoluteUrls(inpaintModels.cpu) },
+      runtime: { wasm: new URL(ortWasmUrl, window.location.href).href },
     };
     return new Promise((resolve, reject) => {
       this.cancelRunning = () => reject(new CompressionError('CANCELLED'));
@@ -53,6 +68,7 @@ export class WatermarkManager extends QueueRunner {
             const ext = MIME_EXTENSION[msg.mime] ?? 'png';
             const notes = [...msg.notes];
             if (!item.crop) notes.unshift('Used the default bottom-right mark. Open Mark watermark to aim it.');
+            const engine = msg.engine === 'webgpu' || msg.engine === 'wasm' ? msg.engine : 'canvas';
             resolve({
               result: {
                 blob: msg.blob,
@@ -62,7 +78,7 @@ export class WatermarkManager extends QueueRunner {
                 size: msg.blob.size,
                 width: msg.width,
                 height: msg.height,
-                engine: 'canvas',
+                engine,
                 notes,
                 keptOriginal: false,
               },

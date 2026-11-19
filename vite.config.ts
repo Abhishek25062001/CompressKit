@@ -133,6 +133,57 @@ function selfHostedModel(): Plugin {
 }
 
 /**
+ * LaMa inpainting models for Remove Watermark. Same ≤20 MB part scheme as background removal.
+ * Import metadata from `virtual:inpaint-model`. Prepare files with `npm run model:inpaint`.
+ */
+function selfHostedInpaintModel(): Plugin {
+  const virtualId = 'virtual:inpaint-model';
+  const resolvedId = `\0${virtualId}`;
+  const models: Record<'gpu' | 'cpu', ServedModel | null> = { gpu: null, cpu: null };
+
+  return {
+    name: 'compresskit-inpaint-model',
+    async configResolved() {
+      const { INPAINT_MODELS } = await import('./scripts/fetch-inpaint-model.mjs');
+      for (const key of ['gpu', 'cpu'] as const) {
+        const { name, file } = INPAINT_MODELS[key];
+        if (existsSync(file)) models[key] = describeModel(name, file);
+      }
+    },
+    resolveId(id) {
+      return id === virtualId ? resolvedId : undefined;
+    },
+    load(id) {
+      if (id !== resolvedId) return undefined;
+      const info = (m: ServedModel | null) => (m ? { parts: m.parts.map((p) => p.fileName), size: m.size, sha256: m.sha256 } : null);
+      return `export default ${JSON.stringify({ gpu: info(models.gpu), cpu: info(models.cpu) })};`;
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\//, '');
+        for (const model of [models.gpu, models.cpu]) {
+          const part = model?.parts.find((p) => p.fileName === path);
+          if (!model || !part) continue;
+          res.setHeader('Content-Type', 'application/octet-stream');
+          res.end(readRange(model.file, part.start, part.end));
+          return;
+        }
+        next();
+      });
+    },
+    generateBundle() {
+      for (const model of [models.gpu, models.cpu]) {
+        if (!model) continue;
+        const bytes = readFileSync(model.file);
+        for (const part of model.parts) {
+          this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
+        }
+      }
+    },
+  };
+}
+
+/**
  * Fixes a bug in ONNX Runtime Web 1.30 (microsoft/onnxruntime#32731): when GatherND data has more
  * than four dimensions, its WebGPU shader reads a packed uniform array (array<vec4<u32>>) as if it
  * were flat, and the browser rejects the shader. BiRefNet has such GatherNDs. If the code no longer
@@ -225,7 +276,7 @@ function toolPages(): Plugin {
 
 // ofctools is a fully static, client-side app. No server code, no env vars.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), onnxRuntimeGatherNdFix(), toolPages()],
+  plugins: [react(), tailwindcss(), selfHostedOcr(), selfHostedModel(), selfHostedInpaintModel(), onnxRuntimeGatherNdFix(), toolPages()],
   worker: {
     // Module workers let the video worker dynamically import the FFmpeg core.
     format: 'es',

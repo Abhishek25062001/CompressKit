@@ -25,7 +25,7 @@ async function run(job: WatermarkJobRequest): Promise<void> {
     width: out.width,
     height: out.height,
     notes: out.notes,
-    engine: 'canvas',
+    engine: out.engine,
     keptOriginal: false,
   });
 }

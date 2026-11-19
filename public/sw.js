@@ -1,6 +1,6 @@
 /* ofctools service worker: caches this site's own static files for offline use.
    It never touches user files, which are handled in memory and never requested over the network. */
-const CACHE = 'compresskit-v2';
+const CACHE = 'compresskit-v3';
 const SCOPE = self.registration.scope;
 const PRECACHE = [
   '',

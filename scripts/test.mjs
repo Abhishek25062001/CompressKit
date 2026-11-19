@@ -25,6 +25,11 @@ await build({
       resolveId: (id) => (id === 'virtual:background-model' ? '\0test-background-model' : undefined),
       load: (id) => (id === '\0test-background-model' ? 'export default { gpu: null, cpu: null };' : undefined),
     },
+    {
+      name: 'test-inpaint-model',
+      resolveId: (id) => (id === 'virtual:inpaint-model' ? '\0test-inpaint-model' : undefined),
+      load: (id) => (id === '\0test-inpaint-model' ? 'export default { gpu: null, cpu: null };' : undefined),
+    },
   ],
   build: {
     ssr: true,

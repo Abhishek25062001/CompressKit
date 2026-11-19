@@ -1,16 +1,23 @@
 import { IMAGE_MIME } from '../../constants/formats';
-import type { CropRect } from '../../types/resize';
 import type { WatermarkJobRequest, WatermarkFormat } from '../../types/watermark';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../compression/queueRunner';
-import { inpaintExemplar, maskDistance } from './inpaint';
+import {
+  COMPOSITE_FEATHER,
+  MASK_DILATE,
+  contextWindow,
+  dilateMask,
+  featherAlpha,
+  fractionToPixels,
+  maskBounds,
+  maskDistance,
+  rectHeight,
+  rectWidth,
+} from './geometry';
+import { inpaintExemplar } from './inpaint';
+import { lamaAvailable, runLama } from './lama';
 
-/** Larger photos are scaled down before inpainting so the fill stays responsive. */
 const MAX_SIDE = 4096;
-/** How far outside the marked box the algorithm looks for texture samples. */
-const SAMPLE_PAD = 64;
-/** Soft rim (px) so the fill blends into the photo instead of a hard rectangle. */
-const FEATHER = 4;
 
 export interface WatermarkOutput {
   blob: Blob;
@@ -18,6 +25,7 @@ export interface WatermarkOutput {
   width: number;
   height: number;
   notes: string[];
+  engine: 'webgpu' | 'wasm' | 'canvas';
 }
 
 function canvas(width: number, height: number) {
@@ -40,13 +48,66 @@ function resolveFormat(file: File, format: WatermarkFormat): { mime: string; lab
   return { mime: IMAGE_MIME[format], label: format === 'jpeg' ? 'JPG' : format.toUpperCase() };
 }
 
-/** Pixel bounds of the marked rectangle, expanded by `expand` pixels, clamped to the photo. */
-function maskBounds(rect: CropRect, width: number, height: number, expand: number) {
-  const x0 = Math.max(0, Math.floor(rect.x * width) - expand);
-  const y0 = Math.max(0, Math.floor(rect.y * height) - expand);
-  const x1 = Math.min(width, Math.ceil((rect.x + rect.width) * width) + expand);
-  const y1 = Math.min(height, Math.ceil((rect.y + rect.height) * height) + expand);
-  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+function extractCrop(
+  image: ImageData,
+  window: { x0: number; y0: number; x1: number; y1: number },
+  originalMask: Uint8Array,
+  dilateMaskFull: Uint8Array,
+) {
+  const sw = window.x1 - window.x0;
+  const sh = window.y1 - window.y0;
+  const rgba = new Uint8ClampedArray(sw * sh * 4);
+  const orig = new Uint8Array(sw * sh);
+  const dilated = new Uint8Array(sw * sh);
+  for (let y = 0; y < sh; y++) {
+    const sy = window.y0 + y;
+    for (let x = 0; x < sw; x++) {
+      const sx = window.x0 + x;
+      const src = (sy * image.width + sx) * 4;
+      const dst = (y * sw + x) * 4;
+      rgba[dst] = image.data[src];
+      rgba[dst + 1] = image.data[src + 1];
+      rgba[dst + 2] = image.data[src + 2];
+      rgba[dst + 3] = image.data[src + 3];
+      const fi = sy * image.width + sx;
+      orig[y * sw + x] = originalMask[fi];
+      dilated[y * sw + x] = dilateMaskFull[fi];
+    }
+  }
+  return { rgba, orig, dilated, sw, sh };
+}
+
+function compositeCrop(
+  image: ImageData,
+  window: { x0: number; y0: number; x1: number; y1: number },
+  filled: Uint8ClampedArray,
+  originalMask: Uint8Array,
+  sw: number,
+  sh: number,
+): void {
+  const dist = maskDistance(originalMask, sw, sh);
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      const mi = y * sw + x;
+      if (!originalMask[mi]) continue;
+      const alpha = featherAlpha(dist[mi], COMPOSITE_FEATHER);
+      if (alpha <= 0) continue;
+      const src = mi * 4;
+      const dst = ((window.y0 + y) * image.width + (window.x0 + x)) * 4;
+      if (alpha >= 1) {
+        image.data[dst] = filled[src];
+        image.data[dst + 1] = filled[src + 1];
+        image.data[dst + 2] = filled[src + 2];
+        image.data[dst + 3] = filled[src + 3];
+      } else {
+        const inv = 1 - alpha;
+        image.data[dst] = Math.round(filled[src] * alpha + image.data[dst] * inv);
+        image.data[dst + 1] = Math.round(filled[src + 1] * alpha + image.data[dst + 1] * inv);
+        image.data[dst + 2] = Math.round(filled[src + 2] * alpha + image.data[dst + 2] * inv);
+        image.data[dst + 3] = Math.round(filled[src + 3] * alpha + image.data[dst + 3] * inv);
+      }
+    }
+  }
 }
 
 export async function removeWatermark(job: WatermarkJobRequest, onProgress: ProgressFn): Promise<WatermarkOutput> {
@@ -72,81 +133,64 @@ export async function removeWatermark(job: WatermarkJobRequest, onProgress: Prog
       notes.push(`This photo is very large, so the watermark was removed at ${width} × ${height}.`);
     }
 
-    onProgress(0.1, 'Preparing');
+    onProgress(0.05, 'Preparing');
     const { c, ctx } = canvas(width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
     const image = ctx.getImageData(0, 0, width, height);
 
-    const box = maskBounds(mask, width, height, settings.expand);
-    if (box.w < 2 || box.h < 2) throw new CompressionError('UNKNOWN', 'watermark region too small');
+    const box = fractionToPixels(mask, width, height, settings.expand);
+    if (rectWidth(box) < 2 || rectHeight(box) < 2) throw new CompressionError('UNKNOWN', 'watermark region too small');
 
-    const sx0 = Math.max(0, box.x0 - SAMPLE_PAD);
-    const sy0 = Math.max(0, box.y0 - SAMPLE_PAD);
-    const sx1 = Math.min(width, box.x1 + SAMPLE_PAD);
-    const sy1 = Math.min(height, box.y1 + SAMPLE_PAD);
-    const sw = sx1 - sx0;
-    const sh = sy1 - sy0;
+    // Original (undilated) mask — only this region is composited back.
+    const originalMask = new Uint8Array(width * height);
+    for (let y = box.y0; y < box.y1; y++) {
+      for (let x = box.x0; x < box.x1; x++) originalMask[y * width + x] = 1;
+    }
+    const dilated = dilateMask(originalMask, width, height, MASK_DILATE);
+    const dilBounds = maskBounds(dilated, width, height);
+    if (!dilBounds) throw new CompressionError('UNKNOWN', 'empty watermark mask');
+    const window = contextWindow(dilBounds, width, height);
+    const crop = extractCrop(image, window, originalMask, dilated);
 
-    const crop = new Uint8ClampedArray(sw * sh * 4);
-    const cropMask = new Uint8Array(sw * sh);
-    for (let y = 0; y < sh; y++) {
-      const srcY = sy0 + y;
-      for (let x = 0; x < sw; x++) {
-        const srcX = sx0 + x;
-        const src = (srcY * width + srcX) * 4;
-        const dst = (y * sw + x) * 4;
-        crop[dst] = image.data[src];
-        crop[dst + 1] = image.data[src + 1];
-        crop[dst + 2] = image.data[src + 2];
-        crop[dst + 3] = image.data[src + 3];
-        if (srcX >= box.x0 && srcX < box.x1 && srcY >= box.y0 && srcY < box.y1) {
-          cropMask[y * sw + x] = 1;
-        }
+    let filled: Uint8ClampedArray;
+    let engine: WatermarkOutput['engine'] = 'canvas';
+
+    if (lamaAvailable(job)) {
+      try {
+        // Model sees the dilated mask so edges are covered; we still paste only the original mask.
+        const result = await runLama(job, crop.rgba, crop.dilated, crop.sw, crop.sh, onProgress);
+        filled = result.rgba;
+        engine = result.device;
+        notes.push(...result.notes);
+        notes.push('Filled with the LaMa inpainting model on your device.');
+      } catch (error) {
+        console.info('[ofctools] LaMa failed, using classical fill:', error);
+        notes.push('The AI inpaint model could not run, so a classical fill was used.');
+        onProgress(0.3, 'Removing watermark');
+        const patch = new Uint8ClampedArray(crop.rgba);
+        inpaintExemplar(patch, crop.sw, crop.sh, crop.orig);
+        filled = patch;
+        engine = 'canvas';
       }
+    } else {
+      notes.push('This build has no AI inpaint model, so a classical fill was used. Run `npm run model:inpaint` to enable LaMa.');
+      onProgress(0.3, 'Removing watermark');
+      const patch = new Uint8ClampedArray(crop.rgba);
+      inpaintExemplar(patch, crop.sw, crop.sh, crop.orig);
+      filled = patch;
     }
 
-    onProgress(0.2, 'Removing watermark');
-    const patchRadius = Math.min(5, Math.max(3, Math.round(Math.min(box.w, box.h) / 10)));
-    const searchRadius = Math.min(80, Math.max(32, Math.round(Math.max(box.w, box.h) * 1.5)));
-    inpaintExemplar(crop, sw, sh, cropMask, { patchRadius, searchRadius });
-
-    onProgress(0.85, 'Blending');
-    const dist = maskDistance(cropMask, sw, sh);
-    for (let y = 0; y < sh; y++) {
-      const dstY = sy0 + y;
-      for (let x = 0; x < sw; x++) {
-        const dstX = sx0 + x;
-        const mi = y * sw + x;
-        if (!cropMask[mi]) continue;
-        const src = mi * 4;
-        const dst = (dstY * width + dstX) * 4;
-        // Feather the outer rim so the patch does not leave a hard rectangle.
-        const d = dist[mi];
-        const alpha = d >= FEATHER ? 1 : Math.max(0, d / FEATHER);
-        if (alpha <= 0) continue;
-        if (alpha >= 1) {
-          image.data[dst] = crop[src];
-          image.data[dst + 1] = crop[src + 1];
-          image.data[dst + 2] = crop[src + 2];
-          image.data[dst + 3] = crop[src + 3];
-        } else {
-          const inv = 1 - alpha;
-          image.data[dst] = Math.round(crop[src] * alpha + image.data[dst] * inv);
-          image.data[dst + 1] = Math.round(crop[src + 1] * alpha + image.data[dst + 1] * inv);
-          image.data[dst + 2] = Math.round(crop[src + 2] * alpha + image.data[dst + 2] * inv);
-          image.data[dst + 3] = Math.round(crop[src + 3] * alpha + image.data[dst + 3] * inv);
-        }
-      }
-    }
+    onProgress(0.9, 'Blending');
+    compositeCrop(image, window, filled, crop.orig, crop.sw, crop.sh);
     ctx.putImageData(image, 0, 0);
 
     const { mime } = resolveFormat(file, settings.format);
     const quality = mime === IMAGE_MIME.jpeg ? 0.92 : mime === IMAGE_MIME.webp ? 0.92 : undefined;
     const blob = await c.convertToBlob({ type: mime, quality });
-    notes.push('Mark only the watermark — avoid covering important lines or borders when you can.');
+    notes.push('Mark only the watermark — keep borders and important lines outside the box when you can.');
 
     onProgress(1, 'Done');
-    return { blob, mime, width, height, notes };
+    return { blob, mime, width, height, notes, engine };
   } finally {
     bitmap.close();
   }

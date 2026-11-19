@@ -9,3 +9,13 @@ declare module 'virtual:background-model' {
   const models: { gpu: ModelFiles | null; cpu: ModelFiles | null };
   export default models;
 }
+
+declare module 'virtual:inpaint-model' {
+  type ModelFiles = { parts: string[]; size: number; sha256: string };
+  /**
+   * Self-hosted LaMa inpainting models for Remove Watermark, each null when not downloaded:
+   * `gpu` is the fp16 WebGPU graph, `cpu` is the int8 WASM graph.
+   */
+  const models: { gpu: ModelFiles | null; cpu: ModelFiles | null };
+  export default models;
+}

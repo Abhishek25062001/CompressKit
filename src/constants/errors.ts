@@ -18,8 +18,8 @@ const MESSAGES: Record<ErrorCode, { title: string; message: string }> = {
     message: 'Your browser may not support this video format. Try MP4 or WebM.',
   },
   ENGINE_LOAD_FAILED: {
-    title: 'The video engine failed to load',
-    message: 'Check your connection and reload the page. The engine is downloaded once and then cached.',
+    title: 'A processing engine failed to load',
+    message: 'Check your connection and reload the page. Engines and AI models are downloaded once and then cached.',
   },
   OUT_OF_MEMORY: {
     title: 'Your browser ran out of memory',
