@@ -18,8 +18,7 @@ export function Footer() {
           </div>
           <p className="mt-3 max-w-xs">Private file tools that run in your browser. Your files never leave your device.</p>
           <p className="mt-4 text-xs">
-            {/* Remove Background is switched off for now; with it on, this also said "Background removal: BiRefNet and IS-Net on ONNX Runtime." */}
-            Video engine: FFmpeg.wasm (GPL). Media parsing: Mediabunny.
+            Video engine: FFmpeg.wasm (GPL). Media parsing: Mediabunny. Background removal: BiRefNet and IS-Net on ONNX Runtime.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-[2fr_1fr]">

@@ -1,6 +1,7 @@
 import type { BackgroundJobRequest } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
+import { applyMatteToRgba, matteBounds, refineMatteEdges, resizeMatteBicubic } from './matte';
 import { findSubject, MASK_SIZE as SIZE, type Device } from './model';
 
 /** Larger photos are scaled down to this many pixels, which keeps canvases within browser limits. */
@@ -33,23 +34,10 @@ function squarePixels(source: ImageBitmap): Uint8ClampedArray {
   return ctx.getImageData(0, 0, SIZE, SIZE).data;
 }
 
-/** Bounding box of the subject in mask coordinates, or null when nothing was found. */
-function subjectBox(alpha: Uint8ClampedArray): { x0: number; y0: number; x1: number; y1: number } | null {
-  let x0 = SIZE;
-  let y0 = SIZE;
-  let x1 = -1;
-  let y1 = -1;
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      if (alpha[y * SIZE + x] > 24) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-      }
-    }
-  }
-  return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+function flattenColor(settings: BackgroundJobRequest['settings']): 'transparent' | string {
+  if (settings.background === 'transparent') return 'transparent';
+  if (settings.background === 'white') return '#ffffff';
+  return settings.color;
 }
 
 export async function removeBackground(job: BackgroundJobRequest, onProgress: ProgressFn): Promise<CutoutOutput> {
@@ -72,45 +60,52 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
       notes.push(`This photo is very large, so the cut-out was made at ${width} × ${height}.`);
     }
 
+    // Inference always at the model's fixed 1024×1024 input (verified from the ONNX graphs).
     const subject = await findSubject(job, squarePixels(bitmap), onProgress);
     notes.push(...subject.notes);
 
-    onProgress(0.9, 'Cutting out');
-    const mask = new ImageData(SIZE, SIZE);
-    for (let i = 0; i < subject.alpha.length; i++) mask.data[i * 4 + 3] = subject.alpha[i];
-    const maskCanvas = canvas(SIZE, SIZE);
-    maskCanvas.ctx.putImageData(mask, 0, 0);
+    onProgress(0.85, 'Refining edges');
+    const refined = refineMatteEdges(subject.alpha, SIZE, SIZE);
 
-    // The photo at full size, keeping only what the mask covers (the mask is scaled up smoothly).
-    const cut = canvas(width, height);
-    cut.ctx.drawImage(bitmap, 0, 0, width, height);
-    cut.ctx.globalCompositeOperation = 'destination-in';
-    cut.ctx.drawImage(maskCanvas.c, 0, 0, width, height);
+    onProgress(0.9, 'Upscaling matte');
+    // Bicubic upscale to the full-resolution work size, then apply as alpha (not CSS preview size).
+    const fullMatte = resizeMatteBicubic(refined, SIZE, SIZE, width, height);
 
-    const box = subjectBox(subject.alpha);
+    onProgress(0.93, 'Cutting out');
+    const { c, ctx } = canvas(width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const image = ctx.getImageData(0, 0, width, height);
+    applyMatteToRgba(image.data, fullMatte, width, height, { background: flattenColor(settings) });
+    ctx.putImageData(image, 0, 0);
+
+    const box = matteBounds(fullMatte, width, height);
     if (!box) notes.push('No clear subject was found in this photo, so most of it may have been removed.');
     let crop = { x: 0, y: 0, w: width, h: height };
     if (settings.trim && box) {
-      const sx = width / SIZE;
-      const sy = height / SIZE;
       const pad = Math.round(Math.max(width, height) * 0.02);
-      const x = Math.max(0, Math.floor(box.x0 * sx) - pad);
-      const y = Math.max(0, Math.floor(box.y0 * sy) - pad);
-      crop = { x, y, w: Math.min(width, Math.ceil(box.x1 * sx) + pad) - x, h: Math.min(height, Math.ceil(box.y1 * sy) + pad) - y };
+      const x = Math.max(0, box.x0 - pad);
+      const y = Math.max(0, box.y0 - pad);
+      crop = {
+        x,
+        y,
+        w: Math.min(width, box.x1 + pad) - x,
+        h: Math.min(height, box.y1 + pad) - y,
+      };
     }
 
     const final = canvas(crop.w, crop.h);
-    if (settings.background !== 'transparent') {
-      final.ctx.fillStyle = settings.background === 'white' ? '#ffffff' : settings.color;
-      final.ctx.fillRect(0, 0, crop.w, crop.h);
-    }
-    final.ctx.drawImage(cut.c, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+    final.ctx.drawImage(c, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
 
+    // PNG / WebP keep alpha when transparent; JPEG always flattens (applyMatteToRgba already did).
     const format = settings.background === 'transparent' && settings.format === 'jpeg' ? 'png' : settings.format;
     const mime = MIME[format];
     const blob = await final.c.convertToBlob({ type: mime, quality: format === 'png' ? undefined : 0.92 });
-    // Browsers without a WebP encoder silently return PNG.
-    if (blob.type !== mime) notes.push(`Your browser cannot write ${format.toUpperCase()}, so the result was saved as ${blob.type.split('/')[1].toUpperCase()}.`);
+    if (blob.type !== mime) {
+      notes.push(
+        `Your browser cannot write ${format.toUpperCase()}, so the result was saved as ${blob.type.split('/')[1].toUpperCase()}.`,
+      );
+    }
+    notes.push('Matte refined with a contrast curve and 1 px feather, then bicubic-upscaled to full resolution.');
     return { blob, mime: blob.type, width: crop.w, height: crop.h, notes, device: subject.device };
   } finally {
     bitmap.close();

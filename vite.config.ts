@@ -87,14 +87,12 @@ function selfHostedModel(): Plugin {
 
   return {
     name: 'compresskit-background-model',
-    // While Remove Background is off this takes no `config`; add it back with the line below.
-    async configResolved() {
+    async configResolved(config) {
       const { MODELS } = await import('./scripts/fetch-model.mjs');
       for (const key of ['gpu', 'cpu'] as const) {
         const { name, file } = MODELS[key];
         if (existsSync(file)) models[key] = describeModel(name, file);
-        // Remove Background is switched off for now, so a build no longer needs the models.
-        // else if (config.command === 'build') throw new Error(`Background-removal model missing (${file}): run \`npm run model\`.`);
+        else if (config.command === 'build') throw new Error(`Background-removal model missing (${file}): run \`npm run model\`.`);
       }
     },
     resolveId(id) {
@@ -118,17 +116,15 @@ function selfHostedModel(): Plugin {
         next();
       });
     },
-    // Remove Background is switched off for now, so the models (about 200 MB) are left out of
-    // dist/ and the phone app. Uncomment to ship them again.
-    // generateBundle() {
-    //   for (const model of [models.gpu, models.cpu]) {
-    //     if (!model) continue;
-    //     const bytes = readFileSync(model.file);
-    //     for (const part of model.parts) {
-    //       this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
-    //     }
-    //   }
-    // },
+    generateBundle() {
+      for (const model of [models.gpu, models.cpu]) {
+        if (!model) continue;
+        const bytes = readFileSync(model.file);
+        for (const part of model.parts) {
+          this.emitFile({ type: 'asset', fileName: part.fileName, source: bytes.subarray(part.start, part.end) });
+        }
+      }
+    },
   };
 }
 

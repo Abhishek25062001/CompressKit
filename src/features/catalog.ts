@@ -60,10 +60,8 @@ export const SITE_NAME = 'ofctools';
 
 export const HOME_META = {
   title: 'ofctools: Private File Tools That Run in Your Browser',
-  // Remove Background is switched off for now; with it on, the description was:
-  // 'Compress, convert, resize and trim photos and videos, remove backgrounds and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
   description:
-    'Compress, convert, resize and trim photos and videos, remove watermarks and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
+    'Compress, convert, resize and trim photos and videos, remove backgrounds and watermarks and hidden location data, edit PDFs and Word documents, and convert Word, Excel, PowerPoint, text and HTML to and from PDF. Everything runs in your browser. No uploads, no account.',
 };
 
 export const CATALOG: ToolInfo[] = [
@@ -103,21 +101,18 @@ export const CATALOG: ToolInfo[] = [
     handles: ['image'],
     formats: 'JPG · PNG · WebP · AVIF · BMP',
   },
-  // Remove Background is switched off for now (website and phone app). Uncomment this entry, the
-  // three entries and the popular link in directory.ts, '#remove-background' below, and the model
-  // files in vite.config.ts to bring it back. Without this entry /remove-background has no page.
-  // {
-  //   id: 'background',
-  //   path: '/remove-background',
-  //   name: 'Remove background',
-  //   heading: 'Remove the background from a photo',
-  //   tagline: 'Cut out people, pets and products with AI on your device.',
-  //   description:
-  //     'Remove photo backgrounds with an AI model that runs in your browser. Get a transparent PNG or put the subject on any colour. Your photos are never uploaded.',
-  //   title: 'Remove Background from Photos, Free and Private | ofctools',
-  //   handles: ['image'],
-  //   formats: 'JPG · PNG · WebP · AVIF · BMP',
-  // },
+  {
+    id: 'background',
+    path: '/remove-background',
+    name: 'Remove background',
+    heading: 'Remove the background from a photo',
+    tagline: 'Cut out people, pets and products with AI on your device.',
+    description:
+      'Remove photo backgrounds with an AI model that runs in your browser. Get a transparent PNG or put the subject on any colour. Your photos are never uploaded.',
+    title: 'Remove Background from Photos, Free and Private | ofctools',
+    handles: ['image'],
+    formats: 'JPG · PNG · WebP · AVIF · BMP',
+  },
   {
     id: 'watermark',
     path: '/remove-watermark',
@@ -373,7 +368,7 @@ export const LEGACY_HASHES: Record<string, string> = {
   '#resize': '/resize',
   '#trim': '/trim-video',
   '#clean': '/remove-location',
-  // '#remove-background': '/remove-background', // Remove Background is switched off for now.
+  '#remove-background': '/remove-background',
   '#pdf': '/pdf',
 };
 

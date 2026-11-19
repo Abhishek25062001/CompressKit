@@ -2,11 +2,12 @@ import type * as Ort from 'onnxruntime-web';
 import type { BackgroundJobRequest, ModelFiles } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
+import { MODEL_INPUT_SIZE } from './matte';
 
 export type Device = 'webgpu' | 'wasm';
 
-/** Both models look at the photo squeezed into a 1024 × 1024 square. */
-export const MASK_SIZE = 1024;
+/** Both models look at the photo squeezed into a 1024 × 1024 square (ONNX I/O). */
+export const MASK_SIZE = MODEL_INPUT_SIZE;
 
 interface Engine {
   ort: typeof Ort;

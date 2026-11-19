@@ -38,16 +38,14 @@ Static `dist/`. No server code, database, or API.
 
 ## 🛠️ Tools
 
-Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…), 59 in all (62 with Remove Background, which is switched off for now), is listed by category on the home page and in the header's **All tools** launcher, which also opens with <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> or <kbd>/</kbd>. Links such as `/convert#gif`, `/resize#passport` or `/pdf#page-numbers` open a tool with that option already chosen. The list lives in `src/features/directory.ts`.
+Every tool, and the jobs inside them (HEIC to JPG, Passport photo, Unlock PDF…), 62 in all, is listed by category on the home page and in the header's **All tools** launcher, which also opens with <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> or <kbd>/</kbd>. Links such as `/convert#gif`, `/resize#passport` or `/pdf#page-numbers` open a tool with that option already chosen. The list lives in `src/features/directory.ts`.
 
 | Tool | Address | What it does |
 | --- | --- | --- |
 | 🗜️ Compress | `/compress` | Shrink images and videos. Keep the original when it would not get smaller. |
 | 🔄 Convert | `/convert` | Images, video, animated GIF, or audio. Always the format you asked for. |
 | ✂️ Resize & Crop | `/resize` | Crop and scale photos to an exact pixel size. |
-<!-- Remove Background is switched off for now:
 | 🪄 Remove Background | `/remove-background` | Cut out a subject on your device: BiRefNet on the graphics card, IS-Net without WebGPU. Models are self-hosted. |
--->
 | 🎬 Trim & Split | `/trim-video` | Trim one clip, or split it into WhatsApp Status parts. |
 | 📍 Remove Location | `/remove-location` | Strip GPS and other hidden metadata. Picture and sound are not re-encoded. |
 | 📄 PDF | `/pdf` | Merge, split, crop, compress, sign, scan, fill forms, protect, clean, OCR, or save pages as JPG, PNG, BMP or TIFF. |
@@ -141,7 +139,7 @@ flowchart TD
 | State | Zustand 5 |
 | Images | Canvas, UPNG.js, `@jsquash/avif` |
 | Video | WebCodecs, Mediabunny, `@ffmpeg/core` 0.12 |
-| Cut-out | ONNX Runtime Web; BiRefNet lite on WebGPU (115 MB), IS-Net on the CPU (88 MB); self-hosted |
+| Cut-out | ONNX Runtime Web; BiRefNet lite on WebGPU (~109 MB), IS-Net on the CPU (~84 MB); self-hosted (`npm run model`) |
 | PDF | pdf.js (reading, rendering), pdf-lib (writing), Tesseract.js (OCR) |
 | Documents | Own readers and writers for DOCX, XLSX, PPTX, RTF, HTML and Markdown; UTIF.js for TIFF |
 | ZIP | fflate, in the browser |
@@ -158,7 +156,7 @@ npm run build
 | | |
 | --- | --- |
 | Node.js | 20.19+ |
-| Build output | Static `dist/` · ~90 MB (Remove Background and its ~200 MB of models are switched off) |
+| Build output | Static `dist/` · ~290 MB with both background models (run `npm run model` before `npm run build`) |
 | Server code | Zero |
 | Environment variables | Zero |
 | Database | None |
@@ -199,6 +197,17 @@ Serve `dist/` over HTTPS. One HTML file per tool. No functions, env file, or dat
 - 🌐 HTML to PDF lays the page out as a document with selectable text; for an exact copy of a web page's layout, use its print view. Pictures the page links to on the web are not fetched.
 - 📑 PDF to Excel rebuilds tables from where the text sits, which suits tables with columns of aligned text; heavily nested layouts may need tidying.
 - 🗂️ Old binary Office files (.doc, .xls, .ppt) need saving as .docx, .xlsx or .pptx first.
+
+## 🪄 Background-removal models
+
+Prepared by `npm run model` into `/models` (gitignored). Details and inspected ONNX I/O live in [`src/features/background/MODEL.md`](src/features/background/MODEL.md).
+
+| Role | Name | Approx. size | License |
+| --- | --- | ---: | --- |
+| WebGPU | BiRefNet lite (fp16, WebGPU-patched) | ~109 MB | MIT |
+| WASM / CPU | IS-Net general (DIS, fp16) | ~84 MB | MIT (export); DIS often Apache-2.0 |
+
+Both graphs take `float32` `[1, 3, 1024, 1024]` RGB and emit a `[1, 1, 1024, 1024]` matte. Inference runs at 1024; the matte is refined and bicubic-upscaled to full resolution. The first photo downloads one model from this site; the service worker caches `/models/…` parts for offline use.
 
 ## 📜 License
 

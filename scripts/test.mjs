@@ -20,7 +20,6 @@ await build({
   logLevel: 'warn',
   plugins: [
     {
-      // The paused background remover is reachable through the tool registry but never runs here.
       name: 'test-background-model',
       resolveId: (id) => (id === 'virtual:background-model' ? '\0test-background-model' : undefined),
       load: (id) => (id === '\0test-background-model' ? 'export default { gpu: null, cpu: null };' : undefined),

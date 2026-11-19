@@ -17,8 +17,7 @@ const WHY: Highlight[] = [
   {
     icon: Zap,
     title: 'Fast on your own device',
-    // Remove Background is switched off for now; with it on, this ended: "…through WebCodecs, and the background remover runs on your graphics card."
-    body: 'Videos are encoded by your hardware encoder through WebCodecs, right on your device.',
+    body: 'Videos are encoded by your hardware encoder through WebCodecs, and the background remover runs on your graphics card.',
   },
   {
     icon: WifiOff,

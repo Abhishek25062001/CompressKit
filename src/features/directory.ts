@@ -34,7 +34,7 @@ import {
   Minimize2,
   MonitorPlay,
   Music,
-  // Palette, // Used only by Remove Background, which is switched off for now.
+  Palette,
   PanelTop,
   PenLine,
   Pilcrow,
@@ -50,10 +50,10 @@ import {
   Smartphone,
   Split,
   SquarePen,
-  // SquareUser, // Used only by Remove Background, which is switched off for now.
+  SquareUser,
   Stamp,
   VolumeX,
-  // WandSparkles, // Used only by Remove Background, which is switched off for now.
+  WandSparkles,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -90,8 +90,7 @@ export interface Feature {
 
 /** Media first, then documents; this order also balances the launcher's four columns. */
 export const CATEGORIES: Category[] = [
-  // Remove Background is switched off for now; with it on: 'Shrink, convert and clean up pictures, and cut out backgrounds.'
-  { id: 'photos', name: 'Photos', description: 'Shrink, convert, clean up pictures and remove watermarks.', icon: Image },
+  { id: 'photos', name: 'Photos', description: 'Shrink, convert and clean up pictures, and cut out backgrounds.', icon: Image },
   { id: 'resize', name: 'Resize & crop', description: 'Exact sizes for IDs, forms and social media, plus crop and rotate.', icon: Crop },
   { id: 'video', name: 'Videos', description: 'Shrink, convert, trim and split videos, or save just the sound.', icon: Film },
   { id: 'word', name: 'Word documents', description: 'Edit, create and join DOCX files without Office.', icon: SquarePen },
@@ -149,34 +148,33 @@ export const FEATURES: Feature[] = [
     icon: Feather,
     keywords: 'jpg to avif png to avif image convert',
   },
-  // Remove Background is switched off for now (see the note in catalog.ts).
-  // {
-  //   key: 'remove-background',
-  //   name: 'Remove background',
-  //   description: 'Cut out people, pets and products with AI that runs on your device.',
-  //   to: '/remove-background#transparent',
-  //   category: 'photos',
-  //   icon: WandSparkles,
-  //   keywords: 'transparent png cutout erase background bg remover ai',
-  // },
-  // {
-  //   key: 'white-background',
-  //   name: 'White background',
-  //   description: 'Put the subject on clean white, for ID photos and shop listings.',
-  //   to: '/remove-background#white',
-  //   category: 'photos',
-  //   icon: SquareUser,
-  //   keywords: 'background remover product photo passport',
-  // },
-  // {
-  //   key: 'background-colour',
-  //   name: 'Change background colour',
-  //   description: 'Swap the background of a photo for any colour you pick.',
-  //   to: '/remove-background#color',
-  //   category: 'photos',
-  //   icon: Palette,
-  //   keywords: 'color background replace',
-  // },
+  {
+    key: 'remove-background',
+    name: 'Remove background',
+    description: 'Cut out people, pets and products with AI that runs on your device.',
+    to: '/remove-background#transparent',
+    category: 'photos',
+    icon: WandSparkles,
+    keywords: 'transparent png cutout erase background bg remover ai',
+  },
+  {
+    key: 'white-background',
+    name: 'White background',
+    description: 'Put the subject on clean white, for ID photos and shop listings.',
+    to: '/remove-background#white',
+    category: 'photos',
+    icon: SquareUser,
+    keywords: 'background remover product photo passport',
+  },
+  {
+    key: 'background-colour',
+    name: 'Change background colour',
+    description: 'Swap the background of a photo for any colour you pick.',
+    to: '/remove-background#color',
+    category: 'photos',
+    icon: Palette,
+    keywords: 'color background replace',
+  },
   {
     key: 'remove-watermark',
     name: 'Remove watermark',
@@ -707,7 +705,7 @@ export const POPULAR_FEATURES: Feature[] = [
   'heic-to-jpg',
   'merge-pdf',
   'pdf-to-word',
-  // 'remove-background', // Remove Background is switched off for now.
+  'remove-background',
   'remove-watermark',
   'passport-photo',
   'compress-pdf',

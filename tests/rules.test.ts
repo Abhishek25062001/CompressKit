@@ -49,9 +49,10 @@ describe('search', () => {
     assert.deepEqual(keys('zzqxv'), []);
   });
 
-  test('the switched-off background remover stays hidden', () => {
-    assert.ok(!keys('remove background').includes('remove-background'));
-    assert.ok(FEATURES.every((f) => !f.key.includes('background')));
+  test('remove background is findable by name and keywords', () => {
+    assert.ok(keys('remove background').includes('remove-background'));
+    assert.ok(keys('transparent png cutout').includes('remove-background'));
+    assert.ok(FEATURES.some((f) => f.key === 'remove-background'));
   });
 
   test('every tool can be found by its own name', () => {
@@ -97,6 +98,14 @@ describe('accepted formats', () => {
     assert.ok(takes('watermark', 'a.png'));
     assert.ok(!takes('watermark', 'a.heic'));
     assert.ok(!takes('watermark', 'a.mp4', 'video/mp4'));
+  });
+
+  test('background takes the same photos as resize', () => {
+    assert.ok(takes('background', 'a.jpg', 'image/jpeg'));
+    assert.ok(takes('background', 'a.png'));
+    assert.ok(takes('background', 'a.webp'));
+    assert.ok(!takes('background', 'a.heic'));
+    assert.ok(!takes('background', 'a.mp4', 'video/mp4'));
   });
 
   test('clean leaves out the containers phones never tag with a location', () => {
@@ -229,8 +238,9 @@ describe('tool addresses', () => {
     assert.ok(SITE_URL.startsWith('https://') && !SITE_URL.endsWith('/'));
   });
 
-  test('the switched-off background remover is not listed', () => {
-    assert.ok(locs.every((l) => !l.includes('background')));
+  test('remove-background is listed once in the sitemap', () => {
+    const hits = locs.filter((l) => l.endsWith('/remove-background'));
+    assert.equal(hits.length, 1);
   });
 
   test('robots.txt points at the sitemap', () => {
