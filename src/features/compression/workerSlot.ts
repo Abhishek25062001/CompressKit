@@ -21,6 +21,10 @@ export class WorkerSlot {
   private worker: Worker | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   jobId: string | null = null;
+  /** Receives 'memlog' messages (dev memory log), which belong to no job and never end one. */
+  onAside: ((message: unknown) => void) | null = null;
+  /** Called after the worker was terminated for being idle. */
+  onIdleExit: (() => void) | null = null;
 
   constructor(
     private readonly factory: WorkerFactory,
@@ -37,6 +41,10 @@ export class WorkerSlot {
     this.jobId = jobId;
     const worker = (this.worker ??= this.factory());
     worker.onmessage = (event: MessageEvent<M>) => {
+      if (event.data.type === 'memlog') {
+        this.onAside?.(event.data);
+        return;
+      }
       if (event.data.jobId !== this.jobId) return;
       if (event.data.type !== 'progress') this.release();
       callbacks.onMessage(event.data);
@@ -65,6 +73,9 @@ export class WorkerSlot {
 
   private release(): void {
     this.jobId = null;
-    this.idleTimer = setTimeout(() => this.terminate(), this.idleMs);
+    this.idleTimer = setTimeout(() => {
+      this.terminate();
+      this.onIdleExit?.();
+    }, this.idleMs);
   }
 }

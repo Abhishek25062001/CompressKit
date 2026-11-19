@@ -280,6 +280,12 @@ export default defineConfig({
     plugins: () => [onnxRuntimeGatherNdFix()],
   },
   server: {
+    // `OFCTOOLS_COI=1 npm run dev` makes the dev page cross-origin isolated, so ONNX Runtime can use
+    // threads (`ofctools-bg-runtime` threads 2 / 4) in memory benchmarks. Off by default: it blocks
+    // cross-origin resources that do not opt in.
+    headers: process.env.OFCTOOLS_COI
+      ? { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }
+      : undefined,
     // The React Native project in app/ holds gigabytes of native build output and a copy of this
     // site's own build; none of it belongs to the dev server.
     watch: { ignored: ['**/app/ofctools/**'] },

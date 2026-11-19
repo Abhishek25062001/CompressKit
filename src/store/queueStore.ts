@@ -21,7 +21,8 @@ function releaseDebugPreviews(result: QueueItem['result']): void {
   URL.revokeObjectURL(d.rawMatteUrl);
   URL.revokeObjectURL(d.refinedMatteUrl);
   URL.revokeObjectURL(d.onWhiteUrl);
-  URL.revokeObjectURL(d.onDarkUrl);
+  URL.revokeObjectURL(d.onBlackUrl);
+  URL.revokeObjectURL(d.onColorUrl);
 }
 
 function releaseItem(item: QueueItem): void {

@@ -2,7 +2,7 @@
 
 Downloaded by `npm run model` into `/models` (gitignored). Served in ≤20 MB parts via Vite `virtual:background-model`. The service worker caches `/models/…` parts for offline reuse after the first download.
 
-Hair / fine edges need a **soft float matte**: letterbox (no stretch) → 1024 infer → unletterbox → bicubic float upscale → **smoothstep(0.1–0.9)** → guided filter (radius 4–8, eps ~5e-5, photo as guide, **single pass / no tiles**) → blur-fusion FG colour → unpremultiplied RGBA. Enable **Debug matte stages** in settings to compare raw vs refined vs white/dark composites. See `cutout.ts` / `matte.ts`.
+Hair / fine edges need a **soft float matte**: letterbox (no stretch) → 1024 infer → unletterbox → bicubic float upscale → **smoothstep(0.1–0.9)** → guided filter (radius 4–8, eps ~5e-5, photo as guide, **single pass / no tiles**) → **multi-level foreground colour** (Germer et al. 2020, whole image, no windows) → unpremultiplied RGBA. Enable **Debug matte stages** in settings to compare raw vs refined matte and composites on white, black and green, with a per-stage check for constant-alpha rectangles. See `cutout.ts` / `matte.ts`.
 
 ## Files
 
@@ -46,3 +46,12 @@ Verified by decoding the ModelProto with `onnx-proto`:
 ## Offline / missing model
 
 If neither file is present at **dev** time, `virtual:background-model` exports `{ gpu: null, cpu: null }` and the tool reports that models are missing. A **production build** requires `npm run model` (Vite throws if the files are absent).
+
+## Memory
+
+- **Model bytes**: parts are read from Cache Storage (`ofctools-models-v1`, shared with the service worker; SHA-256 checked only on download). The joined buffer exists only until `InferenceSession.create` has copied it.
+- **Session**: one per worker, created on first use, `release()`d after 30 s idle. The page terminates the worker after **45 s** idle: ONNX Runtime's WebAssembly heap never shrinks, so only that frees it.
+- **GPU failure**: the worker reports `gpu-failed` and stops. The page terminates it and retries on the processor in a fresh worker, so nothing from the GPU attempt survives.
+- **Session options**: `enableCpuMemArena: false`, `enableMemPattern: false`. Threads only on a cross-origin isolated page (`OFCTOOLS_COI=1 npm run dev`).
+- **Input size**: both graphs are exported with a fixed `[1, 3, 1024, 1024]` input (BiRefNet's 17 078 nodes have static shapes), so 512 / 768 need re-exported models; there is no setting for it yet.
+- **Dev memory log** (`npm run dev` only, `memlog.ts`): each stage prints `[memlog]` lines; `ofctoolsMemTable()` in the console returns a Markdown table with one column per run. Override runtime options for a benchmark with `localStorage['ofctools-bg-runtime'] = '{"memArena":true,"memPattern":true,"threads":2}'` and reload.

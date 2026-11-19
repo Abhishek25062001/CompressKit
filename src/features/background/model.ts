@@ -3,6 +3,7 @@ import type { BackgroundJobRequest, ModelFiles } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
 import { MODEL_INPUT_SIZE } from './matte';
+import { memlog, withPeakSampling } from './memlog';
 
 export type Device = 'webgpu' | 'wasm';
 
@@ -61,14 +62,42 @@ const SPECS: Record<Device, ModelSpec> = {
 
 const MB = 1048576;
 
-/** Downloads the model parts in order with byte progress, joins them and checks the result. */
-async function download(model: ModelFiles, onProgress: ProgressFn): Promise<Uint8Array<ArrayBuffer>> {
+/** Model parts are content-addressed (their folder carries the model hash), so they never go stale. */
+export const MODEL_CACHE = 'ofctools-models-v1';
+
+/** Thrown when the graphics card cannot start or run the model; the page retries on the processor in a fresh worker. */
+export class GpuFailedError extends Error {}
+
+async function openCache(): Promise<Cache | null> {
+  try {
+    return typeof caches === 'undefined' ? null : await caches.open(MODEL_CACHE);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The model file as one buffer. Parts come from Cache Storage when all are there (checked when they
+ * were stored), otherwise from the network, checked against the SHA-256 and then cached. The caller
+ * must drop the buffer once the session is created.
+ */
+async function loadModelBytes(model: ModelFiles, onProgress: ProgressFn): Promise<Uint8Array<ArrayBuffer>> {
+  const cache = await openCache();
+  const cached = cache ? await Promise.all(model.parts.map((url) => cache.match(url))) : [];
+  const fromCache = cache !== null && cached.every((r) => r?.ok);
   const bytes = new Uint8Array(model.size);
   let loaded = 0;
   let lastReport = 0;
-  for (const url of model.parts) {
-    const res = await fetch(url);
-    if (!res.ok || !res.body) throw new CompressionError('ENGINE_LOAD_FAILED', `HTTP ${res.status} for ${url}`);
+  for (const [i, url] of model.parts.entries()) {
+    let res: Response;
+    if (fromCache) {
+      res = cached[i]!;
+    } else {
+      res = await fetch(url);
+      if (!res.ok || !res.body) throw new CompressionError('ENGINE_LOAD_FAILED', `HTTP ${res.status} for ${url}`);
+      if (cache) void cache.put(url, res.clone()).catch(() => undefined);
+    }
+    if (!res.body) throw new CompressionError('ENGINE_LOAD_FAILED', `empty body for ${url}`);
     const reader = res.body.getReader();
     for (;;) {
       const { done, value } = await reader.read();
@@ -77,17 +106,23 @@ async function download(model: ModelFiles, onProgress: ProgressFn): Promise<Uint
       bytes.set(value, loaded);
       loaded += value.length;
       const now = performance.now();
-      if (now - lastReport > 150) {
+      if (!fromCache && now - lastReport > 150) {
         lastReport = now;
         onProgress(loaded / model.size, `Downloading AI model (${(loaded / MB).toFixed(0)} / ${(model.size / MB).toFixed(0)} MB)`);
       }
     }
   }
   if (loaded !== model.size) throw new CompressionError('ENGINE_LOAD_FAILED', `model truncated: ${loaded} of ${model.size} bytes`);
-  onProgress(null, 'Checking AI model');
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  const hex = Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
-  if (hex !== model.sha256) throw new CompressionError('ENGINE_LOAD_FAILED', `model checksum mismatch: ${hex}`);
+  if (!fromCache) {
+    onProgress(null, 'Checking AI model');
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    const hex = Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+    if (hex !== model.sha256) {
+      if (cache) await Promise.all(model.parts.map((url) => cache.delete(url))).catch(() => undefined);
+      throw new CompressionError('ENGINE_LOAD_FAILED', `model checksum mismatch: ${hex}`);
+    }
+  }
+  memlog('model fetch', { 'model bytes': bytes.byteLength }, fromCache ? 'from Cache Storage' : 'downloaded');
   return bytes;
 }
 
@@ -106,51 +141,82 @@ async function loadRuntime(job: BackgroundJobRequest): Promise<typeof Ort> {
   const ort = await import('onnxruntime-web/all');
   ort.env.wasm.wasmPaths = { wasm: job.runtime.wasm };
   // Threads need a cross-origin isolated page, which a plain static host does not provide.
-  ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(job.runtime.threads, navigator.hardwareConcurrency || 1)) : 1;
   ort.env.logLevel = 'error';
   return ort;
 }
 
-async function startSession(ort: typeof Ort, bytes: Uint8Array, device: Device, onProgress: ProgressFn): Promise<Engine> {
-  onProgress(null, 'Starting AI model');
-  const session = await ort.InferenceSession.create(bytes, { executionProviders: [device] });
+/**
+ * Creates the session from `model`'s bytes. The bytes live only inside this function: once
+ * `create` has copied them into ONNX Runtime they are unreachable and the garbage collector frees them.
+ */
+async function createSession(ort: typeof Ort, job: BackgroundJobRequest, model: ModelFiles, device: Device, onProgress: ProgressFn): Promise<Engine> {
+  // The bytes are only a parameter of this callback, never a variable of the awaiting function.
+  const session = await loadModelBytes(model, onProgress).then((bytes) => {
+    onProgress(null, 'Starting AI model');
+    return ort.InferenceSession.create(bytes, {
+      executionProviders: [device],
+      // Arena and memory-pattern planning keep freed CPU tensors around for reuse; without them the
+      // WebAssembly heap peaks lower at a small cost in speed.
+      enableCpuMemArena: job.runtime.memArena,
+      enableMemPattern: job.runtime.memPattern,
+    });
+  });
+  memlog('session create', {}, `${device}; arena ${job.runtime.memArena ? 'on' : 'off'}, mem pattern ${job.runtime.memPattern ? 'on' : 'off'}, threads ${ort.env.wasm.numThreads}`);
   return { ort, session, device };
 }
 
 let engine: Promise<Engine> | null = null;
-/** Set once the graphics card could not start or run BiRefNet, so later photos go straight to the processor. */
-let gpuFailed = false;
 
 /**
- * Loads a model once per worker: BiRefNet on the graphics card when the browser offers a suitable
- * one (a few seconds per photo), otherwise IS-Net on the processor (about a minute per photo).
+ * The worker's one session, created on first use: BiRefNet on the graphics card when the browser
+ * offers a suitable one (a few seconds per photo), otherwise IS-Net on the processor (about a
+ * minute per photo). A graphics card that cannot start the model throws GpuFailedError, so the page
+ * can retry in a fresh worker and nothing the failed attempt allocated stays alive.
  */
 function getEngine(job: BackgroundJobRequest, onProgress: ProgressFn): Promise<Engine> {
   engine ??= (async () => {
     const ort = await loadRuntime(job);
-    if (!gpuFailed && job.models.gpu && (await gpuCanRunModel())) {
-      // A failed download is reported as it is; only a graphics card that cannot run the model falls back.
-      const bytes = await download(job.models.gpu, onProgress);
+    if (!job.forceCpu && job.models.gpu && (await gpuCanRunModel())) {
       try {
-        return await startSession(ort, bytes, 'webgpu', onProgress);
+        return await createSession(ort, job, job.models.gpu, 'webgpu', onProgress);
       } catch (error) {
-        gpuFailed = true;
-        console.info('[ofctools] The graphics card could not start the background model, using the processor:', error);
+        // A failed download is reported as it is; only a graphics card that cannot run the model falls back.
+        if (error instanceof CompressionError) throw error;
+        throw new GpuFailedError(String(error));
       }
     }
     if (!job.models.cpu) throw new CompressionError('ENGINE_LOAD_FAILED', 'no processor model in this build');
-    return startSession(ort, await download(job.models.cpu, onProgress), 'wasm', onProgress);
+    return createSession(ort, job, job.models.cpu, 'wasm', onProgress);
   })().catch((error: unknown) => {
     engine = null;
-    throw error instanceof CompressionError ? error : new CompressionError('ENGINE_LOAD_FAILED', String(error));
+    if (error instanceof GpuFailedError || error instanceof CompressionError) throw error;
+    throw new CompressionError('ENGINE_LOAD_FAILED', String(error));
   });
   return engine;
 }
 
+/** Releases the session (its GPU buffers and tensors). The next photo creates it again from the cache. */
+export async function releaseEngine(): Promise<boolean> {
+  const current = engine;
+  engine = null;
+  inputData = null;
+  if (!current) return false;
+  try {
+    await (await current).session.release();
+  } catch {
+    // Never started, or already gone.
+  }
+  return true;
+}
+
+/** Reused between photos: 3 × 1024 × 1024 floats (12 MB). */
+let inputData: Float32Array<ArrayBuffer> | null = null;
+
 /** RGBA pixels as three planes of normalized floats, the layout both models take. */
-function toTensorData(rgba: Uint8ClampedArray, { mean, std }: ModelSpec): Float32Array {
+function toTensorData(rgba: Uint8ClampedArray, { mean, std }: ModelSpec): Float32Array<ArrayBuffer> {
   const plane = MASK_SIZE * MASK_SIZE;
-  const out = new Float32Array(3 * plane);
+  const out = (inputData ??= new Float32Array(3 * plane));
   for (let i = 0; i < plane; i++) {
     out[i] = (rgba[i * 4] - mean[0]) / std[0];
     out[plane + i] = (rgba[i * 4 + 1] - mean[1]) / std[1];
@@ -161,9 +227,11 @@ function toTensorData(rgba: Uint8ClampedArray, { mean, std }: ModelSpec): Float3
 
 async function predict({ ort, session, device }: Engine, rgba: Uint8ClampedArray): Promise<Float32Array> {
   const spec = SPECS[device];
-  const input = new ort.Tensor('float32', toTensorData(rgba, spec), [1, 3, MASK_SIZE, MASK_SIZE]);
+  const data = toTensorData(rgba, spec);
+  const input = new ort.Tensor('float32', data, [1, 3, MASK_SIZE, MASK_SIZE]);
+  memlog('before inference', { 'input tensor': data.byteLength, 'letterboxed RGBA': rgba.byteLength });
   try {
-    const results = await session.run({ [session.inputNames[0]]: input });
+    const results = await withPeakSampling({ 'input tensor': data.byteLength }, () => session.run({ [session.inputNames[0]]: input }));
     const output = results[session.outputNames[0]];
     try {
       return spec.toAlpha((await output.getData()) as Float32Array);
@@ -179,27 +247,20 @@ export interface SubjectMask {
   /** MASK_SIZE × MASK_SIZE soft alpha, 0–1 (letterboxed square). */
   alpha: Float32Array;
   device: Device;
-  notes: string[];
 }
-
-const FALLBACK_NOTE = 'Your graphics card could not run the detailed AI model, so the lighter one ran on the processor, which is slower and softer at the edges.';
 
 /** Finds the subject in the photo, given as MASK_SIZE × MASK_SIZE RGBA pixels. */
 export async function findSubject(job: BackgroundJobRequest, rgba: Uint8ClampedArray, onProgress: ProgressFn): Promise<SubjectMask> {
-  let current = await getEngine(job, onProgress);
+  const current = await getEngine(job, onProgress);
   if (current.device === 'webgpu') {
     onProgress(null, 'Finding the subject');
     try {
-      return { alpha: await predict(current, rgba), device: 'webgpu', notes: [] };
+      return { alpha: await predict(current, rgba), device: 'webgpu' };
     } catch (error) {
-      // A driver or memory problem on the graphics card: the processor can still do it.
-      console.info('[ofctools] The graphics card failed on the background model, using the processor:', error);
-      gpuFailed = true;
-      engine = null;
-      void current.session.release().catch(() => undefined);
-      current = await getEngine(job, onProgress);
+      // A driver or memory problem on the graphics card: the page retries on the processor in a fresh worker.
+      throw new GpuFailedError(String(error));
     }
   }
   onProgress(null, 'Finding the subject (no GPU, this takes about a minute)');
-  return { alpha: await predict(current, rgba), device: 'wasm', notes: gpuFailed ? [FALLBACK_NOTE] : [] };
+  return { alpha: await predict(current, rgba), device: 'wasm' };
 }

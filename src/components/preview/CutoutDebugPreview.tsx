@@ -4,10 +4,11 @@ const PANELS: { key: keyof CutoutDebugPreviews; title: string; hint: string }[] 
   { key: 'rawMatteUrl', title: 'Raw matte', hint: 'After bicubic upscale — wide halo shows here' },
   { key: 'refinedMatteUrl', title: 'Refined matte', hint: 'Smoothstep 0.1–0.9 + guided filter' },
   { key: 'onWhiteUrl', title: 'On white', hint: 'Fringing / washout against light BG' },
-  { key: 'onDarkUrl', title: 'On dark', hint: 'Fringing / leftover BG against dark' },
+  { key: 'onBlackUrl', title: 'On black', hint: 'Leftover BG colour or washed-out edges against black' },
+  { key: 'onColorUrl', title: 'On green', hint: 'Saturated backdrop — wrong edge colour or blocky patches stand out' },
 ];
 
-/** Four stage panels so you can see which cut-out step causes halo, seams or colour washout. */
+/** Stage panels so you can see which cut-out step causes halo, seams or colour washout. */
 export function CutoutDebugPreview({ previews, width, height }: { previews: CutoutDebugPreviews; width?: number; height?: number }) {
   const ratio = width && height ? `${width} / ${height}` : '4 / 3';
   return (

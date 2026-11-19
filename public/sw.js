@@ -1,6 +1,9 @@
 /* ofctools service worker: caches this site's own static files for offline use.
    It never touches user files, which are handled in memory and never requested over the network. */
-const CACHE = 'compresskit-v3';
+const CACHE = 'compresskit-v4';
+/* AI model parts, shared with the background worker (src/features/background/model.ts, MODEL_CACHE).
+   Their folder names carry the model hash, so this cache survives app updates. */
+const MODEL_CACHE = 'ofctools-models-v1';
 const SCOPE = self.registration.scope;
 const PRECACHE = [
   '',
@@ -26,7 +29,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== MODEL_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -52,8 +55,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Hashed build assets (JS, CSS, fonts, the FFmpeg core) and the AI model parts, whose folder
-  // name carries the model's hash, never change: cache first.
+  // name carries the model's hash, never change: cache first. Model parts go to their own cache,
+  // so one copy is kept and app updates do not drop them.
   if (url.pathname.includes('/assets/') || url.pathname.includes('/models/')) {
+    const target = url.pathname.includes('/models/') ? MODEL_CACHE : CACHE;
     event.respondWith(
       caches.match(request).then(
         (hit) =>
@@ -61,7 +66,7 @@ self.addEventListener('fetch', (event) => {
           fetch(request).then((res) => {
             if (res.ok) {
               const copy = res.clone();
-              caches.open(CACHE).then((c) => c.put(request, copy));
+              caches.open(target).then((c) => c.put(request, copy));
             }
             return res;
           }),

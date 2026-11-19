@@ -56,12 +56,13 @@ export interface WorkerDoneMessage {
   notes: string[];
   engine: string;
   keptOriginal: boolean;
-  /** Background debug: raw matte, refined matte, composite on white, composite on dark. */
+  /** Background debug: raw matte, refined matte, composites on white, black and a saturated colour. */
   debug?: {
     rawMatte: Blob;
     refinedMatte: Blob;
     onWhite: Blob;
-    onDark: Blob;
+    onBlack: Blob;
+    onColor: Blob;
   };
 }
 
