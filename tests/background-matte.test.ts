@@ -81,20 +81,22 @@ describe('background matte', () => {
     assert.ok(mids.length >= 2);
   });
 
-  test('smoothstepAlpha is gentle and not a hard threshold', () => {
-    const a = new Float32Array([0, 0.25, 0.5, 0.75, 1]);
-    const s = smoothstepAlpha(a, 0.05, 0.95);
+  test('smoothstepAlpha 0.1–0.9 kills soft halo without binary snap', () => {
+    const a = new Float32Array([0, 0.08, 0.25, 0.5, 0.75, 0.92, 1]);
+    const s = smoothstepAlpha(a, 0.1, 0.9);
     assert.equal(s[0], 0);
-    assert.equal(s[4], 1);
-    assert.ok(s[1] > 0 && s[1] < 0.5);
-    assert.ok(s[2] > 0.4 && s[2] < 0.6);
+    assert.equal(s[1], 0); // below 0.1 → halo killed
+    assert.equal(s[6], 1);
+    assert.ok(s[2] > 0 && s[2] < 0.4);
+    assert.ok(s[3] > 0.4 && s[3] < 0.6);
+    assert.ok(s[5] > 0.9); // above ~0.9 edge
   });
 
-  test('guidedFilterRadius scales with width (~12 at 1536)', () => {
-    assert.equal(guidedFilterRadius(1536), 12);
-    assert.ok(guidedFilterRadius(768) < 12);
-    assert.ok(guidedFilterRadius(3072) > 12);
-    assert.ok(guidedFilterRadius(3072) <= 24);
+  test('guidedFilterRadius stays in 4–8 (~6 at 1536)', () => {
+    assert.equal(guidedFilterRadius(1536), 6);
+    assert.ok(guidedFilterRadius(768) >= 4);
+    assert.ok(guidedFilterRadius(768) <= 6);
+    assert.equal(guidedFilterRadius(4096), 8);
   });
 
   test('guidedFilter smooths noise while keeping a step edge on a matching guide', () => {

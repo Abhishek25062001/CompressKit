@@ -15,9 +15,21 @@ export interface QueueState {
   setRunning: (running: boolean) => void;
 }
 
+function releaseDebugPreviews(result: QueueItem['result']): void {
+  const d = result?.debugPreviews;
+  if (!d) return;
+  URL.revokeObjectURL(d.rawMatteUrl);
+  URL.revokeObjectURL(d.refinedMatteUrl);
+  URL.revokeObjectURL(d.onWhiteUrl);
+  URL.revokeObjectURL(d.onDarkUrl);
+}
+
 function releaseItem(item: QueueItem): void {
   if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl);
-  if (item.result) URL.revokeObjectURL(item.result.url);
+  if (item.result) {
+    URL.revokeObjectURL(item.result.url);
+    releaseDebugPreviews(item.result);
+  }
 }
 
 /** Each tool (compressor, converter) owns an independent queue built from this factory. */
@@ -39,6 +51,7 @@ export const createQueueStore = () => create<QueueState>()((set, get) => ({
       // Release a replaced result so repeated compressions do not leak object URLs.
       if (patch.result !== undefined && current.result && patch.result !== current.result) {
         URL.revokeObjectURL(current.result.url);
+        releaseDebugPreviews(current.result);
       }
       return { items: { ...s.items, [id]: { ...current, ...patch } } };
     }),

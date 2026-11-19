@@ -12,6 +12,7 @@ export const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
   color: '#ffffff',
   format: 'png',
   trim: false,
+  debugMatte: false,
 };
 
 export const useBackgroundSettingsStore = create<BackgroundSettingsState>()(
@@ -29,9 +30,25 @@ export const useBackgroundSettingsStore = create<BackgroundSettingsState>()(
     }),
     {
       name: 'compresskit-background-settings',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ background: s.background, color: s.color, format: s.format, trim: s.trim }),
+      partialize: (s) => ({
+        background: s.background,
+        color: s.color,
+        format: s.format,
+        trim: s.trim,
+        debugMatte: s.debugMatte,
+      }),
+      migrate: (persisted) => {
+        const p = (persisted ?? {}) as Partial<BackgroundSettings>;
+        return {
+          background: p.background ?? DEFAULT_BACKGROUND_SETTINGS.background,
+          color: p.color ?? DEFAULT_BACKGROUND_SETTINGS.color,
+          format: p.format ?? DEFAULT_BACKGROUND_SETTINGS.format,
+          trim: p.trim === true,
+          debugMatte: p.debugMatte === true,
+        };
+      },
     },
   ),
 );

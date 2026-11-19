@@ -2,6 +2,7 @@ import type { BackgroundJobRequest } from '../../types/background';
 import { CompressionError } from '../../utils/errors';
 import type { ProgressFn } from '../video/ffmpegEngine';
 import {
+  GUIDED_FILTER_EPS,
   MODEL_INPUT_SIZE,
   compositeUnpremultiplied,
   guidedFilter,
@@ -24,6 +25,14 @@ const PAD_RGB = { r: 123, g: 116, b: 104 } as const;
 
 const MIME = { png: 'image/png', webp: 'image/webp', jpeg: 'image/jpeg' } as const;
 
+/** Optional stage previews when debugMatte is on — which stage causes halo / seams / washout. */
+export interface CutoutDebugBlobs {
+  rawMatte: Blob;
+  refinedMatte: Blob;
+  onWhite: Blob;
+  onDark: Blob;
+}
+
 export interface CutoutOutput {
   blob: Blob;
   mime: string;
@@ -31,6 +40,7 @@ export interface CutoutOutput {
   height: number;
   notes: string[];
   device: Device;
+  debug?: CutoutDebugBlobs;
 }
 
 function canvas(width: number, height: number) {
@@ -64,6 +74,37 @@ function flattenColor(settings: BackgroundJobRequest['settings']): 'transparent'
   return settings.color;
 }
 
+/** Greyscale visualisation of a float matte (0–1). */
+async function mattePreviewBlob(alpha: Float32Array, width: number, height: number): Promise<Blob> {
+  const { c, ctx } = canvas(width, height);
+  const img = ctx.createImageData(width, height);
+  for (let i = 0; i < alpha.length; i++) {
+    const v = Math.round(Math.min(1, Math.max(0, alpha[i])) * 255);
+    const o = i * 4;
+    img.data[o] = v;
+    img.data[o + 1] = v;
+    img.data[o + 2] = v;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.convertToBlob({ type: 'image/png' });
+}
+
+/** Composite the cut-out onto a solid colour for debug comparison (does not mutate `rgba`). */
+async function flatPreviewBlob(
+  rgba: Uint8ClampedArray,
+  alpha: Float32Array,
+  width: number,
+  height: number,
+  bg: string,
+): Promise<Blob> {
+  const copy = new Uint8ClampedArray(rgba);
+  compositeUnpremultiplied(copy, alpha, width, height, { background: bg });
+  const { c, ctx } = canvas(width, height);
+  ctx.putImageData(new ImageData(copy, width, height), 0, 0);
+  return c.convertToBlob({ type: 'image/png' });
+}
+
 export async function removeBackground(job: BackgroundJobRequest, onProgress: ProgressFn): Promise<CutoutOutput> {
   const { file, settings } = job;
   const notes: string[] = [];
@@ -84,38 +125,58 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
       notes.push(`This photo is very large, so the cut-out was made at ${width} × ${height}.`);
     }
 
-    // (1) Letterbox — never stretch. (2) Inference at MODEL_INPUT_SIZE (1024).
+    // Single full-frame pass (no tiling) — avoids rectangular seam patches from tile edges.
     const { rgba: modelRgba, layout } = letterboxPixels(bitmap, width, height);
     const subject = await findSubject(job, modelRgba, onProgress);
     notes.push(...subject.notes);
     notes.push(
-      `Letterboxed ${width}×${height} → ${layout.contentW}×${layout.contentH} inside ${MODEL_INPUT_SIZE}² (pad ${layout.padX},${layout.padY}).`,
+      `Letterboxed ${width}×${height} → ${layout.contentW}×${layout.contentH} inside ${MODEL_INPUT_SIZE}² (pad ${layout.padX},${layout.padY}); single-pass (no tiles).`,
     );
 
-    // (3) Crop pad, gentle smoothstep only (no binary threshold), bicubic upscale as float alpha.
-    onProgress(0.82, 'Upscaling matte');
+    onProgress(0.8, 'Upscaling matte');
     const cropped = unletterboxMatte(subject.alpha, layout);
-    const softened = smoothstepAlpha(cropped, 0.04, 0.96);
-    let fullMatte = resizeMatteFloatBicubic(softened, layout.contentW, layout.contentH, width, height);
+    // Bicubic float upscale first — keep soft values, no threshold.
+    const rawFull = resizeMatteFloatBicubic(cropped, layout.contentW, layout.contentH, width, height);
+    // Contrast curve after upscale kills the wide soft halo without binary snapping.
+    const contrasted = smoothstepAlpha(rawFull, 0.1, 0.9);
 
-    // (4) Guided filter with the original photo as guide (runs in this worker).
     onProgress(0.88, 'Refining edges');
     const { c, ctx } = canvas(width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
     const image = ctx.getImageData(0, 0, width, height);
     const radius = guidedFilterRadius(width);
-    fullMatte = guidedFilter(lumaFloat(image.data, width, height), fullMatte, width, height, radius, 1e-4);
-    notes.push(`Guided filter radius ${radius} px (eps 1e-4) at ${width}×${height}.`);
+    // Tight guided filter with the original photo as guide (eps ~5e-5).
+    const refined = guidedFilter(
+      lumaFloat(image.data, width, height),
+      contrasted,
+      width,
+      height,
+      radius,
+      GUIDED_FILTER_EPS,
+    );
+    notes.push(`Guided filter radius ${radius} px (eps ${GUIDED_FILTER_EPS}) at ${width}×${height}.`);
 
-    // (5) Blur-fusion FG colour for semi-transparent edges → unpremultiplied RGBA.
     onProgress(0.93, 'Cutting out');
-    compositeUnpremultiplied(image.data, fullMatte, width, height, {
+    // Work on a copy so debug can still show composites from the same matte + source RGB.
+    const sourceRgba = new Uint8ClampedArray(image.data);
+    compositeUnpremultiplied(image.data, refined, width, height, {
       background: flattenColor(settings),
-      blurRadius: Math.max(4, Math.round(radius * 1.25)),
     });
     ctx.putImageData(image, 0, 0);
 
-    const box = matteBoundsFloat(fullMatte, width, height);
+    let debug: CutoutDebugBlobs | undefined;
+    if (settings.debugMatte) {
+      onProgress(0.96, 'Debug previews');
+      debug = {
+        rawMatte: await mattePreviewBlob(rawFull, width, height),
+        refinedMatte: await mattePreviewBlob(refined, width, height),
+        onWhite: await flatPreviewBlob(sourceRgba, refined, width, height, '#ffffff'),
+        onDark: await flatPreviewBlob(sourceRgba, refined, width, height, '#1a1a1a'),
+      };
+      notes.unshift('Debug matte: raw (after bicubic), refined (smoothstep + guided), composites on white and dark.');
+    }
+
+    const box = matteBoundsFloat(refined, width, height);
     if (!box) notes.push('No clear subject was found in this photo, so most of it may have been removed.');
     let crop = { x: 0, y: 0, w: width, h: height };
     if (settings.trim && box) {
@@ -141,8 +202,8 @@ export async function removeBackground(job: BackgroundJobRequest, onProgress: Pr
         `Your browser cannot write ${format.toUpperCase()}, so the result was saved as ${blob.type.split('/')[1].toUpperCase()}.`,
       );
     }
-    notes.push('Soft float matte (bicubic + guided filter + blur-fusion), no binary threshold.');
-    return { blob, mime: blob.type, width: crop.w, height: crop.h, notes, device: subject.device };
+    notes.push('Matte: bicubic → smoothstep(0.1–0.9) → guided filter → blur-fusion FG (unpremultiplied RGBA).');
+    return { blob, mime: blob.type, width: crop.w, height: crop.h, notes, device: subject.device, debug };
   } finally {
     bitmap.close();
   }

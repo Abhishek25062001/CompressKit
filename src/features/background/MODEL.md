@@ -2,7 +2,7 @@
 
 Downloaded by `npm run model` into `/models` (gitignored). Served in ≤20 MB parts via Vite `virtual:background-model`. The service worker caches `/models/…` parts for offline reuse after the first download.
 
-Hair / fine edges need a **soft float matte**: the pipeline letterboxes (no stretch), runs at 1024×1024, unletterboxes, bicubic-upscales float alpha, guided-filters with the photo as guide, then blur-fusion decontaminates edge colours. See `cutout.ts` / `matte.ts`.
+Hair / fine edges need a **soft float matte**: letterbox (no stretch) → 1024 infer → unletterbox → bicubic float upscale → **smoothstep(0.1–0.9)** → guided filter (radius 4–8, eps ~5e-5, photo as guide, **single pass / no tiles**) → blur-fusion FG colour → unpremultiplied RGBA. Enable **Debug matte stages** in settings to compare raw vs refined vs white/dark composites. See `cutout.ts` / `matte.ts`.
 
 ## Files
 

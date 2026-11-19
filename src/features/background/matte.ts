@@ -155,10 +155,13 @@ export function resizeMatteFloatBicubic(
   return out;
 }
 
-/** Guided-filter radius scaled so ~12 px at 1536 px width (clamped). */
+/** Guided-filter radius ~6 px at 1536 px width, clamped to 4–8 (tighter = less halo / blockiness). */
 export function guidedFilterRadius(imageWidth: number): number {
-  return Math.max(4, Math.min(24, Math.round(12 * (imageWidth / 1536))));
+  return Math.max(4, Math.min(8, Math.round(6 * (imageWidth / 1536))));
 }
+
+/** Default guided-filter epsilon — small enough to keep hair edges. */
+export const GUIDED_FILTER_EPS = 5e-5;
 
 /** Rec. 601 luminance 0–1 from RGBA bytes. */
 export function lumaFloat(rgba: Uint8ClampedArray, width: number, height: number): Float32Array {
@@ -242,8 +245,8 @@ export function boxFilter(src: Float32Array, width: number, height: number, radi
 }
 
 /**
- * Blur-fusion foreground colour estimate for semi-transparent edges, then write
- * **unpremultiplied** RGBA. Removes background colour fringing in hair / glass.
+ * Blur-fusion foreground colour estimate for every pixel with 0 < alpha < 1, then write
+ * **unpremultiplied** RGBA. Removes washed-out background colour fringing in hair / glass.
  */
 export function compositeUnpremultiplied(
   rgba: Uint8ClampedArray,
@@ -254,7 +257,9 @@ export function compositeUnpremultiplied(
 ): void {
   const n = width * height;
   if (alpha.length !== n) throw new Error(`matte size ${alpha.length} ≠ ${n}`);
-  const blurR = options.blurRadius ?? Math.max(4, Math.round(guidedFilterRadius(width) * 1.25));
+  // Wide BG blur so thin hair strands still see a stable background colour estimate.
+  const blurR = options.blurRadius ?? Math.max(16, Math.round(guidedFilterRadius(width) * 4));
+  const fgBlurR = Math.max(8, Math.round(blurR * 0.6));
 
   const bgR = new Float32Array(n);
   const bgG = new Float32Array(n);
@@ -268,13 +273,14 @@ export function compositeUnpremultiplied(
   for (let i = 0; i < n; i++) {
     const a = alpha[i];
     const o = i * 4;
-    if (a < 0.1) {
+    // Strict known-BG / known-FG seeds so fringe pixels are reconstructed, not copied.
+    if (a < 0.05) {
       bgR[i] = rgba[o];
       bgG[i] = rgba[o + 1];
       bgB[i] = rgba[o + 2];
       bgW[i] = 1;
     }
-    if (a > 0.9) {
+    if (a > 0.95) {
       fgR[i] = rgba[o];
       fgG[i] = rgba[o + 1];
       fgB[i] = rgba[o + 2];
@@ -286,10 +292,10 @@ export function compositeUnpremultiplied(
   const bG = boxFilter(bgG, width, height, blurR);
   const bB = boxFilter(bgB, width, height, blurR);
   const bW = boxFilter(bgW, width, height, blurR);
-  const fR = boxFilter(fgR, width, height, blurR);
-  const fG = boxFilter(fgG, width, height, blurR);
-  const fB = boxFilter(fgB, width, height, blurR);
-  const fW = boxFilter(fgW, width, height, blurR);
+  const fR = boxFilter(fgR, width, height, fgBlurR);
+  const fG = boxFilter(fgG, width, height, fgBlurR);
+  const fB = boxFilter(fgB, width, height, fgBlurR);
+  const fW = boxFilter(fgW, width, height, fgBlurR);
 
   const solid = options.background !== 'transparent';
   let flatR = 255;
@@ -327,21 +333,25 @@ export function compositeUnpremultiplied(
       a = 1;
     } else {
       // Estimated background colour near this pixel (blur-fusion).
-      const bw = Math.max(bW[i], 1e-3);
+      const bw = Math.max(bW[i], 1e-4);
       const estBR = bR[i] / bw;
       const estBG = bG[i] / bw;
       const estBB = bB[i] / bw;
-      // Solve C = a·F + (1−a)·B  →  F = (C − (1−a)·B) / a
-      let F_r = (cR - (1 - a) * estBR) / a;
-      let F_g = (cG - (1 - a) * estBG) / a;
-      let F_b = (cB - (1 - a) * estBB) / a;
-      // Soft fall-back toward blurred FG when the solve is unstable.
+      // C = a·F + (1−a)·B  →  F = (C − (1−a)·B) / a  (unpremultiply against estimated BG)
+      const invA = 1 / Math.max(a, 0.02);
+      let F_r = (cR - (1 - a) * estBR) * invA;
+      let F_g = (cG - (1 - a) * estBG) * invA;
+      let F_b = (cB - (1 - a) * estBB) * invA;
+      // Blend toward blurred FG when available — stronger at low alpha where the solve is noisy.
       const fw = fW[i];
-      if (fw > 0.05) {
-        const t = Math.min(1, fw);
-        F_r = F_r * (1 - 0.25 * t) + (fR[i] / fw) * (0.25 * t);
-        F_g = F_g * (1 - 0.25 * t) + (fG[i] / fw) * (0.25 * t);
-        F_b = F_b * (1 - 0.25 * t) + (fB[i] / fw) * (0.25 * t);
+      if (fw > 0.02) {
+        const trust = Math.min(1, fw) * (1 - a);
+        const fr = fR[i] / fw;
+        const fg = fG[i] / fw;
+        const fb = fB[i] / fw;
+        F_r = F_r * (1 - trust) + fr * trust;
+        F_g = F_g * (1 - trust) + fg * trust;
+        F_b = F_b * (1 - trust) + fb * trust;
       }
       outR = F_r < 0 ? 0 : F_r > 255 ? 255 : F_r;
       outG = F_g < 0 ? 0 : F_g > 255 ? 255 : F_g;

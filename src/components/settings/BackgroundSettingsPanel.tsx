@@ -81,6 +81,13 @@ export function BackgroundSettingsPanel() {
           description="Removes the empty space around the cut-out, for stickers and product photos."
         />
 
+        <Switch
+          label="Debug matte stages"
+          checked={settings.debugMatte}
+          onChange={(debugMatte) => settings.update({ debugMatte })}
+          description="Show raw matte, refined matte, and the cut-out on white and dark so you can spot halo, seams or washout."
+        />
+
         <div className="space-y-2 border-t border-border pt-4 text-xs text-muted">
           {MODEL_SIZE === null ? (
             <p className="flex gap-2 text-warning">

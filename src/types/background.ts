@@ -10,6 +10,19 @@ export interface BackgroundSettings {
   format: CutoutFormat;
   /** Crop the result to the subject, with a small margin. */
   trim: boolean;
+  /**
+   * Show raw matte, refined matte, and composites on white/dark so you can see which stage
+   * causes halo, seams or washout. The downloadable cut-out is still produced.
+   */
+  debugMatte: boolean;
+}
+
+/** Object URLs for the four debug stage panels (revoked with the result). */
+export interface CutoutDebugPreviews {
+  rawMatteUrl: string;
+  refinedMatteUrl: string;
+  onWhiteUrl: string;
+  onDarkUrl: string;
 }
 
 export interface ModelFiles {

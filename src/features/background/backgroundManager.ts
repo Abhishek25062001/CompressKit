@@ -53,7 +53,13 @@ export class BackgroundManager extends QueueRunner {
       type: 'remove-background',
       jobId: item.id,
       file: item.file,
-      settings: { background: settings.background, color: settings.color, format: settings.format, trim: settings.trim },
+      settings: {
+        background: settings.background,
+        color: settings.color,
+        format: settings.format,
+        trim: settings.trim,
+        debugMatte: settings.debugMatte,
+      },
       models: { gpu: withAbsoluteUrls(backgroundModels.gpu), cpu: withAbsoluteUrls(backgroundModels.cpu) },
       runtime: { wasm: new URL(ortWasmUrl, window.location.href).href },
     };
@@ -77,6 +83,14 @@ export class BackgroundManager extends QueueRunner {
                 engine: msg.engine === 'webgpu' ? 'webgpu' : 'wasm',
                 notes: msg.notes,
                 keptOriginal: false,
+                debugPreviews: msg.debug
+                  ? {
+                      rawMatteUrl: URL.createObjectURL(msg.debug.rawMatte),
+                      refinedMatteUrl: URL.createObjectURL(msg.debug.refinedMatte),
+                      onWhiteUrl: URL.createObjectURL(msg.debug.onWhite),
+                      onDarkUrl: URL.createObjectURL(msg.debug.onDark),
+                    }
+                  : undefined,
               },
             });
           }

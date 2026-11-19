@@ -27,6 +27,7 @@ async function run(job: BackgroundJobRequest): Promise<void> {
     notes: out.notes,
     engine: out.device,
     keptOriginal: false,
+    debug: out.debug,
   });
 }
 

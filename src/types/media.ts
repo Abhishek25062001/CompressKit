@@ -67,6 +67,8 @@ export interface CompressionResult {
   keptOriginal: boolean;
   /** Clean tool: the hidden details that were taken out. */
   removed?: HiddenInfo[];
+  /** Background tool: stage previews when debug matte is on. */
+  debugPreviews?: import('./background').CutoutDebugPreviews;
 }
 
 export interface FileSettingsOverride {

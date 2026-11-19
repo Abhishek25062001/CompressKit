@@ -4,6 +4,7 @@ import { useTool } from '../../features/tools';
 import { KIND_LABEL } from '../../features/clean/summary';
 import { formatBytes, formatDimensions, formatDuration, formatElapsed, formatPercent, savedRatio } from '../../utils/format';
 import { ConvertedPreview } from '../preview/ConvertedPreview';
+import { CutoutDebugPreview } from '../preview/CutoutDebugPreview';
 import { ImageCompare } from '../preview/ImageCompare';
 import { VideoCompare } from '../preview/VideoCompare';
 
@@ -56,6 +57,9 @@ export function ResultPanel({ item }: { item: QueueItem }) {
           />
         ) : (
           <ConvertedPreview result={result} />
+        )}
+        {mode === 'background' && result.debugPreviews && (
+          <CutoutDebugPreview previews={result.debugPreviews} width={result.width} height={result.height} />
         )}
       </div>
     );
